@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<!-- saved from url=(0079)file:///Users/botboy/Documents/Claim%20Verification%20Research/visual_plan.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FINDVER — Edge-Cloud Claim Verification · Build Plan</title>
+<style>
+:root{
+  --ground:#F0F2EC;
+  --panel:#FAFBF7;
+  --ink:#161A17;
+  --ink-soft:#4A514B;
+  --edge:#1F6F4A;
+  --cloud:#2C4FA8;
+  --exact:#5A605C;
+  --flag:#A8420F;
+  --rule:#C9CFC2;
+  --rule-hard:#8E968A;
+
+  --display:"Avenir Next Condensed","HelveticaNeue-CondensedBold","Arial Narrow","Roboto Condensed",system-ui,sans-serif;
+  --body:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:var(--body);
+  font-size:15px;
+  line-height:1.55;
+  font-variant-numeric:tabular-nums;
+}
+.wrap{max-width:1120px;margin:0 auto;padding:0 28px 80px}
+
+/* ---------- masthead ---------- */
+.masthead{padding:52px 0 26px;border-bottom:2.5px solid var(--ink)}
+.eyebrow{
+  font-family:var(--mono);
+  font-size:10.5px;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:var(--ink-soft);
+  margin:0 0 14px;
+}
+.title{
+  font-family:var(--display);
+  font-weight:700;
+  font-size:clamp(34px,5.6vw,62px);
+  line-height:.98;
+  letter-spacing:-.015em;
+  margin:0 0 16px;
+  max-width:20ch;
+}
+.standfirst{
+  font-size:17px;
+  line-height:1.5;
+  max-width:64ch;
+  color:var(--ink-soft);
+  margin:0 0 26px;
+}
+.statusbar{
+  display:flex;flex-wrap:wrap;gap:0;
+  border:1px solid var(--rule-hard);
+  background:var(--panel);
+}
+.statusbar > div{
+  flex:1 1 190px;
+  padding:11px 15px;
+  border-right:1px solid var(--rule);
+}
+.statusbar > div:last-child{border-right:0}
+.st-k{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--ink-soft);display:block;margin-bottom:3px;
+}
+.st-v{font-family:var(--display);font-size:19px;font-weight:600;letter-spacing:.01em}
+
+/* ---------- generic section ---------- */
+.block{padding:46px 0 8px;border-bottom:1px solid var(--rule)}
+.block:last-of-type{border-bottom:0}
+.blockhead{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;flex-wrap:wrap}
+.marker{
+  font-family:var(--mono);font-size:11px;letter-spacing:.1em;
+  color:var(--ink-soft);border:1px solid var(--rule-hard);
+  padding:2px 7px;white-space:nowrap;
+}
+.h2{
+  font-family:var(--display);font-weight:700;
+  font-size:clamp(23px,3vw,31px);letter-spacing:-.01em;margin:0;line-height:1.1;
+}
+.lede{max-width:70ch;color:var(--ink-soft);margin:6px 0 24px;font-size:14.5px}
+
+/* ---------- tier legend ---------- */
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1px;background:var(--rule-hard);border:1px solid var(--rule-hard)}
+.lg{background:var(--panel);padding:16px 17px}
+.lg-top{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+.swatch{width:13px;height:13px;flex:0 0 13px;border-radius:2px}
+.lg-name{font-family:var(--display);font-size:17px;font-weight:700;letter-spacing:.01em}
+.lg-body{font-size:13.5px;line-height:1.5;color:var(--ink-soft);margin:0}
+.lg-cost{font-family:var(--mono);font-size:11px;color:var(--ink);margin-top:9px;padding-top:8px;border-top:1px dotted var(--rule-hard)}
+
+/* ---------- pipeline ---------- */
+.ledger{border:1px solid var(--rule-hard);background:var(--panel)}
+.lh{
+  display:grid;grid-template-columns:36px 1fr 148px 108px;
+  background:var(--ink);color:var(--ground);
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+}
+.lh span{padding:8px 10px}
+.lh span:nth-child(3),.lh span:nth-child(4){text-align:right}
+.row{
+  display:grid;grid-template-columns:36px 1fr 148px 108px;
+  border-top:1px solid var(--rule);align-items:stretch;
+}
+.row:first-of-type{border-top:0}
+.gut{position:relative;background:var(--ground);border-right:1px solid var(--rule)}
+.gut::before{
+  content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;
+  transform:translateX(-50%);background:var(--rule-hard);
+}
+.row:first-of-type .gut::before{top:50%}
+.row:last-of-type .gut::before{bottom:50%}
+.node{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:11px;height:11px;border-radius:50%;border:2.5px solid var(--panel);
+}
+.stage{padding:13px 16px}
+.stage-name{font-weight:600;font-size:14.5px;margin-bottom:2px}
+.stage-note{font-size:12.8px;color:var(--ink-soft);line-height:1.45}
+.who,.cost{
+  padding:13px 14px;text-align:right;font-family:var(--mono);font-size:11.5px;
+  border-left:1px solid var(--rule);display:flex;flex-direction:column;justify-content:center;
+}
+.who{letter-spacing:.03em}
+.cost{color:var(--ink-soft)}
+.tag-edge{color:var(--edge)}
+.tag-cloud{color:var(--cloud)}
+.tag-exact{color:var(--exact)}
+.bg-edge{background:var(--edge)}
+.bg-cloud{background:var(--cloud)}
+.bg-exact{background:var(--exact)}
+.bg-flag{background:var(--flag)}
+.guard{background:#F6EDE6}
+.guard .stage-name{color:var(--flag)}
+
+/* ---------- findings ---------- */
+.findlist{list-style:none;padding:0;margin:0;border-top:1px solid var(--rule-hard)}
+.findlist li{padding:20px 0;border-bottom:1px solid var(--rule)}
+.f-tag{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-soft);margin-bottom:7px;
+}
+.f-tag b{font-weight:700}
+.tag-good b{color:var(--edge)}
+.tag-trap b{color:var(--flag)}
+.tag-use b{color:var(--cloud)}
+.f-h{font-family:var(--display);font-size:21px;font-weight:700;margin:0 0 6px;line-height:1.2}
+.f-b{margin:0 0 10px;font-size:14px;line-height:1.55;color:var(--ink-soft);max-width:82ch}
+.f-so{
+  margin:0;font-size:13.5px;line-height:1.5;max-width:82ch;
+  padding-left:14px;border-left:2px solid var(--rule-hard);
+}
+.find-so b{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:3px;color:var(--ink-soft);font-weight:400}
+
+/* ---------- build ladder ---------- */
+.ladder{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--rule-hard)}
+.ladder thead th{
+  background:var(--ink);color:var(--ground);
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+  font-weight:400;text-align:left;padding:9px 12px;
+}
+.ladder td{padding:14px 12px;border-top:1px solid var(--rule);vertical-align:top;font-size:13.6px}
+.ladder tbody tr:first-child td{border-top:0}
+.tier-n{font-family:var(--display);font-size:24px;font-weight:700;line-height:1;width:44px}
+.tier-mod{font-weight:600;display:block;margin-bottom:4px}
+.tier-sub{display:block;color:var(--ink-soft);font-size:13px;line-height:1.5;max-width:56ch}
+.tier-files{font-family:var(--mono);font-size:11px;line-height:1.75;color:var(--ink-soft);white-space:nowrap}
+.tier-files span{display:block}
+.tier-fix{font-size:13px;line-height:1.45}
+
+/* ---------- questions ---------- */
+.qs{counter-reset:q;list-style:none;padding:0;margin:0;border-top:1px solid var(--rule-hard)}
+.qs li{
+  counter-increment:q;border-bottom:1px solid var(--rule);
+  padding:15px 0 15px 54px;position:relative;
+}
+.qs li::before{
+  content:"Q" counter(q);position:absolute;left:0;top:15px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--flag);
+}
+.q-h{font-family:var(--display);font-size:19px;font-weight:700;margin:0 0 4px;line-height:1.2}
+.q-b{margin:0;font-size:13.6px;color:var(--ink-soft);line-height:1.5;max-width:78ch}
+
+/* ---------- risks ---------- */
+.risks{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1px;background:var(--rule-hard);border:1px solid var(--rule-hard)}
+.risk{background:var(--panel);padding:15px 17px}
+.risk-if{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--flag);margin-bottom:6px}
+.risk-h{font-weight:600;font-size:14px;margin-bottom:5px;line-height:1.3}
+.risk-b{font-size:13px;color:var(--ink-soft);line-height:1.5;margin:0}
+
+/* ---------- footer ---------- */
+.foot{
+  margin-top:44px;padding-top:18px;border-top:2.5px solid var(--ink);
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--ink-soft);
+  display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
+}
+
+/* ---------- responsive ---------- */
+@media (max-width:860px){
+  .lh,.row{grid-template-columns:30px 1fr 108px}
+  .lh span:nth-child(4),.row .cost{display:none}
+  .wk-head,.grow{grid-template-columns:132px 1fr}
+}
+@media (max-width:620px){
+  .wrap{padding:0 16px 56px}
+  .statusbar > div{flex:1 1 100%;border-right:0;border-bottom:1px solid var(--rule)}
+  .lh,.row{grid-template-columns:26px 1fr}
+  .lh span:nth-child(3),.row .who{display:none}
+  .ladder td:nth-child(3){display:none}
+  .ladder thead th:nth-child(3){display:none}
+}
+@media print{
+  body{background:#fff}
+  .block{break-inside:avoid;page-break-inside:avoid}
+  .find,.risk,.lg{break-inside:avoid}
+}
+@media (prefers-reduced-motion:no-preference){
+  .block{animation:rise .5s ease-out both}
+  @keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+}
+a{color:var(--cloud)}
+:focus-visible{outline:2.5px solid var(--flag);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">Research build plan</p>
+  <h1 class="title">Verifying financial claims with a cloud-edge system</h1>
+  <p class="standfirst">
+    An edge-cloud agent for the FINDVER benchmark. A free 3B local model running on a laptop does the
+    mechanical work, paid cloud APIs handle the judgment and reasoning, and scripts for concrete answers.
+  </p>
+  <div class="statusbar">
+    <div><span class="st-k">Gap to close</span><span class="st-v">77.2% → 93.3%</span></div>
+    <div><span class="st-k">Local throughput</span><span class="st-v">4m45s / example</span></div>
+    <div><span class="st-k">Ablation round</span><span class="st-v">~8 h · 100 ex</span></div>
+  </div>
+</header>
+
+<section class="block">
+  <div class="blockhead"><span class="marker">01</span><h2 class="h2">Who does what, and what it costs</h2></div>
+  <p class="lede">
+    The research purpose is to create a pipeline with increased accuracy ont eh FINDVER benchmark, but also determining which work belongs which of the three options (edge, cloud, or script)
+  </p>
+  <div class="legend">
+    <div class="lg">
+      <div class="lg-top"><span class="swatch bg-edge"></span><span class="lg-name">Edge</span></div>
+      <p class="lg-body">Qwen2.5-Coder-3B on the laptop via Ollama. Handles structured, templated work: splitting claims, writing table lookups, filling output templates.</p>
+      <p class="lg-cost">$0 · unlimited · 19 tok/s in, 6.7 out</p>
+    </div>
+    <div class="lg">
+      <div class="lg-top"><span class="swatch bg-cloud"></span><span class="lg-name">Cloud</span></div>
+      <p class="lg-body">DeepSeek / Qwen APIs. Reserved for judgment: deciding what evidence a claim needs, synthesising across sources, writing the final explanation.</p>
+      <p class="lg-cost">paid per token · escalation only</p>
+    </div>
+    <div class="lg">
+      <div class="lg-top"><span class="swatch bg-exact"></span><span class="lg-name">No model</span></div>
+      <p class="lg-body">Plain Python. Similarity ranking, BM25, table parsing, code execution, arithmetic re-checks, all control flow. Free and instant.</p>
+      <p class="lg-cost">$0 · deterministic · cannot hallucinate</p>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="blockhead"><span class="marker">02</span><h2 class="h2">The Pipeline: How one claim gets checked</h2></div>
+  <p class="lede">
+    Start to finish. The orange row is a check added after week-1 testing caught a bug that
+    would otherwise have looked like the model's fault.
+  </p>
+  <div class="ledger">
+    <div class="lh"><span></span><span>Step</span><span>Runs on</span><span>Cost</span></div>
+
+    <div class="row">
+      <div class="gut"><span class="node bg-edge"></span></div>
+      <div class="stage">
+        <div class="stage-name">Break the claim into pieces</div>
+        <div class="stage-note">A claim like "revenue grew 12% while expenses fell 3%" is really two things to check. Splitting it first means each piece gets searched for on its own.</div>
+      </div>
+      <div class="who tag-edge">EDGE 3B</div>
+      <div class="cost">1 call</div>
+    </div>
+
+    <div class="row">
+      <div class="gut"><span class="node bg-exact"></span></div>
+      <div class="stage">
+        <div class="stage-name">Find the parts of the document that matter</div>
+        <div class="stage-note">Search 300-odd paragraphs and 80-odd tables for the handful that are actually relevant. This is the weakest link in the system: the standard approach finds everything it needs only about 68% of the time.</div>
+      </div>
+      <div class="who tag-exact">SEARCH</div>
+      <div class="cost">$0</div>
+    </div>
+
+    <div class="row guard">
+      <div class="gut"><span class="node bg-flag"></span></div>
+      <div class="stage">
+        <div class="stage-name">Check the evidence really made it into the prompt</div>
+        <div class="stage-note">Before calling any model, confirm the numbers we expect are actually in the text being sent. A formatting bug in week 1 removed the real table, and both models invented figures instead, which looked exactly like a model failure. This catches that.</div>
+      </div>
+      <div class="who tag-exact">CHECK</div>
+      <div class="cost">$0</div>
+    </div>
+
+    <div class="row">
+      <div class="gut"><span class="node bg-exact"></span></div>
+      <div class="stage">
+        <div class="stage-name">Load the tables as spreadsheets</div>
+        <div class="stage-note">Parsed once ahead of time so the model can ask for a cell by row and column name, instead of reading numbers off a wall of text and hoping it lands on the right one.</div>
+      </div>
+      <div class="who tag-exact">PANDAS</div>
+      <div class="cost">$0 · offline</div>
+    </div>
+
+    <div class="row">
+      <div class="gut"><span class="node bg-cloud"></span></div>
+      <div class="stage">
+        <div class="stage-name">Decide what to check</div>
+        <div class="stage-note">Which numbers to pull, and what to do with them. Get this wrong and everything after it is wrong too, so it goes to the stronger model.</div>
+      </div>
+      <div class="who tag-cloud">CLOUD</div>
+      <div class="cost">paid</div>
+    </div>
+
+    <div class="row">
+      <div class="gut"><span class="node bg-edge"></span></div>
+      <div class="stage">
+        <div class="stage-name">Write the lookup</div>
+        <div class="stage-note">A line or two of code that fetches the right cells and does the arithmetic. It's short and mechanical which is exactly what a code-trained small model is good at.</div>
+      </div>
+      <div class="who tag-edge">EDGE 3B</div>
+      <div class="cost">1 call</div>
+    </div>
+
+    <div class="row">
+      <div class="gut"><span class="node bg-exact"></span></div>
+      <div class="stage">
+        <div class="stage-name">Run it</div>
+        <div class="stage-note">Python does the arithmetic, not the model. A calculator gets it right every time; a model predicting digits one at a time does not. If the code errors, the message goes back for one retry.</div>
+      </div>
+      <div class="who tag-exact">SANDBOX</div>
+      <div class="cost">$0 · exact</div>
+    </div>
+
+    <div class="row">
+      <div class="gut"><span class="node bg-cloud"></span></div>
+      <div class="stage">
+        <div class="stage-name">Decide and explain</div>
+        <div class="stage-note">Entailed or refuted, plus the reasoning behind it, written in the same format the benchmark's own annotators used.</div>
+      </div>
+      <div class="who tag-cloud">CLOUD</div>
+      <div class="cost">paid</div>
+    </div>
+
+    <div class="row">
+      <div class="gut"><span class="node bg-exact"></span></div>
+      <div class="stage">
+        <div class="stage-name">Check the explanation holds up</div>
+        <div class="stage-note">Does every number cited actually appear where the model says it does? Does the arithmetic re-run? Does the explanation actually make sense? A model can reach the right verdict through faulty reasoning which we saw through the 3B model during testing.</div>
+      </div>
+      <div class="who tag-exact">PYTHON + EDGE</div>
+      <div class="cost">$0 mostly</div>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="blockhead"><span class="marker">03</span><h2 class="h2">Four notes after testing</h2></div>
+  <p class="lede">
+    All four came from actually running the code rather than reading the paper. Each one changed a previous assumption.
+  </p>
+  <ul class="findlist">
+
+    <li>
+      <div class="f-tag tag-good">Good news · <b>saves days of work</b></div>
+      <h3 class="f-h">The tables are stored as HTML</h3>
+      <p class="f-b">
+        The paper says tables get flattened into lines of text, so I'd planned to write a parser to
+        rebuild them into a usable shape. The actual
+        files turn out to keep every table as HTML, about 83 per document, and Python reads that
+        straight back into a spreadsheet in one line.
+      </p>
+      <p class="f-so">So that job mostly disappears, and the time moves to the search problem instead, which is harder and more interesting.</p>
+    </li>
+
+    <li>
+      <div class="f-tag tag-trap">Trap · <b>caught before it did damage</b></div>
+      <h3 class="f-h">The examples aren't shuffled</h3>
+      <p class="f-b">
+        Every false claim is listed first, then every true one. So taking the first hundred examples
+        to test on gives you a hundred false ones, so a model that blindly answers "false" every
+        single time scores a perfect hundred percent.
+      </p>
+      <p class="f-so">So every sample is now drawn evenly across both answers, with a check that runs before the experiment does.</p>
+    </li>
+
+    <li>
+      <div class="f-tag tag-use">Useful · <b>free evidence</b></div>
+      <h3 class="f-h">The dataset shows its working</h3>
+      <p class="f-b">
+        For every claim involving numbers, the people who built the dataset included the actual
+        calculation they ran and the answer it gave. They didn't verify these claims by reading and
+        reasoning about them; they verified them by doing the arithmetic in code.
+      </p>
+      <p class="f-so">So there's a good argument that we should too. It also lets me score whether the maths was right separately from whether the final answer was right.</p>
+    </li>
+
+    <li>
+      <div class="f-tag tag-trap">Surprise · <b>changes a decision</b></div>
+      <h3 class="f-h">The small model did better than I assumed</h3>
+      <p class="f-b">
+        Given the whole job with no help from a cloud model, it found the right table, added four
+        figures together correctly, spotted the contradiction and gave the right answer. But part of
+        its written explanation argued for a point its own conclusion didn't actually rest on.
+      </p>
+      <p class="f-so">So: right answer, shaky reasoning, exactly what the explanation-checking step exists to catch. And the line between the local and cloud model is something to test rather than guess at.</p>
+    </li>
+
+  </ul>
+</section>
+
+<section class="block">
+  <div class="blockhead"><span class="marker">04</span><h2 class="h2">Build order</h2></div>
+  <p class="lede">
+    Each stage fixes one specific kind of mistake, and each one gets measured on its own before the
+    next is added. The table of before and after numbers that comes out of this is the main result
+    of the project.
+  </p>
+  <table class="ladder">
+    <thead>
+      <tr><th>Stage</th><th>What gets built</th><th>Files</th><th>What it fixes</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="tier-n">0a</td>
+        <td>
+          <span class="tier-mod">The plumbing</span>
+          <span class="tier-sub">This is everything the rest of the project runs on. It loads a claim, finds the document that goes with it, builds the text sent to the model, calls the model, and writes down exactly what happened. None of it is clever, but nothing can be measured until it exists.</span>
+        </td>
+        <td class="tier-files">
+          <span>data_loader.py</span><span>sampler.py</span><span>prompt_builder.py</span><span>llm_client.py</span><span>trace_logger.py</span>
+        </td>
+        <td class="tier-fix">Nothing yet. It just makes measurement possible.</td>
+      </tr>
+      <tr>
+        <td class="tier-n">0b</td>
+        <td>
+          <span class="tier-mod">The starting number</span>
+          <span class="tier-sub">The simplest possible version runs twice, once entirely on the laptop and once entirely in the cloud. That gives us the cheapest system and the most capable one before any of our own ideas get added, so every later change has two honest reference points.</span>
+        </td>
+        <td class="tier-files">
+          <span>retriever_dense.py</span><span>run_baseline.py</span><span>evaluate.py</span>
+        </td>
+        <td class="tier-fix">Nothing yet. It tells us how big the problem actually is.</td>
+      </tr>
+      <tr>
+        <td class="tier-n">1</td>
+        <td>
+          <span class="tier-mod">Tables and arithmetic</span>
+          <span class="tier-sub">This stage turns every table into something the model can look up by row and column name, and moves all the arithmetic out of the model and into Python. The two belong together, because a number fetched from the wrong cell guarantees wrong arithmetic afterwards no matter how good the calculator is.</span>
+        </td>
+        <td class="tier-files">
+          <span>table_parser.py</span><span>table_cache/</span><span>sandbox.py</span><span>skill_lookup.py</span>
+        </td>
+        <td class="tier-fix">Wrong numbers pulled from tables, and wrong sums done on them.</td>
+      </tr>
+      <tr>
+        <td class="tier-n">2</td>
+        <td>
+          <span class="tier-mod">Finding the right evidence</span>
+          <span class="tier-sub">The search step decides which parts of a very long filing the model ever gets to see, so a claim whose evidence it misses is unanswerable regardless of how good the reasoning is. The published approach finds everything it needs only about 68 percent of the time, and so far nobody has tried to improve on that.</span>
+        </td>
+        <td class="tier-files">
+          <span>retriever_bm25.py</span><span>fusion.py</span><span>decompose.py</span><span>eval_recall.py</span>
+        </td>
+        <td class="tier-fix">Evidence that never reaches the model at all.</td>
+      </tr>
+      <tr>
+        <td class="tier-n">3</td>
+        <td>
+          <span class="tier-mod">A small financial dictionary</span>
+          <span class="tier-sub">The glossary is a short file of plain English definitions that gets pasted into the prompt whenever a relevant term shows up. Fair value hierarchy levels are the first entry, because the local model already misread them once during testing.</span>
+        </td>
+        <td class="tier-files">
+          <span>glossary.json</span><span>glossary_lookup.py</span>
+        </td>
+        <td class="tier-fix">Accounting concepts the model does not know well enough.</td>
+      </tr>
+      <tr>
+        <td class="tier-n">4</td>
+        <td>
+          <span class="tier-mod">Checking the explanation</span>
+          <span class="tier-sub">This stage goes through the model's written reasoning line by line and asks whether each number quoted really appears where it says, and whether each calculation actually holds up. The people who built the benchmark asked for something like this in their own paper, and nobody has published it yet.</span>
+        </td>
+        <td class="tier-files">
+          <span>verify_steps.py</span><span>faithfulness_report.py</span>
+        </td>
+        <td class="tier-fix">Right answers reached through reasoning that does not hold up.</td>
+      </tr>
+      <tr>
+        <td class="tier-n">5</td>
+        <td>
+          <span class="tier-mod">Where to draw the line</span>
+          <span class="tier-sub">The last experiment varies how often work gets passed from the local model up to the cloud one, from never to always. Never gives the cheapest possible system, always matches the published approach, and the interesting answer is somewhere in between.</span>
+        </td>
+        <td class="tier-files">
+          <span>routing.py</span><span>sweep_routing.py</span>
+        </td>
+        <td class="tier-fix">Cost, without giving up accuracy.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="block">
+  <div class="blockhead"><span class="marker">06</span><h2 class="h2">Questions for this meeting</h2></div>
+  <p class="lede">Ordered by importance.</p>
+  <ol class="qs">
+    <li>
+      <h3 class="q-h">Where should the line between the two models sit?</h3>
+      <p class="q-b">
+        My plan assumed the laptop model would only handle simple mechanical work. In testing it did
+        the whole job correctly on its own. We could keep the cautious split, or hand the laptop
+        model more and only involve the cloud when something looks wrong, or treat the split as
+        something we measure rather than decide.
+      </p>
+    </li>
+    <li>
+      <h3 class="q-h">Could you send the API keys, and which region is the Qwen account?</h3>
+      <p class="q-b">
+        DeepSeek should work from Canada with no setup at all. Qwen runs on Alibaba's cloud, which
+        is divided into separate regions whose keys do not work across each other, so it would help
+        to know which region your account sits in before I start testing.
+      </p>
+    </li>
+    <li>
+      <h3 class="q-h">Is eight hours per experiment acceptable?</h3>
+      <p class="q-b">
+        That is the measured cost of running a hundred examples on my laptop. It works, but it means
+        roughly one experiment per night. It is worth deciding now whether the larger runs should
+        move to a free Colab GPU or a lab machine, rather than treating that as an emergency later.
+      </p>
+    </li>
+    <li>
+      <h3 class="q-h">What are we aiming to produce at the end?</h3>
+      <p class="q-b">
+        A workshop paper, a technical report and a blog post each need different amounts of evidence
+        behind them. The answer decides whether the official leaderboard submission and the full six
+        hundred example runs are worth the time they cost.
+      </p>
+    </li>
+    <li>
+      <h3 class="q-h">How interesting is the explanation checking to you?</h3>
+      <p class="q-b">
+        It is the most original part of the plan, and the people who built the benchmark asked for
+        something like it in their own paper. It is also the obvious thing to focus on if current
+        models turn out to already answer well. I would rather know your view before spending weeks
+        on it.
+      </p>
+    </li>
+  </ol>
+</section>
+
+<section class="block">
+  <div class="blockhead"><span class="marker">07</span><h2 class="h2">What could go wrong, and the solution</h2></div>
+  <div class="risks">
+    <div class="risk">
+      <div class="risk-if">If</div>
+      <div class="risk-h">Modern cloud models already score above 90%</div>
+      <p class="risk-b">Pivot from accuracy to faithfulness and cost. Both plans reuse the same infrastructure, and week 1 already produced a documented right-label / wrong-reasoning case to build on.</p>
+    </div>
+    <div class="risk">
+      <div class="risk-if">If</div>
+      <div class="risk-h">Table parsing overruns its estimate</div>
+      <p class="risk-b">Unparseable tables fall back to raw text whcih is what every published approach does for every table anyways. The floor is the status quo; every parsed table is upside.</p>
+    </div>
+    <div class="risk">
+      <div class="risk-if">If</div>
+      <div class="risk-h">Local throughput blocks the ablation cadence</div>
+      <p class="risk-b">Reduce retrieved chunk count first, since that helps precision too. Then shrink the slice, then move batches to Colab or a lab machine.</p>
+    </div>
+    <div class="risk">
+      <div class="risk-if">If</div>
+      <div class="risk-h">The 3B model proves too weak for a subtask</div>
+      <p class="risk-b">That subtask gets assigned to cloud, which is a data point for the routing analysis rather than a failure. The architecture treats this outcome as a finding.</p>
+    </div>
+  </div>
+</section>
+
+<div class="foot">
+  <span>FINDVER · edge-cloud claim verification</span>
+</div>
+
+</div>
+
+
+</body></html>
