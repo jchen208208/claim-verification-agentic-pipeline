@@ -32,7 +32,3 @@ FinDVer/               benchmark data, not tracked, see Setup above
 results/               per-example JSON output, not tracked
 configs/               one config file per experiment
 ```
-
-## Notes
-
-API keys live in the environment. They are never committed.
