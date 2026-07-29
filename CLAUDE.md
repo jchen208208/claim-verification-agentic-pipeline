@@ -72,13 +72,19 @@ When a question of mine rests on a wrong assumption, say so directly instead of 
 Written so far: nothing beyond throwaway prompt-construction code. The harness is the next task. Keep this section updated as directories appear.
 
 ```
-data/                  FINDVER claim records (testmini.json, test.json)
-financial_reports/     one JSON per filing
+FinDVer/               clone of the upstream benchmark repo, not tracked in git
+  data/                FINDVER claim records (testmini.json, test.json)
+  financial_reports/   one JSON per filing, 600 files
 docs/                  architecture plan, working state
 src/                   our pipeline code
-results/               per-example JSON output, one directory per experiment
+results/               per-example JSON output, one directory per experiment, not tracked
 configs/               one config file per experiment
 ```
+
+The claim records and the filings live inside `FinDVer/`, not at the top level. That
+directory is a clone of https://github.com/yilunzhao/FinDVer.git pinned at commit
+e8bb237. It is 1.3 GB and `.gitignore` excludes it. See `README.md` for the clone step.
+Code in `src/` must not assume the data sits beside it.
 
 Never commit API keys. Keys live in the environment, not in a tracked file.
 

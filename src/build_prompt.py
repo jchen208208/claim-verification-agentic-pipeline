@@ -10,14 +10,22 @@ Report schema (confirmed):
     }
 
 Usage:
-    python3 build_prompt.py
+    python3 src/build_prompt.py
 """
 
 import json
 import os
 
-DATA_FILE = "data/testmini.json"
-REPORTS_DIR = "financial_reports"
+# Paths are anchored to this file, not to the working directory, so the script
+# runs the same from anywhere. The benchmark data is not tracked in git; it lives
+# in the FinDVer/ clone at the project root. See README.md.
+SRC_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SRC_DIR)
+
+DATA_FILE = os.path.join(PROJECT_ROOT, "FinDVer", "data", "testmini.json")
+REPORTS_DIR = os.path.join(PROJECT_ROOT, "FinDVer", "financial_reports")
+PROMPT_OUT = os.path.join(SRC_DIR, "prompt.txt")
+
 EXAMPLE_ID = "ie-val-0"
 CONTEXT_WINDOW = 6      # distractor paragraphs on each side of gold evidence
 PREVIEW = 300           # chars shown when previewing an element
@@ -141,9 +149,9 @@ def main():
     print("target ~2000-3500 words; raise CONTEXT_WINDOW and rerun if short")
     print("=" * 70)
 
-    with open("prompt.txt", "w") as f:
+    with open(PROMPT_OUT, "w") as f:
         f.write(prompt)
-    print("\nwrote prompt.txt")
+    print(f"\nwrote {PROMPT_OUT}")
     print("\nNOTE: before pasting into ollama, raise the context window so this")
     print("isn't silently truncated at the 4096-token default:")
     print("    ollama run qwen2.5-coder:3b --verbose")
