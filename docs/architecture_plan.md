@@ -74,9 +74,16 @@ Two things to internalise:
 
 ### 2.4 **[NEW]** The label-ordering trap — read this before sampling anything
 
-**The examples are sorted by label.** In `testmini.json`, `ie-val-0` through roughly `ie-val-124` are all `entailment_label: false`, and everything after is `true`. The same pattern holds within `numeric` and `knowledge`.
+**The examples are grouped by label in solid contiguous blocks, and the direction is not consistent across subsets.** Verified by counting run lengths in file order:
 
-Consequence: **taking the first *N* examples gives a 100%-refuted sample**, on which a model that always answers "refuted" scores 100%. This would have silently invalidated every baseline number. Every sample must be stratified by (subset × label) or shuffled with a fixed seed, and the sampling function should assert the resulting label balance before any run starts.
+| file | block order |
+|---|---|
+| `testmini.json` | `ie` False ×125, True ×125 · `numeric` False ×125, True ×125 · `knowledge` **True ×100, False ×100** |
+| `test.json` | `ie` False ×300, True ×300 · `numeric` **True ×300, False ×300** · `knowledge` False ×249, True ×251 |
+
+So `knowledge` in testmini leads with *entailed*, and `numeric` in test leads with *entailed*. Do not rely on "refuted comes first."
+
+Consequence: **taking the first *N* examples gives a single-label sample**, on which a model that always answers that label scores 100%. This would have silently invalidated every baseline number. Every sample must be stratified by (subset × label) or shuffled with a fixed seed, and the sampling function should assert the resulting label balance before any run starts.
 
 ### 2.5 **[NEW]** The numeric subset ships gold Python — three consequences
 
@@ -94,7 +101,21 @@ The annotators wrote and executed real Python for every numerical claim. This is
 3. **It supplies a ready-made output format.** The gold explanations follow a fixed template — numbered extraction steps, then `"We can calculate X as ... = Y"`, then `"Therefore, the statement is refuted."` Our generation prompts should imitate this rather than inventing a format.
 
 ### 2.6 Key statistics and original results
-- 523 filings, 2,400 claims: **testmini** 600 (200/subset, fully labelled) and **test** 1,500 (labels withheld; leaderboard only).
+
+> **The released files do not match the paper's stated counts. Counted directly from the clone at commit `e8bb237`:**
+>
+> | | paper says | `data/*.json` actually contains |
+> |---|---|---|
+> | testmini | 600 (200/subset) | **700** — ie 250, numeric 250, knowledge 200 |
+> | test | 1,500 (500/subset) | **1,700** — ie 600, numeric 600, knowledge 500 |
+> | test labels | withheld, leaderboard only | **present and balanced** (851 True / 849 False) |
+> | filings | 523 | **600 files** on disk; 539 distinct ones actually referenced (255 by testmini, 439 by test) |
+>
+> Note that 700 + 1,700 = 2,400, which is exactly the paper's stated total, whereas the paper's own split figures sum to 2,100. That points to the released files being correct and the paper's per-split numbers being wrong, rather than us reading a different release.
+>
+> The test-label finding is the consequential one: we can score the test split locally instead of depending on the leaderboard. Confirm on the leaderboard page before relying on it, since local test numbers are not officially comparable to published ones.
+
+- 523 filings, 2,400 claims per the paper: **testmini** 600 (200/subset, fully labelled) and **test** 1,500 (labels withheld; leaderboard only). See the correction box above for what shipped.
 - Documents first released Jan–Apr 2024, chosen to post-date 2024-era training cutoffs. That protection has expired for 2026 models — see §10, Plan C.
 - ~66–71% of claims require table evidence.
 - Refuted claims were made by expert perturbation of entailed claims, so the error is directly contradicted by annotated evidence.
@@ -278,12 +299,12 @@ Measured on the real pipeline: one `ie-val-0` prompt, ~3,945 tokens of retrieved
 | Run size | 3B | 7B |
 |---|---:|---:|
 | 100 examples (one ablation round) | ~7.9 h | ~19.6 h |
-| Full testmini, 600 examples | ~47 h (≈2 days) | ~118 h (≈5 days) |
+| Full testmini, **700** examples | ~55 h (≈2.3 days) | ~137 h (≈5.7 days) |
 
 Three conclusions follow directly:
 1. **Prompt ingestion dominates**, not generation — roughly 3–4× the cost of producing the answer. Retrieval tightness (*k*) is therefore a **performance** parameter, not only an accuracy one. Retrieving 10 chunks where 4 suffice is a direct multiplier on every experiment's wall-clock time. This is an argument for claim-decomposed retrieval on efficiency grounds *in addition to* recall grounds.
 2. **A 100-example round on 3B is an overnight job.** Iteration cadence is roughly one ablation configuration per day. The 8-week plan must respect that.
-3. **7B is for spot-checks, not batches.** At ~5 days per full testmini pass it cannot sit in the ablation loop, but it remains valuable for qualitative comparison on small samples.
+3. **7B is for spot-checks, not batches.** At ~5.7 days per full testmini pass it cannot sit in the ablation loop, but it remains valuable for qualitative comparison on small samples.
 
 ### 4.7 Pipeline shape
 ```
@@ -451,7 +472,7 @@ Working principles: iterate on a ~100-example **stratified** slice (§2.4); hand
 ## 9. Evaluation Plan
 
 **Metrics**
-- Entailment accuracy: overall + per subset; testmini during development; final numbers via the leaderboard on the 1,500-example test set.
+- Entailment accuracy: overall + per subset; testmini (700) during development; final numbers on the test split (1,700 examples), which ships with labels, so scoring can be local as well as via the leaderboard.
 - Evidence recall vs. gold `relevant_context`, per retrieval variant (whole-claim dense / +BM25 / +decomposition / varying *k*).
 - **[NEW]** Computation accuracy on the `numeric` subset: agent's computed value vs. gold `execution_result` — isolates arithmetic correctness from verdict correctness (§2.5).
 - Faithfulness: % of explanation steps verifiable against the document (new metric).
@@ -521,7 +542,7 @@ Claim decomposition; BM25 + rank fusion; table-aware chunk metadata; *k* sweep. 
 Glossary seeded from observed FDV-KNOW failures (fair-value hierarchy is entry #1). Faithfulness verifier v1: numeric checks plus the faithfulness metric for baseline vs. full system. If time: the routing-policy sweep — vary the escalation condition, plot cost vs. accuracy.
 
 **Week 8 — Final evaluation & writing**
-Freeze. Run full testmini (600) on the best configuration — **budget ~2 days of wall-clock on 3B**, so this must start no later than mid-week 8, or earlier on a rolling basis. Leaderboard submission if in scope. Final taxonomy distribution: before vs. after. Draft: intro → related work → method → ablations → cost-accuracy curve → analysis → limitations.
+Freeze. Run full testmini (700) on the best configuration — **budget ~55 h of wall-clock on 3B**, so this must start no later than mid-week 8, or earlier on a rolling basis. Leaderboard submission if in scope. Final taxonomy distribution: before vs. after. Draft: intro → related work → method → ablations → cost-accuracy curve → analysis → limitations.
 
 **Risk buffers:** table parsing overruns → cut the glossary first, then the verifier's retry loop (keep its metric). Cloud baseline ≥90% in week 2 → invoke Plans A/B immediately; weeks 3–6 unchanged. Edge model too weak for a subtask → that subtask escalates to cloud, which is itself a data point for the routing analysis, not a failure. **[NEW] Throughput risk:** if 8 h/round proves too slow for the ablation cadence, escalation options in order — reduce *k* (also helps recall precision), reduce slice to 60 stratified examples, move batch runs to Colab's free GPU tier, request lab server access.
 
@@ -532,7 +553,7 @@ Freeze. Run full testmini (600) on the best configuration — **budget ~2 days o
 1. **Where should the edge/cloud line actually sit?** §4.5 — the 3B model handled a full end-to-end verification correctly, which the original allocation did not anticipate. Options: keep the conservative allocation; move more to edge and escalate only on verifier failure; or treat the threshold as a swept parameter from the start.
 2. **Cloud API keys** — DeepSeek and/or Qwen, plus which DashScope region for Qwen (§11.2).
 3. **Is ~8 h per 100-example round acceptable**, or should batch runs move to Colab / a lab server now rather than as a fallback?
-4. **Target venue and rigour level** — workshop paper vs. technical report vs. blog post. This determines whether the leaderboard submission and the full 600-example runs are in scope.
+4. **Target venue and rigour level** — workshop paper vs. technical report vs. blog post. This determines whether the leaderboard submission and the full 700-example runs are in scope.
 5. **Does the faithfulness metric interest him as a contribution in its own right?** It is the most novel piece and the natural centrepiece if accuracy saturates — worth knowing his appetite before investing in it.
 6. **Confirm plain-script implementation** over AutoGen (§3.11), with the debuggability rationale.
 
@@ -564,8 +585,8 @@ Freeze. Run full testmini (600) on the best configuration — **budget ~2 days o
 
 | Fact | Number |
 |---|---|
-| Benchmark size | 2,400 (testmini 600 / test 1,500; 200 & 500 per subset) |
-| Documents | 523 filings; ~41K words avg; ~79 tables/doc (sample doc: 304 context chunks, 83 tables) |
+| Benchmark size **(as released, counted)** | **2,400 (testmini 700 / test 1,700)** — paper says 600/1,500; see §2.6 |
+| Documents | **600 files on disk, 539 referenced** (paper says 523); ~41K words avg; ~79 tables/doc (sample doc: 304 context chunks, 83 tables) |
 | Best 2024 model (Claude-3.5-Sonnet, testmini) | 77.2% long-context / 75.0% RAG |
 | Human expert / non-expert | 93.3% / 86.7% |
 | CoT gain over direct output | ~5–7 pts |
@@ -574,7 +595,7 @@ Freeze. Run full testmini (600) on the best configuration — **budget ~2 days o
 | **Local 3B: total per example** | **4 m 45 s** (19.1 tok/s in, 6.7 tok/s out) |
 | **Local 7B: total per example** | **11 m 46 s** (7.8 tok/s in, 3.2 tok/s out) |
 | **100-example round** | **~7.9 h (3B) / ~19.6 h (7B)** |
-| **Full testmini (600)** | **~47 h (3B) / ~118 h (7B)** |
+| **Full testmini (700)** | **~55 h (3B) / ~137 h (7B)** |
 | Peak RAM | 2.5 GB (3B) / 5 GB (7B) — of 16 GB |
 | Realistic RAG prompt size | ~3,900–4,500 tokens |
 | Ollama default `num_ctx` (must override) | 4,096 |

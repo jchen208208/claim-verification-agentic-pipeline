@@ -19,7 +19,7 @@ Both are long. Read the section you need rather than the whole file.
 
 - Hardware is a 2017 Intel MacBook Pro, 16 GB RAM, macOS 13, CPU-only inference. There is no usable GPU.
 - Ollama is pinned at v0.12.3. Auto-update must stay off. Version 0.12.4 dropped macOS 13 support and this machine cannot upgrade.
-- Measured throughput on a roughly 4,000 token prompt is 4 m 45 s per example on the 3B model and 11 m 46 s on the 7B. A 100-example run takes about 8 hours on the 3B model. Full testmini (600 examples) takes about two days.
+- Measured throughput on a roughly 4,000 token prompt is 4 m 45 s per example on the 3B model and 11 m 46 s on the 7B. A 100-example run takes about 8 hours on the 3B model. Full testmini is 700 examples, not 600, and takes about 55 hours on the 3B model.
 - One configuration per overnight run is the realistic iteration cadence. Do not propose anything that needs repeated full runs without saying what it costs in wall-clock hours.
 - There is no training compute. Fine-tuning, pretraining, and distillation are out of scope. Do not suggest them.
 - Cloud API access is provided by my professor and is not unlimited. Prefer designs that keep cloud calls low, and say roughly how many calls per example a suggestion adds.
@@ -29,7 +29,7 @@ Both are long. Read the section you need rather than the whole file.
 These are confirmed by inspection, not assumed. Any code touching the data must respect them.
 
 1. Each element of a report's `context` array is a dict with `id` and `context` keys, not a string. A loader that assumes strings produces garbage silently instead of failing. This cost a full benchmarking round in week 1.
-2. The examples are sorted by label. All refuted examples come first within each subset. Taking the first N examples yields a 100% refuted sample on which "always refuted" scores 100%. Every sample must be stratified by subset and label, or shuffled with a fixed seed, and the sampler must assert the resulting balance before a run starts.
+2. The examples are grouped by label in solid contiguous blocks, and the direction is not consistent. In `testmini.json` the order is `ie` False x125 then True x125, `numeric` False x125 then True x125, `knowledge` True x100 then False x100. The knowledge subset leads with entailed, not refuted. Taking the first N examples yields a single-label sample on which a constant answer scores 100%. Every sample must be stratified by subset and label, or shuffled with a fixed seed, and the sampler must assert the resulting balance before a run starts.
 3. Ollama's default `num_ctx` is 4096 and it truncates without warning. A realistic prompt here runs 3,900 to 4,500 tokens. Pass `num_ctx` explicitly in every API call. Interactive `/set parameter` does not persist between sessions.
 4. The `numeric` subset spells the explanation field `explaination`. The other two subsets spell it correctly. Handle both keys.
 5. Field names are `statement`, `entailment_label` (a bool, not a string), `relevant_context`, and `report`. They are not `claim`, `evidence`, or `doc_id`.

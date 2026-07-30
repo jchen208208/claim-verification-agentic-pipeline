@@ -30,7 +30,9 @@ Ollama defaults to a 4096 token context window and truncates anything longer wit
 
 Each element of a report's `context` array is a dictionary with `id` and `context` keys, not a plain string. A loader that assumes strings will silently produce garbage rather than failing loudly. This caused the week 1 benchmarking failure.
 
-The examples in the dataset are sorted by answer, with all false claims first. Any sampling that does not shuffle or stratify will produce a wildly misleading result.
+The examples in the dataset are grouped by answer in solid blocks, and the direction changes between subsets. In testmini, ie and numeric put the false claims first, but knowledge puts the true ones first. Any sampling that does not shuffle or stratify will produce a wildly misleading result.
+
+The dataset is bigger than the paper says. Testmini holds 700 examples, not 600, and test holds 1,700, not 1,500. The test file also ships with real labels, so the whole "labels are withheld" assumption in the plan is wrong. Counted directly from the files on 29 July. See section 2.6 of the architecture plan.
 
 The numeric subset spells the explanation field `explaination`. The other two subsets spell it correctly. Handle both.
 
@@ -46,4 +48,4 @@ Checking the FINDVER leaderboard for recent submissions, and running a citation 
 
 On a roughly 4000 token prompt, the 3B model takes about four minutes forty five seconds end to end and the 7B model takes about eleven minutes forty five. Memory use peaked at 2.5 GB and 5 GB respectively, so RAM is not the constraint. CPU speed is.
 
-That works out to roughly eight hours for a hundred examples on the 3B model, or two days for the full six hundred example development set. Any plan involving repeated full runs needs to account for that.
+That works out to roughly eight hours for a hundred examples on the 3B model, or about fifty five hours for the full seven hundred example development set. Any plan involving repeated full runs needs to account for that.
