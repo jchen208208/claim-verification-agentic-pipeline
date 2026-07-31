@@ -1,0 +1,13 @@
+As a financial expert, your task is to assess the truthfulness of the given claim by determining whether it is entailed or refuted based on the provided financial document. Follow these steps:
+1. Carefully read the given context and the claim.
+2. Analyze the document, focusing on the relevant financial data or facts related to the claim.
+3. Document each step of your reasoning process to ensure your assessment is clear and thorough.
+4. Conclude your analysis with a final determination. In your last sentence, clearly state your conclusion in the following format: "Therefore, the claim is {entailment_label}." Replace {entailment_label} with either 'entailed' (if the claim is supported by the document) or 'refuted' (if the claim contradicts the document or partially contradicts the document).
+
+Financial Report:
+<REPORT>
+
+Claim to verify:
+<STATEMENT>
+
+Follow the instructions and think step by step to verify the claim.
