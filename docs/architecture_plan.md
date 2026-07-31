@@ -20,6 +20,17 @@ The FINDVER benchmark (Zhao et al., EMNLP 2024, Yale NLP) tests whether LLMs can
 1. Can a cheap local model with targeted cloud escalation match a cloud-only system at a fraction of the cost? (The professor's core motivation and the most deployment-realistic framing.)
 2. How much of FINDVER's human-LLM gap do the skills close, and which skill fixes which error category? (The ablation story.)
 
+### 1.1 **[SETTLED 30 Jul 2026]** The deliverable
+
+A **~5-page workshop paper**, submitted to *On-Device Intelligence: Foundation Models under Real-World Constraints* (workshop, Australia). **Submission deadline: 30 August 2026.** Confirmed with the professor at the 30 July meeting (§14 item 9); this closes what was Open Question 4.
+
+**Authorship:** student is first author. The professor is a co-author, and he will recruit roughly two industry co-authors to strengthen the author list.
+
+Two consequences that reach into every other section:
+
+- **The schedule is 30 days, not eight weeks.** §12 has been replanned around this. Tiers 2 through 5 and the full 700-example run are out of scope.
+- **The venue determines what counts as a contribution.** A workshop on on-device models under real-world constraints rewards findings about small-model behaviour under deployment constraints. That is a better fit for what is measurable in 30 days than a long ablation chain, and it makes the extraction and imputation analysis (§11.8) a candidate headline result rather than an engineering footnote.
+
 ---
 
 ## 2. The FINDVER Benchmark
@@ -486,6 +497,18 @@ Working principles: iterate on a ~100-example **stratified** slice (§2.4); hand
 - Cheap models + skills vs. expensive model without skills.
 - **[NEW]** Our retrieval vs. the authors' own `retriever/` implementation, which ships in the repo — an apples-to-apples baseline rather than a reimplementation.
 
+### 9.1 **[SETTLED 30 Jul 2026]** Baseline strategy: reuse the paper's numbers, extend with new models
+
+Agreed with the professor at the 30 July meeting. Re-running the 16 models the authors already evaluated is not affordable in 30 days (§12.1) and adds nothing, since their outputs and scores ship in the repo.
+
+1. **The paper's published results are the historical baseline, used as-is.** They are dated, and saying so is part of the framing rather than a weakness.
+2. **Extend the cloud row with two models released after the paper** (2025–2026). Provider flexible; the professor indicated Anthropic keys can be provided alongside DeepSeek and Qwen. Cloud runs cost hours, not nights, so this is cheap.
+3. **Extend the edge row with local models the paper did not evaluate**, run on this machine. This is where the wall-clock goes, and it is the row the venue actually cares about.
+
+**The comparability constraint this creates.** The published numbers were produced with `gpt-4o-mini` extraction **and coin-flip imputation of unparseable outputs** (§11.8). Scoring our new models strictly and placing them beside those numbers would compare two different measurements, and would understate our models precisely where they fail the output format, which at 3B is ~45% of the time. **Any table that mixes our numbers with published ones must use the FINDVER-compatible scoring.** The strict numbers are reported separately, alongside the unparseable rate. This is no longer an optional second view; the professor's baseline strategy makes it load-bearing.
+
+**The reusable asset this creates.** `outputs/testmini_outputs/rag/processed_cot_outputs/` ships 700 records for each of 16 models with both raw responses and extracted labels — 11,200 pairs. Any analysis of *output behaviour* rather than accuracy (format compliance, verdict placement, response length, refusal patterns) can be run across all 16 models at zero compute cost, and our new models slot into the same analysis. This is the cheapest source of paper-grade evidence available and it is already on disk.
+
 **Error analysis protocol:** every iteration, sample ≥25 failures, hand-label with the taxonomy, track the distribution over time — the evidence for "module X fixed category Y."
 
 ---
@@ -533,27 +556,75 @@ If the cloud baseline nevertheless comes back ~90%+ (in order of preference):
 
 ---
 
-## 12. Timeline — Revised Against Measured Throughput
+## 12. Timeline
 
-**Week 1 — Onboarding, data, local setup — COMPLETE**
-Repo cloned; data schema confirmed (§2.3); label-ordering trap found (§2.4); gold Python discovered (§2.5); table format resolved as HTML (§7.1); Ollama installed on a pinned compatible version; 3B and 7B benchmarked on a real example with full throughput numbers (§4.6); prompt-construction bug found and fixed (§11.9). *Outstanding: leaderboard check + Scholar sweep, carried to week 2.*
+> **[REPLANNED 31 Jul 2026] The eight-week schedule is void.** The 30 July meeting set a hard deliverable: a ~5-page workshop paper, submission deadline **30 August 2026** (§1.1, §14 item 9). That is **30 days from 31 July**, not eight weeks.
+>
+> **Nothing is cut outright.** Scope is banded by what compute is available (§12.3), because faster hardware may become available and would move the bands. Retrieval in particular stays in scope: it is the project's core (§3.3), and its recall measurement needs no model runs at all.
 
-**Week 2 — Harness + Tier 0 baseline**
-Build the loader, stratified sampler, logging, label extractor, and evidence assertion. Run edge-only and cloud-only baselines on a ~100-example stratified slice. Given ~8 h per 3B pass, plan for **one configuration per overnight run**. Hand-label ~25 failures per configuration. Deliverable: two baseline rows + error distributions.
+### 12.1 The binding constraint is local wall-clock
 
-**Weeks 3–4 — Tier 1: Table Normalizer + code execution**
-Map `html_tables` to `context` indices; parse and cache; build the sandbox and traceback-retry loop. Validate the sandbox against gold `execution_result` (§2.5) before touching end-to-end accuracy. Measure the delta, especially on `numeric`. **Decision point:** if extraction rather than computation dominates the remaining errors, shift emphasis to Tier 2. *Freed time from §7.1 flows to retrieval.*
+Measured throughput (§4.6) converts directly into nights, and the machine runs one job at a time:
 
-**Weeks 5–6 — Tier 2: retrieval**
-Claim decomposition; BM25 + rank fusion; table-aware chunk metadata; *k* sweep. Measure recall standalone against gold indices (target: meaningfully above 68–70%) — this is cheap and needs no LLM calls, so it can run in parallel with slower end-to-end jobs. **Mid-project sync with professor.**
+| run | examples | wall-clock | nights |
+|---|---|---|---|
+| 3B, stratified slice | 102 | ~8 h | 1 |
+| 7B, stratified slice | 102 | ~20 h | 2–3 |
+| 3B, full testmini | 700 | ~55 h | ~7 |
+| cloud model, slice | 102 | API-bound, hours not nights | ~0 |
 
-**Week 7 — Tiers 3–5 (scope to remaining time)**
-Glossary seeded from observed FDV-KNOW failures (fair-value hierarchy is entry #1). Faithfulness verifier v1: numeric checks plus the faithfulness metric for baseline vs. full system. If time: the routing-policy sweep — vary the escalation condition, plot cost vs. accuracy.
+Between 3 August and 23 August there are roughly **20 usable nights**, and results must freeze before writing. On *this machine* a full-700 run would consume a third of that budget on one number, which is why it sits in the conditional band (§12.3) rather than the committed one.
 
-**Week 8 — Final evaluation & writing**
-Freeze. Run full testmini (700) on the best configuration — **budget ~55 h of wall-clock on 3B**, so this must start no later than mid-week 8, or earlier on a rolling basis. Leaderboard submission if in scope. Final taxonomy distribution: before vs. after. Draft: intro → related work → method → ablations → cost-accuracy curve → analysis → limitations.
+**Two asymmetries decide what is affordable, and neither is about the tier number.**
 
-**Risk buffers:** table parsing overruns → cut the glossary first, then the verifier's retry loop (keep its metric). Cloud baseline ≥90% in week 2 → invoke Plans A/B immediately; weeks 3–6 unchanged. Edge model too weak for a subtask → that subtask escalates to cloud, which is itself a data point for the routing analysis, not a failure. **[NEW] Throughput risk:** if 8 h/round proves too slow for the ablation cadence, escalation options in order — reduce *k* (also helps recall precision), reduce slice to 60 stratified examples, move batch runs to Colab's free GPU tier, request lab server access.
+- **Cloud runs are nearly free in wall-clock.** API-bound, hours not nights. Local runs are the scarce resource; cloud runs are not.
+- **Retrieval recall is free in wall-clock.** It scores retrieved chunk indices against gold `relevant_context` (§9) using embeddings and plain Python, with **no LLM calls**. A *k* sweep, a BM25 comparison, and a decomposition comparison are all minutes, not nights, and they can run during the day while an overnight job holds the evening. Only the *end-to-end accuracy delta* from better retrieval needs a night.
+
+So "Tier 2 is expensive" is false as stated. Its measurement half is one of the cheapest things in the project, and it is the half most on-topic for a RAG-focused paper.
+
+**[OPEN] Faster hardware may become available.** If it does, the night budget stops binding and the conditional band opens: full-700 runs, end-to-end retrieval ablations, and 7B slice comparisons all become affordable. Specs and availability date are unknown as of 31 July (§13 item 11). Until they are known, plan against this machine and treat anything faster as upside rather than assumption.
+
+### 12.2 The 30-day plan
+
+**Phase 1 · 31 Jul – 2 Aug · Finish the harness.**
+Label extractor (§11.8), per-example logging, evidence assertion (§11.9). Loader and sampler are done and committed. None of this is blocked on cloud keys. The label extractor is developed offline against the 11,200 stored responses in `outputs/`, at zero compute cost.
+
+**Phase 2 · 3 – 10 Aug · Baselines.**
+Edge-only on the 102-example slice, 3B and 7B. Two new cloud models on the same slice, once keys arrive. **Published FINDVER numbers are reused as the historical baseline rather than re-run** (§9), which is what makes this phase fit at all. Hand-label ~25 failures per configuration. Deliverable: the baseline table plus error distributions.
+
+**Phase 3 · 11 – 20 Aug · Ablations, cheap-measurement work first.**
+Two strands run in parallel, because they compete for different resources.
+
+*Daytime, no model runs.* **Tier 2 retrieval recall**: claim decomposition, BM25 plus dense fusion, table-aware chunk metadata, *k* sweep, all scored against gold indices (§7.3, §9). This is the project's core question (§3.3) and it costs minutes. Target: meaningfully above the 68–70% recall ceiling.
+
+*Overnight, one configuration per night.* **Tier 1 code execution and tables-as-DataFrames**, the highest-certainty accuracy gain, validated against gold `execution_result` (§2.5) before touching end-to-end runs. Then the end-to-end delta from whichever retrieval variant won on recall, if nights remain.
+
+**Decision point 15 Aug:** whatever is not working by then is dropped from the paper, not debugged. Recall numbers stand on their own even if the end-to-end delta never gets measured, which is the reason to front-load them.
+
+**Phase 4 · 21 – 23 Aug · Freeze.**
+No new configurations. Final numbers, both scorings (§9), final taxonomy distribution before versus after.
+
+**Phase 5 · 24 – 30 Aug · Write.**
+Five pages. Intro, related work, method, results, analysis, limitations. Writing cannot start later than 24 August and stay honest, so Phase 4 is a hard stop.
+
+### 12.3 Scope bands, not cuts
+
+**[REVISED 31 Jul]** An earlier draft of this section cut Tiers 2–5, the full-700 run, and the leaderboard submission outright. That was wrong on two counts: it cut retrieval, which is the project's core (§3.3), and it priced Tier 2 as if all of it needed overnight runs when its recall half needs none (§12.1). Scope is banded instead. Nothing is abandoned; each band states what it costs and what would unlock it.
+
+**Band A — committed. Fits on this machine, in these 30 days.**
+Harness. Tier 0 baselines, edge and cloud, on the 102-example slice. Tier 1 code execution. **Tier 2 retrieval recall**, standalone, measured against gold indices with no model runs. The extraction and imputation analysis (§11.8), already measured. Error taxonomy on ~25 hand-labelled failures per configuration.
+
+**Band B — conditional on faster hardware, or on Band A finishing early.**
+End-to-end accuracy delta from the winning retrieval variant. Full 700-example testmini run. 7B slice comparisons. Leaderboard submission. Each of these is a night or several on the current machine; on faster hardware they are cheap. **Do not design the paper to require them, and do not design it to preclude them.** Note the full-700 run has an independent motive beyond precision: the ±10-point margin at n=102 (§9) makes any close comparison unresolvable, so if compute appears, this is the first thing it buys.
+
+**Band C — stretch, only if Bands A and B land early.**
+Tier 3 glossary, Tier 4 faithfulness verifier, Tier 5 routing sweep. The faithfulness metric is the most novel piece in the plan and the natural centrepiece if accuracy saturates (§7.5), so it is the first thing to promote out of Band C if the schedule loosens.
+
+**What carries the paper if Band B never opens.** Two results that do not depend on a long run chain. **Retrieval recall**, which is standalone, cheap, and the project's stated focus. And **the extraction and imputation analysis** (§11.8): 11,200 upstream responses, no compute, directly on-venue, showing format compliance collapsing from 100% at frontier scale to ~55% at 3B while the benchmark's official scoring converts that collapse into roughly 15 points of imputed accuracy. Both are robust in a way a 102-example accuracy delta is not.
+
+### 12.4 Risk buffers
+
+Table parsing overruns, cut Tier 1's retry loop before cutting Tier 1. Cloud keys arrive late, Phase 2 runs edge-only first and cloud slots in whenever keys land, since cloud runs cost hours not nights. Local throughput proves worse than measured, drop the 7B slice runs first, they cost 2 to 3 nights each for a comparison the paper can live without. Edge model too weak for a subtask, that subtask escalates to cloud, which is a data point for the routing analysis rather than a failure.
 
 ---
 
@@ -562,9 +633,17 @@ Freeze. Run full testmini (700) on the best configuration — **budget ~55 h of 
 1. **Where should the edge/cloud line actually sit?** §4.5 — the 3B model handled a full end-to-end verification correctly, which the original allocation did not anticipate. Options: keep the conservative allocation; move more to edge and escalate only on verifier failure; or treat the threshold as a swept parameter from the start.
 2. **Cloud API keys** — DeepSeek and/or Qwen, plus which DashScope region for Qwen (§11.2).
 3. **Is ~8 h per 100-example round acceptable**, or should batch runs move to Colab / a lab server now rather than as a fallback?
-4. **Target venue and rigour level** — workshop paper vs. technical report vs. blog post. This determines whether the leaderboard submission and the full 700-example runs are in scope.
-5. **Does the faithfulness metric interest him as a contribution in its own right?** It is the most novel piece and the natural centrepiece if accuracy saturates — worth knowing his appetite before investing in it.
+4. ~~**Target venue and rigour level.**~~ **ANSWERED 30 Jul:** ~5-page workshop paper, *On-Device Intelligence: Foundation Models under Real-World Constraints*, deadline 30 Aug 2026 (§1.1). Leaderboard submission and the full 700-example run are consequently **out of scope** (§12.1).
+5. **Does the faithfulness metric interest him as a contribution in its own right?** It is the most novel piece and the natural centrepiece if accuracy saturates (§7.5). Now in **Band C** (§12.3), and the first thing to promote if the schedule loosens or faster hardware arrives, so his appetite for it is worth knowing *before* that decision rather than after.
 6. **Confirm plain-script implementation** over AutoGen (§3.11), with the debuggability rationale.
+
+**Opened by the 30 July meeting and the 31 July measurements:**
+
+7. **Which two cloud models, and which provider?** He said newer models generally, and separately that Anthropic keys can be provided. Anthropic is the tighter comparison, since `claude-3-5-sonnet` is the paper's top scorer and a newer Claude extends that exact row. DeepSeek and Qwen match the cloud-edge framing in §4.1. Needs a decision before Phase 2 (3 Aug).
+8. **Which edge models to add?** The paper already covers Llama-3.2-3B, Llama-3.1-8B, Qwen2.5-7B, Mistral-7B and others (full list in `outputs/`). Ours must be models it did **not** evaluate, and each 7B-class slice run costs 2–3 nights (§12.1). Two is realistic; three is not.
+9. **Is the extraction/imputation finding acceptable as a headline contribution?** §11.8, measured on 11,200 responses at zero compute cost, and squarely on-venue. With Tiers 2–5 cut, the paper needs a result that does not depend on a long run chain. Worth confirming he agrees before building the paper around it.
+10. **Workshop submission mechanics** — exact page limit, template, anonymity requirement, and whether the 30 Aug deadline is anywhere-on-earth. These change the writing schedule in Phase 5 and none of them are known yet.
+11. **What faster hardware is actually available, and when?** Specs, access method, and date. This decides whether Band B (§12.3) opens: full-700 runs, end-to-end retrieval ablations, 7B comparisons. Two sub-questions matter. Does it have a usable GPU, which changes throughput by a large factor rather than a small one? And is Ollama's pinned-0.12.3 macOS-13 constraint (§11.10) even relevant there, or does a different machine mean a different and unpinned runtime? Until this is answered, plan against the current machine and treat anything faster as upside.
 
 ---
 
@@ -579,14 +658,22 @@ Freeze. Run full testmini (700) on the best configuration — **budget ~55 h of 
 7. **Student:** reported week-1 benchmark results — both models correct on a real example, 3B's reasoning internally inconsistent, 7B's cleaner; full throughput numbers; disclosed and explained the prompt-construction bug and its fix; requested API keys and flagged the DashScope region question.
 8. **Professor:** away at a conference in Hangzhou; reviewed the analysis and responded positively to its thoroughness. Available **Wednesday or Thursday Beijing time**; busy Tuesday finishing an AAAI 2026 submission. Requested the visual build plan.
 
-**Immediate next actions:**
+9. **Meeting held, 30 July 2026.** Three decisions, all of which reshape the project.
+   - **Deliverable settled:** a ~5-page workshop paper for *On-Device Intelligence: Foundation Models under Real-World Constraints* (Australia), **deadline 30 August 2026**. Student first author; professor co-author; he will recruit ~2 industry co-authors. See §1.1. This closes Open Question 4 and voids the eight-week schedule (§12).
+   - **Baselines will not be re-run.** Use the paper's published numbers as the historical baseline, extend the cloud row with two post-publication models, and extend the edge row with local models the paper did not evaluate. See §9.1. He independently reached the same edge-only / cloud-only framing already in the plan.
+   - **Confirmed** that establishing both ends before building the routed system is the right order.
+
+**Immediate next actions (30-day sprint, deadline 30 Aug):**
 - [x] Install Ollama; pull models; benchmark; note throughput
 - [x] Clone the repo; confirm the real data and table formats
 - [x] Produce the visual build plan
-- [ ] Confirm meeting time (Tue 7pm PDT = Wed 10am Beijing, or Wed 7pm PDT = Thu 10am Beijing)
-- [ ] Check the FINDVER leaderboard + Scholar cited-by sweep
-- [~] Build the harness — loader and stratified sampler done and committed 31 Jul; logger, label extractor, evidence assertion remain. Next session builds the label extractor against the 11,200 stored responses in `outputs/` (§11.8); it needs no cloud keys and is not blocked.
+- [x] Meeting held 30 Jul; venue, deadline, authorship, and baseline strategy settled
+- [~] Build the harness — loader and stratified sampler done and committed 31 Jul; logger, label extractor, evidence assertion remain. Next session builds the label extractor against the 11,200 stored responses in `outputs/` (§11.8); it needs no cloud keys and is not blocked. **Due 2 Aug.**
+- [ ] Confirm workshop mechanics: page limit, template, anonymity, AoE deadline (§13 item 10)
+- [ ] Decide the two cloud models and the two added edge models (§13 items 7–8) — **needed before 3 Aug**
 - [ ] Smoke-test cloud keys on arrival; confirm DashScope region
+- [ ] Check the FINDVER leaderboard + Scholar cited-by sweep — still outstanding from week 1, and now also needed for the related-work section
+- [ ] Confirm with the professor that the extraction/imputation finding can carry a contribution slot (§13 item 9)
 
 ---
 

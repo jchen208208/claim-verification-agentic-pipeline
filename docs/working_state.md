@@ -6,11 +6,41 @@ Last updated: 31 July 2026.
 
 ---
 
+## The deadline
+
+The paper is due **30 August 2026**. That is 30 days from today. Settled at the professor meeting on 30 July.
+
+The deliverable is a paper of about five pages, submitted to a workshop in Australia called *On-Device Intelligence: Foundation Models under Real-World Constraints*. I am first author. My professor is a co-author and will recruit about two industry co-authors.
+
+This voids the eight-week schedule. Section 12 of the architecture plan has been replanned around 30 days.
+
+**Nothing is cut.** Scope is banded by what compute is available, in section 12.3. Band A is committed and fits on this machine. Band B is conditional on faster hardware and holds the full 700 run, the end to end retrieval ablation, and the 7B comparisons. Band C is stretch and holds the glossary, the faithfulness verifier, and the routing sweep.
+
+An earlier draft of the replan cut tiers 2 through 5 outright. That was wrong. It cut retrieval, which is the core of the project, and it priced the whole of tier 2 as if it needed overnight runs. It does not. **Retrieval recall is scored against the gold `relevant_context` indices with no model calls at all**, so a k sweep, a BM25 comparison, and a decomposition comparison are minutes of work, not nights. Only the end to end accuracy delta from better retrieval needs a night. The cheap half is also the half most on topic for a RAG focused paper, so it goes early rather than last.
+
+Read section 12.1 of the plan before scheduling anything that runs locally. The short version: between 3 and 23 August there are about 20 usable nights, one 3B slice run costs one night, one 7B slice run costs two to three, and a full 700 run would cost seven on this machine. Results have to freeze by 23 August so that writing can start on the 24th.
+
+If a faster machine materialises the night budget stops binding and Band B opens. Specs and availability are unknown as of 31 July. See open question 11 in the plan. Until it is real, plan against this machine and treat anything faster as upside.
+
 ## Where the project stands
 
 Week 1 is done. The repository is cloned, the data structure is confirmed, both local models are installed and benchmarked on a real example, and the visual build plan has been sent to my professor.
 
-Week 2 has started. Two of the five harness pieces are built and verified: the loader and the stratified sampler. Both are committed. The remaining three are logging, the label extractor, and the evidence assertion.
+Two of the five harness pieces are built, verified, and committed: the loader and the stratified sampler. The remaining three are logging, the label extractor, and the evidence assertion. They are due 2 August.
+
+## What the professor decided on 30 July
+
+He independently reached the same conclusion already in the plan: run edge only and cloud only baselines first, then build the routed system, because you cannot claim the routed system beats either end without measuring both ends.
+
+Three decisions came out of the meeting.
+
+1. **Do not re-run the paper's baselines.** Use the published numbers as the historical baseline. They are somewhat dated and saying so is part of the framing.
+2. **Extend the cloud side with two models released after the paper**, from 2025 or 2026. Provider is not fixed. He said he can provide Anthropic keys as well as DeepSeek and Qwen. Anthropic is the tighter comparison because `claude-3-5-sonnet` is the paper's top scorer, so a newer Claude extends that exact row. This needs deciding before 3 August.
+3. **Extend the edge side with local models the paper did not evaluate.** The paper already covers Llama-3.2-3B, Llama-3.1-8B, Qwen2.5-7B, Mistral-7B and twelve others. Ours have to be different ones. Two is realistic in the time available. Three is not.
+
+This is a good fit for the compressed schedule, because cloud runs cost hours rather than nights and reusing published numbers removes 16 runs we cannot afford.
+
+**One consequence that is easy to miss.** The published numbers were produced with `gpt-4o-mini` extraction and coin flip imputation of unparseable outputs. Putting our strictly scored numbers in the same table as theirs would compare two different measurements, and would understate our models exactly where they fail the output format, which at 3B is about 45 percent of the time. Any table mixing our numbers with published ones has to use the FINDVER compatible scoring. The strict numbers go in a separate table with the unparseable rate beside them. The two number reporting decided below is therefore no longer optional.
 
 ## What is built
 
@@ -143,6 +173,18 @@ Order of work:
 4. Report the final coverage and the residual unparseable rate. That residual is a result worth writing down.
 
 Do not add a model based fallback in this session. Decide on it after step 4, with a measured number in hand.
+
+The harness is due 2 August, which leaves the label extractor, per example logging, and the evidence assertion in about two days. None of the three is blocked on cloud keys.
+
+**Why this piece matters more than it looks.** The edge only baseline is the run I can start first, because it needs no keys, and in it the 3B model produces every verdict. A 45 percent miss rate there is not a detail, it is most of the first result. The extractor is also the thing that turns today's measurement into a paper section, so it is on the critical path twice.
+
+## Outstanding, not yet done
+
+The script that produced the regex table lives in a temporary scratchpad directory and will be wiped. Those numbers now appear in this file, in `build_log.md`, and in sections 9.1 and 11.8 of the architecture plan. The convention in `CLAUDE.md` is that one script regenerates every results table. Move it into the repository, something like `scripts/measure_extractor_baseline.py`, before relying on those numbers in the paper.
+
+Decide the two cloud models and the two added edge models before 3 August. See open questions 7 and 8 in the architecture plan.
+
+Confirm the workshop mechanics: page limit, template, whether submissions are anonymous, and whether the 30 August deadline is anywhere on earth. None of this is known and all of it changes the writing schedule.
 
 ## Measured performance, for planning purposes
 
