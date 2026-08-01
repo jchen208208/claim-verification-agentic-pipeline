@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 31 July 2026.
+Last updated: 1 August 2026.
 
 ---
 
@@ -26,7 +26,7 @@ If a faster machine materialises the night budget stops binding and Band B opens
 
 Week 1 is done. The repository is cloned, the data structure is confirmed, both local models are installed and benchmarked on a real example, and the visual build plan has been sent to my professor.
 
-Two of the five harness pieces are built, verified, and committed: the loader and the stratified sampler. The remaining three are logging, the label extractor, and the evidence assertion. They are due 2 August.
+Three of the five harness pieces are built and verified: the loader, the stratified sampler, and the label extractor. The remaining two are per example logging and the evidence assertion. They are due 2 August.
 
 ## What the professor decided on 30 July
 
@@ -44,9 +44,11 @@ This is a good fit for the compressed schedule, because cloud runs cost hours ra
 
 ## What is built
 
-    src/loader.py     load_raw, Claim, raw_to_claim, load_claims
-    src/sampler.py    group_by_cell, stratified_sample, check_balance
-    prompts/          baseline_v1.txt, samples/ie-val-0_filled.txt
+    src/loader.py          load_raw, Claim, raw_to_claim, load_claims
+    src/sampler.py         group_by_cell, stratified_sample, check_balance
+    src/label_extractor.py extract_label, extract_label_with_source
+    prompts/               baseline_v1.txt, samples/ie-val-0_filled.txt
+    scripts/measure_extractor_baseline.py   regenerates the extractor table
 
 `load_claims()` returns all 700 testmini records as `Claim` objects. Every object has the same 11 fields no matter which subset it came from, so no code downstream has to know about the `explaination` misspelling or about which subsets carry extra fields. `Claim` is a frozen dataclass, so nothing in the pipeline can write into a record and corrupt later iterations.
 
@@ -102,6 +104,72 @@ The agreement figure is also measured only on the subset where a clean sentence 
 
 **Decision.** Build a deterministic regex extractor. Do not add a model based fallback until we have measured how far widened patterns get us. We cannot replicate the official extractor anyway, because it uses `gpt-4o-mini` and we have DeepSeek and Qwen keys, so the model route buys no comparability while costing quota.
 
+**Resolved 1 August. See the next section.** The widening was done and measured, the fallback was rejected, and the caveat above about not being able to separate the two kinds of miss is now resolved with numbers.
+
+## The extractor is built. Final numbers, 1 August
+
+`src/label_extractor.py` is finished and verified. Three levels, tried in order of precision, with the last match winning inside a level.
+
+1. **anchored**, the concluding sentence such as "the claim is entailed", searched over the whole response.
+2. **bare**, a standalone `entailed` or `refuted`, searched only in the last 300 characters. The window is the precision guard, because both words appear all through the reasoning and in the prompt's own instructions.
+3. **guards on level 2.** A hedge, such as "partially entailed", returns `None`, because that is not a binary verdict and inventing one is the thing we are avoiding. A direct negation, such as "not entailed", returns the opposite label, which is safe because the label space is binary.
+
+`extract_label(response)` returns the verdict for the pipeline. `extract_label_with_source(response)` also returns which level fired, which is what the results table needs.
+
+Coverage across all 11,200 upstream responses went from 81.7 percent to 87.8 percent. Agreement fell from 98.9 to 98.3. On Llama-3.2-3B, the closest available analogue to our model, coverage went from 54.9 to 65.3 percent. In whole examples that is 373 correct extractions rising to 437, against 11 wrong rising to 20. Sixty four more right answers for nine more wrong ones.
+
+Level breakdown over all 11,200:
+
+    anchored   81.7%
+    bare        5.8%
+    negated     0.3%
+    hedged      2.3%
+    none        9.9%
+
+Per model, the two failure buckets separate models in a useful way. `gemini-1.5-pro` is 6.3 percent hedged but only 0.4 percent none. `Meta-Llama-3.1-8B` is 1.9 percent hedged and 40.3 percent none. Those are opposite behaviours. One model always concludes and then qualifies it, the other frequently never concludes. Folding both into a single unparseable number would hide that, which is why the two buckets stay separate.
+
+## Why we stopped widening, and why there is no model fallback
+
+Of Llama-3.2-3B's 231 remaining `none` responses, **81 percent contain the strings "entail" or "refut" nowhere in the response at all.** Not in the tail, not in the body, nowhere. There is no verdict in the text to extract.
+
+That settles the fallback question that was deferred on 31 July. **No model based fallback.** A DeepSeek or Qwen call on those responses would not be extracting anything. It would read the reasoning and form its own judgment, which is imputation wearing a parser's clothes, and it is worse than the coin flip because it does not look random. It would also cost quota per unparseable example.
+
+Only 15 percent of the residual has a verdict word in the body but outside the 300 character tail window. Reaching those means widening the window into the reasoning and trading precision for a handful of examples. Not worth it. The extractor is done.
+
+The remedy for a high `none` rate is at the prompt and generation end, not the extractor end. That belongs to the harness work.
+
+## The upstream numbers were produced at temperature 1.0. Ours will not be.
+
+This is the most important thing learned today and it changes how the 33 percent should be read.
+
+Read from `run_llm.py` lines 44 to 47 and `scripts/inference/main_vllm.sh`, which passes no sampling overrides, so the argparse defaults reached vLLM at `run_llm.py:125`:
+
+    temperature = 1.0        top_p = 1.0        max_tokens = 1024
+
+None of that is an error on the authors' part. All three are ordinary defaults. But they are not our settings, and two of them are doing real damage to the small models.
+
+**The 1024 token cap is provably biting.** On Llama-3.2-3B, 108 of 700 responses end with no terminal punctuation. Their word counts pile against a hard ceiling, p90 863 and max 916, that cleanly ending responses never approach, max 827. A ceiling in one group and not the other is the signature of a generation cap. Ninety of those truncated responses land in the `none` bucket, which is 39 percent of that bucket and about 13 percent of all 700 examples. Those were cut off mid reasoning, not incapable of concluding.
+
+**Do not treat 33 percent as a forecast of our own rate.** Our runs use temperature 0 and we set `num_predict` ourselves. Greedy decoding follows an instructed format far more reliably than sampling at 1.0, and we control the cap. Both mechanisms most likely driving that 33 percent are ones we have already turned off. Do not write "3B models fail the output format 45 percent of the time" into the paper on the strength of the upstream table. The first honest measurement of our own rate comes from running our own model.
+
+One thing that follows for the framing: the published FINDVER baselines are non reproducible on two axes, not one. Sampled generation at temperature 1.0, and then the unseeded coin flip at scoring time. Section 11.8 previously recorded only the second.
+
+The token soup and near empty generations in the upstream files are consistent with temperature 1.0, but that is unverified. Testing it would mean re-running their models, which we cannot do.
+
+## New trap: `num_predict` is the twin of `num_ctx`
+
+A model call has two ends and each has a limit. `num_ctx` caps what goes in, `num_predict` caps what comes out. Both truncate with no error, no warning, and nothing visible in the output, and both make me blame the model for something I configured.
+
+    cap too small   what breaks              what it looks like        what it is
+    num_ctx         evidence gone from       the model hallucinated    I truncated
+                    the prompt                                         the input
+    num_predict     verdict gone from        the model ignored         I truncated
+                    the response             the format                the output
+
+`num_predict` bites harder than it sounds, because chain of thought reasons first and concludes last, so an output cap removes exactly the sentence the extractor needs.
+
+Set it explicitly in every API call. Log the generation eval count as well as the prompt eval count. Treat a response ending without terminal punctuation as its own failure category in the error taxonomy, separate from a format failure. **Ollama's default `num_predict` on v0.12.3 has not been checked yet and must be, before the first batch run rather than after one.**
+
 ## Machine and environment
 
 The work machine is a 2017 Intel MacBook Pro running macOS 13 Ventura, with 16 GB RAM. There is no usable GPU for inference, so everything runs on CPU.
@@ -146,40 +214,33 @@ Note that the label extractor is not blocked. It is deterministic and it can be 
 
 Checking the FINDVER leaderboard for recent submissions, and running a citation search for papers published since the benchmark. Both are needed before repeating any claim that nobody has attempted something. Neither has been done yet.
 
-## Where I left off on 31 July
+## Where I left off on 1 August
 
-The loader and the sampler are finished, verified, and committed. The design of the label extractor is settled but no code is written.
+The label extractor is finished, verified, and committed across `9b09cfc`, `95da412`, and `5128a21`. `scripts/measure_extractor_baseline.py` now imports the real extractor rather than holding its own copy of the regex, so the measurement always describes the thing being shipped.
 
-Settled design for the extractor:
+Two bugs were hit while writing it, both silent, and both worth remembering.
 
-- Input is the model's raw response string. Output is `"entailed"`, `"refuted"`, or `None`.
-- `None` is a real answer and is never guessed at. It is the bucket that gets counted and reported.
-- Search the end of the response first. The words "entailed" and "refuted" appear throughout the reasoning and in the prompt's own instructions, so the first match in the text is not the conclusion.
-- Match the whole sentence pattern, not a fragment. A substring test for "entail" matches "not entailed" and gets the answer backwards. That is the exact bug in the upstream direct prompting path.
-- The two number reporting, strict and FINDVER compatible, belongs to the scorer, not to the extractor. The extractor does one thing: text in, verdict out.
-- Expect roughly 25 lines.
+An `if` block was written one indentation level short, so it sat outside the `for` loop instead of inside it. The loop ran 700 times doing nothing but rebinding a variable, and the body then ran once on whatever the last record left behind. Coverage read 0.1 percent. No error of any kind. In Python, indentation is the block structure, so this is a complete change of meaning that the interpreter cannot object to.
+
+A counter was incremented with `agrees ++ 1` instead of `agrees += 1`. Python has no `++` operator. That line parses as `agrees + (+1)`, a legal expression whose value is discarded, so the counter never moved and the column read 0.0 percent. No error, no warning.
+
+Later, the same guard condition was pasted twice, so the second branch tested `_HEDGE_BEFORE` where it should have tested `_NEGATION_BEFORE`. Because the first branch already returned on that condition, the second was unreachable, and the 30 negated responses silently came back with the label reversed. Coverage looked perfect and only the agreement column moved, by 0.2 points.
+
+All three are the same shape: plausible looking output, no exception. This is why the verification step for each block was "reproduce this exact number", not "check it looks reasonable".
 
 ## Next session
 
-Build `src/label_extractor.py`.
+Two harness pieces left, both due 2 August, neither blocked on cloud keys: **per example logging** and the **evidence assertion**.
 
-Development data is already on disk and needs no model run. Use `FinDVer/outputs/testmini_outputs/rag/processed_cot_outputs/Llama-3_2-3B-Instruct.json`, which is the closest available analogue to our 3B model, plus `Qwen2_5-7B-Instruct.json` for the 7B comparison. Each record has `output`, which is a list whose first element is the response text, and `extracted_label`, which is what `gpt-4o-mini` returned.
+Then the first smoke run, 12 examples at 2 per cell, roughly one hour on the 3B model. It now has three jobs, not one.
 
-The measurement script already exists: `scripts/measure_extractor_baseline.py`. It reproduces the table above in under a second and is the loop for widening the regex. Edit the pattern, rerun, watch the coverage column move.
+1. Settle the provisional output format row in section 4.6 of the plan with a logged artifact instead of recollection.
+2. Produce the first responses from **our own** model, `qwen2.5-coder:3b`, at temperature 0. Everything the extractor was developed against is Llama-3.2-3B at temperature 1.0, which is a stand in. This is the first real validation.
+3. Give the first honest `none` rate for our configuration.
 
-Order of work:
+Before that run, check Ollama's default `num_predict` on v0.12.3 and set it explicitly.
 
-0. The script currently holds its own copy of the regex, in a constant called `PATTERN`, because it was written before `label_extractor.py` existed. Change it to import the real extractor instead. Two copies of one regex will drift apart, and then the measurement stops describing the thing being shipped.
-1. Write the strict regex for the canonical sentence. Measure how often it fires on the Llama 3B file. The first pass measured 54.9 percent.
-2. Read a sample of the responses where it does not fire. Sort them into two piles: no verdict stated, and verdict stated in a form the pattern missed.
-3. Widen the patterns to cover the second pile only. Re-measure. Do not widen to cover the first pile, because those are genuinely unparseable and inventing a guess for them is exactly what we are trying not to do.
-4. Report the final coverage and the residual unparseable rate. That residual is a result worth writing down.
-
-Do not add a model based fallback in this session. Decide on it after step 4, with a measured number in hand.
-
-The harness is due 2 August, which leaves the label extractor, per example logging, and the evidence assertion in about two days. None of the three is blocked on cloud keys.
-
-**Why this piece matters more than it looks.** The edge only baseline is the run I can start first, because it needs no keys, and in it the 3B model produces every verdict. A 45 percent miss rate there is not a detail, it is most of the first result. The extractor is also the thing that turns today's measurement into a paper section, so it is on the critical path twice.
+Also still open from 31 July: the FINDVER leaderboard check and the citation sweep. Neither has been done, and both are needed before repeating any claim that nobody has attempted something.
 
 ## Outstanding, not yet done
 

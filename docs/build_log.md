@@ -105,3 +105,87 @@ Logging, label extractor, and evidence assertion. Three of the five harness piec
 ### Also built
 
 `scripts/measure_extractor_baseline.py`, which regenerates the regex table above. Its data path is anchored to `__file__` rather than hardcoded, matching the loader. It holds its own copy of the regex in a constant called `PATTERN`, because it was written before `label_extractor.py` existed. That copy has to become an import once the extractor exists, otherwise the two drift apart and the measurement stops describing what is shipped.
+
+---
+
+## 1 August 2026, second build session
+
+### Built
+
+`src/label_extractor.py`. Raw response string in, `"entailed"`, `"refuted"`, or `None` out. Three levels tried in order of precision, last match winning inside a level.
+
+The anchored level matches a concluding sentence such as "the claim is entailed" over the whole response. The bare level matches a standalone `entailed` or `refuted` but only inside the last 300 characters, because both words appear all through the reasoning and in the prompt's own instructions, so a match in the body is not a conclusion. Two guards sit on the bare level. A hedge such as "partially entailed" returns `None`, because that is not a binary verdict and inventing one is exactly what the `None` bucket exists to prevent. A direct negation such as "not entailed" returns the opposite label, which is safe only because the FINDVER label space is binary.
+
+`extract_label_with_source()` returns the level that fired alongside the verdict. `extract_label()` is a one line wrapper over it, so the pipeline keeps a simple call and there is one implementation rather than two that can drift.
+
+`scripts/measure_extractor_baseline.py` now imports the extractor instead of holding its own `PATTERN` constant, which was the first thing on the session's list. It also reports the per level breakdown.
+
+### Measured
+
+Coverage across all 11,200 upstream responses rose from 81.7 to 87.8 percent. Agreement with the `gpt-4o-mini` labels fell from 98.9 to 98.3. On Llama-3.2-3B, the closest analogue to our model, coverage rose from 54.9 to 65.3 percent, which in whole examples is 373 correct extractions rising to 437 against 11 wrong rising to 20.
+
+Level breakdown over 11,200: anchored 81.7 percent, bare 5.8, negated 0.3, hedged 2.3, none 9.9.
+
+The hedged and none buckets separate models in a way a single unparseable number would hide. `gemini-1.5-pro` is 6.3 percent hedged and 0.4 percent none. `Meta-Llama-3.1-8B` is 1.9 percent hedged and 40.3 percent none. One model always concludes and then qualifies it, the other frequently never concludes at all. The two buckets stay separate for that reason.
+
+### Decided: no model based fallback
+
+This was deferred on 31 July pending a measurement, and the measurement settles it.
+
+Of Llama-3.2-3B's 231 remaining `none` responses, 81 percent contain the strings "entail" or "refut" nowhere in the response at all. There is no verdict in the text. A DeepSeek or Qwen call on those would not be extracting anything, it would be reading the reasoning and forming its own judgment. That is imputation wearing a parser's clothes, and it is worse than the coin flip because it does not look random. It would also cost quota per unparseable example.
+
+Widening also stops here. Only 15 percent of the residual has a verdict word in the body but outside the tail window, and reaching it means widening the window into the reasoning and trading precision for a handful of examples.
+
+### Found: the upstream outputs were generated at temperature 1.0 with a 1024 token cap
+
+The most consequential thing learned today. Read from `run_llm.py` lines 44 to 47 and `scripts/inference/main_vllm.sh`, which passes no sampling overrides, so the argparse defaults reached vLLM at `run_llm.py:125`. Temperature 1.0, top_p 1.0, max_tokens 1024.
+
+None of that is an error by the authors. All three are ordinary defaults. But they are not our settings, and two of them are doing real damage to the small models.
+
+The cap is provably biting. On Llama-3.2-3B, 108 of 700 responses end with no terminal punctuation, and their word counts pile against a hard ceiling, p90 863 and max 916, that cleanly ending responses never approach at max 827. A ceiling in one group and not the other is the signature of a generation cap. Ninety of those truncated responses land in the `none` bucket, which is 39 percent of that bucket and about 13 percent of all 700 examples. Those responses were cut off mid reasoning, not incapable of concluding.
+
+The consequence is that the 33 percent unparseable rate is not a forecast of ours. We run at temperature 0 and we set `num_predict` ourselves, so both mechanisms most likely driving it are already off. The line "3B models fail the output format 45 percent of the time" must not go into the paper on the strength of the upstream table. Our own number has to come from our own model.
+
+A second consequence for the framing. The published FINDVER baselines are non reproducible on two axes rather than one: sampled generation at temperature 1.0, then the unseeded coin flip at scoring time. Section 11.8 previously recorded only the second.
+
+The token soup and near empty generations in the upstream files are consistent with temperature 1.0, but that is unverified, since testing it would mean re-running their models.
+
+### Found: `num_predict` is the silent twin of `num_ctx`
+
+`num_ctx` caps the input and drops evidence out of the prompt. `num_predict` caps the output and cuts the response off before the verdict, which sends the example to the unparseable bucket disguised as a format failure. Same silence, opposite end of the call. Added to section 4.3 and to the config gotchas in section 11. Ollama's default on v0.12.3 has not been checked and must be before the first batch run.
+
+### Corrected two false claims in the plan
+
+Sections 4.6 and 11.8 both stated that neither local model produced the required output sentence in week 1 testing. That was wrong. It described the first test round, which ran before `num_ctx` was set and whose prompt was corrupted by the loader bug. On the re-run at `num_ctx` 8192 both models did produce the required sentence. The section 4.6 table had been mixing the two rounds, since its own caption already says `num_ctx` 8192.
+
+The corrected value comes from recollection rather than a preserved artifact, so both places now mark it provisional. It will be settled by the first smoke run. Section 11.8 also gained a line saying the case for the extractor never rested on that datapoint, since otherwise the correction reads as undermining the whole item.
+
+One bad test round propagated a false claim into two sections of the plan. Worth remembering when a week 1 finding is cited later.
+
+### Decided provisionally: the cloud tier emits the verdict sentence
+
+Section 4.4 assigned "filling the final output template" to the edge 3B model, on the reasoning that formatting is mechanical once the thinking is done. The cloud tier is already generating the explanation, so it is already emitting text. Passing that text to a 3B model purely to wrap it in the required sentence adds a second model call, a second failure mode, and about 35 seconds per example extrapolated from the section 4.6 rates, and it means the extractor reads the 3B's formatting rather than the cloud model's.
+
+That row is now provisionally reassigned to cloud, recorded as a sub question under open question 1 for the professor. It costs the contribution nothing, since role to model assignment across decomposition, `.loc` generation, glossary spotting and the first pass verifier screen is untouched, and moving a row because measurement says so is section 4.5's method working.
+
+One trap named while deciding this. The safe version is cloud doing the reasoning and emitting the verdict as one step. The unsafe version is cloud as a formatting pass over edge reasoning, because on the examples where the 3B never concluded, the cloud model would be handed inconclusive reasoning and asked to state a verdict. It would comply. That converts a `none` into a confident verdict by judgment, which is imputation with extra steps and is worse than the coin flip because it looks like reasoning. Same architecture diagram, opposite epistemics.
+
+### Also recorded: why strict scoring is the working number
+
+Section 9 already said when to use FINDVER compatible scoring but never said why using it elsewhere is dangerous. Added. Every internal comparison is strict against strict, because strict has no random component, so a difference between two runs is a real difference. FINDVER compatible cannot do that job. It injects a coin flip into every cell, and worse, the flip inflates weak configurations more than strong ones, because a configuration with more unparseables has more examples to guess on. An ablation table scored that way would misreport which change helped.
+
+### Three silent bugs, all in one afternoon
+
+Worth logging as a class, because none of them raised an exception.
+
+An `if` block written one indentation level short sat outside its `for` loop. The loop ran 700 times rebinding a variable and the body ran once, on the last record. Coverage read 0.1 percent.
+
+`agrees ++ 1` instead of `agrees += 1`. Python has no `++` operator, so that parses as `agrees + (+1)`, a legal expression whose value is discarded. The counter never moved and the column read 0.0 percent.
+
+The same guard condition pasted twice, so a branch tested `_HEDGE_BEFORE` where it needed `_NEGATION_BEFORE`. The first branch already returned on that condition, making the second unreachable, so 30 negated responses came back with the label reversed. Coverage looked perfect and only the agreement column moved, by 0.2 points.
+
+All three produced plausible looking tables. This is the argument for making each block's verification "reproduce this exact number" rather than "check it looks reasonable", and it is the same failure mode as the week 1 loader bug.
+
+### Not done
+
+Per example logging and the evidence assertion. Two of the five harness pieces remain, due 2 August. The extractor was committed across `9b09cfc`, `95da412`, and `5128a21`.
