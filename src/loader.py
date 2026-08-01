@@ -22,7 +22,7 @@ class Claim:
     report: str
     explanation: str
 
-    # subset-specific: None when the subset does not have them
+    # subset-specific fields: None when the subset does not have them
     python_calculation: str | None
     execution_result: float | None
     knowledge: tuple[str, ...] | None

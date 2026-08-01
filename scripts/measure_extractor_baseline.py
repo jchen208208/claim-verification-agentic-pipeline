@@ -26,19 +26,16 @@ Usage:
 """
 
 import json
-import re
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+from src.label_extractor import extract_label
+
 OUTPUT_DIR = (REPO_ROOT / "FinDVer" / "outputs" / "testmini_outputs" / "rag"
               / "processed_cot_outputs")
-
-# The canonical concluding sentence, allowing light markdown decoration around
-# the label. The last match wins: these words also appear throughout the
-# reasoning and in the prompt's own instructions, so the first one is not the
-# conclusion.
-PATTERN = re.compile(r"the (?:claim|statement) is\s*[*_'\"\[]*\s*(entailed|refuted)", re.I)
-
 
 def response_text(record):
     """The raw response. Stored as a one-element list in these files."""
@@ -51,10 +48,10 @@ def measure(path):
     records = json.load(open(path))
     fires = agrees = 0
     for record in records:
-        found = PATTERN.findall(response_text(record))
-        if found:
+        label = extract_label(response_text(record))
+        if label:
             fires += 1
-            if found[-1].lower() == record["extracted_label"]:
+            if label == record["extracted_label"]:
                 agrees += 1
     return len(records), fires, agrees
 
