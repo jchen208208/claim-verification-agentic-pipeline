@@ -186,6 +186,36 @@ The same guard condition pasted twice, so a branch tested `_HEDGE_BEFORE` where 
 
 All three produced plausible looking tables. This is the argument for making each block's verification "reproduce this exact number" rather than "check it looks reasonable", and it is the same failure mode as the week 1 loader bug.
 
+### Measured at the end of the session: Ollama 0.12.3 evicts prompt tokens during generation
+
+Started as a two minute sanity check on an open question and turned into the most operationally important finding of the day.
+
+The question was what Ollama does when generation fills the context window. Documentation was not consulted, because this behaviour has changed across versions and we are pinned to 0.12.3, so any answer found online would describe a different build. Tested directly against the local server instead. A canary string was placed at the very start of a 74 token prompt, a long generation was requested, and only `num_ctx` was varied.
+
+    num_ctx  192 | prompt  74 | eval 268 | total 342 | done=stop | canary LOST
+    num_ctx  256 | prompt  74 | eval 339 | total 413 | done=stop | canary LOST
+    num_ctx  512 | prompt  74 | eval 286 | total 360 | done=stop | canary OK
+    num_ctx  512 | prompt 512 | eval 277 | total 789 | done=stop | canary LOST, confabulated
+
+Generation is not stopped by the window. Totals reached 342 and 413 against windows of 192 and 256, so decoding continues and the oldest tokens are evicted to make room. `done_reason` returned `stop` in every case and never `length`, so the API reports a clean normal completion while data is being destroyed. The model confabulates rather than reporting the loss: in the overflow run it stated the secret code was "double entry", and it silently dropped the trailing instruction to state the code at all, because that had scrolled out of view as well.
+
+The first attempt at this test failed to overflow anything, because the model abbreviated a counting task with an ellipsis and stopped after 36 tokens. The second attempt confounded two mechanisms, because the prompt was itself larger than the window. Only the third design, holding the prompt fixed and small while shrinking `num_ctx`, isolated context shifting from input truncation.
+
+**This changes the evidence assertion in section 11.9, which was wrong as written.** It said to alarm when `prompt_eval_count` equals the configured window. That catches input side truncation only. A prompt that fits perfectly at ingestion can still have its evidence scrolled out mid generation if the response is long, and the planned string presence check passes while that happens because the prompt string is fine. The loss occurs later, inside the model. The correct condition is `prompt_eval_count + eval_count >= num_ctx`, and both counts have to be logged per call. That sum is the only available signal, since the response text and `done_reason` both look healthy.
+
+### Measured: KV cache cost, and a corrected claim
+
+Resident size for `qwen2.5-coder:3b` as `num_ctx` varies, on 16 GB physical: 4096 gives 2.4 GB, 8192 gives 2.6, 16384 gives 3.2, 32768 gives 4.4. About 0.07 GB per extra 1k of window.
+
+This corrects a claim made earlier the same day in section 4.3, that 16 GB was no place to allocate a 32k window. That was an assumption, not a measurement, and it was wrong. RAM is not the binding constraint for the 3B model. The 7B has a larger cache and has not been measured.
+
+The consequence is that a generous window is cheap insurance, because an unused window costs only that RAM and not time, while actual prompt tokens cost 19.1 tok/s of ingestion. Settings chosen: `num_ctx` 16384 and `num_predict` between 1500 and 2000. Upstream's 1024 truncated a verbose 3B mid reasoning, and Llama-3.2-3B's cleanly ending responses ran a median of 354 words and a max of 827, so roughly 1100 tokens covers the longest observed. That leaves 16384 against about 4500 prompt plus 2000 generation, roughly 9800 tokens of slack, which makes overflow arithmetically impossible rather than merely unlikely. Our own model still has to confirm the generation figure on the smoke run.
+
+The model reports a 32768 context length and ships no baked-in parameters, so Ollama's own defaults apply unless we override them. We override both on every call regardless, which makes the defaults irrelevant.
+
+Also recorded in section 4.3: raising both caps is not the fix and is not a coherent setting. `num_ctx` is the total window and prompt plus generation share it, so raising `num_predict` past the remaining room only changes which limit binds first. Uncapped output is a hazard rather than a fix, because a small model at temperature 0 can loop and consume an entire night on one example. And a larger `num_ctx` costs RAM at load time whether the tokens are used or not, which matters at 16 GB on CPU.
+
+
 ### Not done
 
 Per example logging and the evidence assertion. Two of the five harness pieces remain, due 2 August. The extractor was committed across `9b09cfc`, `95da412`, and `5128a21`.

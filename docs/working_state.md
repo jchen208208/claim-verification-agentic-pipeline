@@ -168,6 +168,40 @@ A model call has two ends and each has a limit. `num_ctx` caps what goes in, `nu
 
 `num_predict` bites harder than it sounds, because chain of thought reasons first and concludes last, so an output cap removes exactly the sentence the extractor needs.
 
+The fix is not to raise both. They share one budget, since `num_ctx` is the total window and prompt plus generated tokens both live in it. Uncapped output is also a hazard, because a small model at temperature 0 can loop forever and eat a whole night on one example.
+
+Measured 1 August, the RAM cost of a bigger window is smaller than I assumed. For `qwen2.5-coder:3b`: 4096 gives 2.4 GB, 8192 gives 2.6, 16384 gives 3.2, 32768 gives 4.4, against 16 GB physical. About 0.07 GB per extra 1k of window, so RAM is not the binding constraint for the 3B. Re-measure for the 7B, whose cache is larger.
+
+Settings to use, therefore:
+
+    num_ctx      16384       about 3.2 GB, double today's headroom, so a larger
+                             retrieval k later does not need this re-tuned
+    num_predict  1500-2000   upstream's 1024 cut a verbose 3B off mid reasoning.
+                             Llama-3.2-3B's cleanly ending responses ran a median
+                             354 words and a max of 827, so roughly 1100 tokens
+                             covers the longest seen. Confirm on our own model.
+
+That gives 16384 against about 4500 prompt plus 2000 generation, roughly 9800 tokens of slack, so overflow is arithmetically impossible rather than merely unlikely.
+
+There is no input token parameter. `num_ctx` is the total window, so prompt size is ours to manage. That is only safe because the pipeline is RAG only: we never pass a filing, we pass k retrieved chunks, so prompt length is set by k and chunk size rather than by document length. The one residual risk is a single oversized table chunk blowing the budget by itself. Count tokens before sending and trim or drop the lowest ranked chunk until it fits.
+
+## Measured 1 August: Ollama 0.12.3 destroys prompt tokens during generation
+
+Tested on the local server rather than looked up, because this behaviour has changed across Ollama versions and we are pinned. A canary string was put at the very start of a 74 token prompt, a long generation was requested, and only `num_ctx` was varied.
+
+    num_ctx  192 | prompt  74 | eval 268 | total 342 | done=stop | canary LOST
+    num_ctx  256 | prompt  74 | eval 339 | total 413 | done=stop | canary LOST
+    num_ctx  512 | prompt  74 | eval 286 | total 360 | done=stop | canary OK
+    num_ctx  512 | prompt 512 | eval 277 | total 789 | done=stop | canary LOST, confabulated
+
+Generation is not stopped by the window. Totals reached 342 and 413 against windows of 192 and 256, so decoding carries on and the oldest tokens are evicted to make room. `done_reason` came back as `stop` every single time, never `length`, so the API reports a clean normal completion while data is being destroyed. And the model confabulates rather than reporting the loss. In the overflow run it announced the secret code was "double entry", and it also silently dropped the instruction to state the code at all, because that had scrolled out of view too.
+
+**This changes the evidence assertion.** A prompt that fits perfectly at ingestion can still have its evidence scrolled out mid generation if the response is long. Checking that gold tokens are present in the prompt string passes while this happens, so it cannot catch it. The alarm condition is not `prompt_eval_count == num_ctx`, which only catches input side truncation. It is:
+
+    prompt_eval_count + eval_count >= num_ctx
+
+Log both counts on every call and check the sum. It is the only signal available, because the response text and `done_reason` both look healthy.
+
 Set it explicitly in every API call. Log the generation eval count as well as the prompt eval count. Treat a response ending without terminal punctuation as its own failure category in the error taxonomy, separate from a format failure. **Ollama's default `num_predict` on v0.12.3 has not been checked yet and must be, before the first batch run rather than after one.**
 
 ## Machine and environment
@@ -206,7 +240,11 @@ The numeric subset spells the explanation field `explaination`. The other two su
 
 ## Currently blocked on
 
-Cloud API keys from my professor, for DeepSeek and Qwen. Nothing involving the cloud half of the architecture can start without them. For Qwen specifically I also need to know which Alibaba Cloud region the account belongs to, because keys are not interchangeable between regions and the wrong endpoint returns a 401.
+**Updated 1 August: the DeepSeek key has arrived.** DeepSeek runs a single global API at `api.deepseek.com` and is OpenAI SDK compatible, so there is no regional configuration to get wrong. The cloud half is no longer fully blocked.
+
+Qwen is still outstanding. For Qwen I also need to know which Alibaba Cloud region the account belongs to, because keys are not interchangeable between regions and the wrong endpoint returns a 401. Run a one call smoke test on receipt: a 401 identifies a region mismatch rather than a bad key, and only the `base_url` changes.
+
+Not yet done with the DeepSeek key: a smoke test confirming it works.
 
 Note that the label extractor is not blocked. It is deterministic and it can be developed and validated entirely against the 11,200 stored responses in the upstream clone.
 
@@ -232,13 +270,21 @@ All three are the same shape: plausible looking output, no exception. This is wh
 
 Two harness pieces left, both due 2 August, neither blocked on cloud keys: **per example logging** and the **evidence assertion**.
 
-Then the first smoke run, 12 examples at 2 per cell, roughly one hour on the 3B model. It now has three jobs, not one.
+**A gap worth naming.** The five harness pieces are the loader, the sampler, logging, the label extractor, and the evidence assertion. None of them is the **run loop**: the thing that walks the sample, builds each prompt, calls Ollama with the right options, catches exceptions per example, writes a result file as it goes, and skips ids that already have one. The smoke run cannot happen without it. Treat it as a third piece for tomorrow rather than discovering it mid session.
+
+The evidence assertion is now **two** checks, not one.
+
+1. A distinctive token from the gold evidence is literally present in the prompt string. Catches loader and prompt building bugs, which is the week 1 failure.
+2. `prompt_eval_count + eval_count >= num_ctx` raises an alarm. Catches mid generation context eviction, measured today. Check 1 passes while that happens, so it cannot substitute.
+
+Settings are settled and need no further investigation: `num_ctx` 16384, `num_predict` 1500 to 2000, temperature 0, seed fixed. Pass them explicitly on every call.
+
+Then the first smoke run, 12 examples at 2 per cell, roughly one hour on the 3B model. It has four jobs.
 
 1. Settle the provisional output format row in section 4.6 of the plan with a logged artifact instead of recollection.
-2. Produce the first responses from **our own** model, `qwen2.5-coder:3b`, at temperature 0. Everything the extractor was developed against is Llama-3.2-3B at temperature 1.0, which is a stand in. This is the first real validation.
-3. Give the first honest `none` rate for our configuration.
-
-Before that run, check Ollama's default `num_predict` on v0.12.3 and set it explicitly.
+2. Produce the first responses from **our own** model, `qwen2.5-coder:3b`, at temperature 0. Everything the extractor was developed against is Llama-3.2-3B at temperature 1.0, which is a stand in. This is the first real validation of the extractor against the model we actually ship.
+3. Give the first honest `none` rate for our configuration. Do not carry the upstream 33 percent into the paper before this exists.
+4. Confirm the `num_predict` figure against real chain of thought lengths from our own model, rather than from Llama-3.2-3B's.
 
 Also still open from 31 July: the FINDVER leaderboard check and the citation sweep. Neither has been done, and both are needed before repeating any claim that nobody has attempted something.
 
