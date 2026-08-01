@@ -98,6 +98,22 @@ Two results can carry the paper without a long run chain. Retrieval recall, whic
 
 One consequence of reusing the paper's published numbers, which is easy to miss. Those numbers include coin flip imputation. Mixing them with strictly scored numbers of ours in one table would compare two different measurements and would understate our models exactly where they fail the output format. Any mixed table has to use the FINDVER compatible scoring. The two number reporting decided earlier today stopped being optional the moment the baseline strategy was set.
 
+### Found from the workshop site: the deadline is a day earlier than every document said
+
+Read from odi2026.github.io on 1 August, provided as page content rather than from the professor. This closes open question 10, which had been waiting on him.
+
+The submission deadline is **29 August 2026 at 23:59 anywhere on earth**, not 30 August. Every plan document carried 30 August, taken from the professor at the 30 July meeting. The AoE clock runs to 04:59 Pacific on the 30th, which is upload buffer rather than a working day, so Phase 5 writing is six days and not seven. Corrected in section 1.1 and section 12.2 of the plan, in `working_state.md`, and in `CLAUDE.md`.
+
+Three other mechanics matter beyond the date.
+
+Review is **double blind**. That changes how the paper is written and not only how it is formatted: no author names, no reference to our own earlier work, and the repository link anonymised or withheld. Better known now than during the final edit.
+
+The venue is **non archival**. A fuller version can go to an archival venue afterwards, so this paper does not have to be the last word on the project. That lowers the cost of Band B not landing in time.
+
+It is a **NeurIPS 2026 workshop** in Sydney on 11 or 12 December, which the plan had recorded only as a workshop in Australia. Organisers are from ETH Zurich, MPI for Intelligent Systems, and MIT. Five pages excluding references, NeurIPS 2026 LaTeX template, submitted through OpenReview, notification 29 September.
+
+Two of the five listed topics fit directly. Topic 05, benchmarks and evaluation for real world deployment, asks for metrics that jointly assess performance and reliability under realistic deployment conditions, which is exactly what the extraction and imputation analysis is. Topic 02 covers the edge and cloud pipeline itself. Both should be named on the submission.
+
 ### Not done
 
 Logging, label extractor, and evidence assertion. Three of the five harness pieces remain, due 2 August.

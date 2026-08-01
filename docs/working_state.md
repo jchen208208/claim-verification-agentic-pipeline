@@ -8,7 +8,9 @@ Last updated: 1 August 2026.
 
 ## The deadline
 
-The paper is due **30 August 2026**. That is 30 days from today. Settled at the professor meeting on 30 July.
+The paper is due **29 August 2026, 23:59 anywhere on earth**. That is 04:59 Pacific on 30 August, and 19:59 Beijing on 30 August.
+
+**Corrected 1 August.** Every document said 30 August, taken from the professor at the 30 July meeting. The workshop site says 29 August. One day of the writing phase is gone.
 
 The deliverable is a paper of about five pages, submitted to a workshop in Australia called *On-Device Intelligence: Foundation Models under Real-World Constraints*. I am first author. My professor is a co-author and will recruit about two industry co-authors.
 
@@ -294,7 +296,7 @@ Decide the two cloud models and the two added edge models before 3 August. See o
 
 Answer open question 11: what faster machine is available, with what specs, and when. This decides whether Band B opens.
 
-Confirm the workshop mechanics: page limit, template, whether submissions are anonymous, and whether the 30 August deadline is anywhere on earth. None of this is known and all of it changes the writing schedule.
+~~Confirm the workshop mechanics.~~ **Done 1 August, from the workshop site rather than the professor.** It is a NeurIPS 2026 workshop in Sydney, 11 or 12 December. Five pages excluding references, NeurIPS 2026 LaTeX template, submitted through OpenReview. Review is **double blind**, so no author names and no identifying repository link in the PDF. The venue is **non archival**, so a fuller version can go elsewhere later and this paper does not have to be the final word. Deadline 29 August AoE. Full table in section 1.1 of the plan.
 
 ## Measured performance, for planning purposes
 

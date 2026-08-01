@@ -22,7 +22,30 @@ The FINDVER benchmark (Zhao et al., EMNLP 2024, Yale NLP) tests whether LLMs can
 
 ### 1.1 **[SETTLED 30 Jul 2026]** The deliverable
 
-A **~5-page workshop paper**, submitted to *On-Device Intelligence: Foundation Models under Real-World Constraints* (workshop, Australia). **Submission deadline: 30 August 2026.** Confirmed with the professor at the 30 July meeting (§14 item 9); this closes what was Open Question 4.
+A **5-page workshop paper**, submitted to *On-Device Intelligence: Foundation Models under Real-World Constraints*. Confirmed with the professor at the 30 July meeting (§14 item 9); this closes what was Open Question 4.
+
+**[CORRECTED 1 Aug 2026 from the workshop site, odi2026.github.io] The deadline is 29 August, not 30.** Mechanics read directly from the call for papers, which closes Open Question 10 (§13):
+
+| | |
+|---|---|
+| Venue | **NeurIPS 2026 workshop**, Sydney, Australia, 11/12 December 2026 |
+| **Deadline** | **29 August 2026, 23:59 AoE** = **04:59 PDT on 30 August** = 19:59 Beijing, 30 Aug |
+| Length | **5 pages excluding references** |
+| Template | **NeurIPS 2026 LaTeX template** |
+| Review | **Double-blind** |
+| Archival | **Non-archival** |
+| Submission | OpenReview |
+| Notification | 29 September 2026 |
+| Contact | odi.neurips2026@gmail.com |
+
+Four consequences, in order of how much they change:
+
+1. **One day is gone from Phase 5.** Every plan document said 30 August. The writing window is 24 to 29 August, six days, not seven. The AoE clock gives until 04:59 PDT on the 30th, which is a buffer for the upload and not a working day.
+2. **Double-blind changes how the paper is written, not only how it is formatted.** No author names, no "our earlier work", and the repository link must be anonymised or withheld. Worth knowing now rather than during the final edit.
+3. **Non-archival means this does not burn the work.** A fuller version can go to an archival venue later, so the paper does not need to be the final word on the project. That lowers the pressure on Band B (§12.3) landing in time.
+4. **It is a NeurIPS workshop**, which the plan had recorded only as "a workshop in Australia". The organisers are from ETH Zurich, MPI for Intelligent Systems, and MIT.
+
+**Topic fit, from the call for papers.** Topic 05, "Benchmarks and Evaluation for Interactive Real-World Deployment", asks for *metrics that jointly assess performance, latency, energy, memory, safety, and reliability under realistic deployment conditions*. The extraction and imputation analysis (§11.8) is squarely that: a benchmark's official scoring silently imputing a large share of a small model's reported accuracy. Topic 02, "Efficient Adaptation, Inference and Reasoning under Real-World Constraints", covers the edge-cloud pipeline itself. Both should be named in the submission.
 
 **Authorship:** student is first author. The professor is a co-author, and he will recruit roughly two industry co-authors to strengthen the author list.
 
@@ -624,7 +647,7 @@ If the cloud baseline nevertheless comes back ~90%+ (in order of preference):
 
 ## 12. Timeline
 
-> **[REPLANNED 31 Jul 2026] The eight-week schedule is void.** The 30 July meeting set a hard deliverable: a ~5-page workshop paper, submission deadline **30 August 2026** (§1.1, §14 item 9). That is **30 days from 31 July**, not eight weeks.
+> **[REPLANNED 31 Jul 2026] The eight-week schedule is void.** The 30 July meeting set a hard deliverable: a 5-page workshop paper (§1.1, §14 item 9). Submission deadline **29 August 2026 AoE**, corrected on 1 Aug from the workshop site; the professor's 30 August was a day late. That is **29 days from 31 July**, not eight weeks.
 >
 > **Nothing is cut outright.** Scope is banded by what compute is available (§12.3), because faster hardware may become available and would move the bands. Retrieval in particular stays in scope: it is the project's core (§3.3), and its recall measurement needs no model runs at all.
 
@@ -670,7 +693,9 @@ Two strands run in parallel, because they compete for different resources.
 **Phase 4 · 21 – 23 Aug · Freeze.**
 No new configurations. Final numbers, both scorings (§9), final taxonomy distribution before versus after.
 
-**Phase 5 · 24 – 30 Aug · Write.**
+**Phase 5 · 24 – 29 Aug · Write.** **[CORRECTED 1 Aug: six days, not seven.](#)** The deadline is 29 August AoE (§1.1). The AoE clock runs to 04:59 PDT on the 30th, which is upload buffer rather than a working day. Double-blind, so no author names and no identifying repository link in the submitted PDF. Anonymity is for review only: the camera-ready version after notification on 29 September carries full author names, so there is no second permanent version to maintain.
+
+**On the submission form, name topics 05 and 02** (§1.1). Topic 05 is benchmarks and evaluation for real-world deployment, which is what the extraction and imputation analysis is. Topic 02 is efficient inference and reasoning under real-world constraints, which is the pipeline. Framing the paper against topic 05 rather than as a generic RAG-accuracy result is the difference between an on-topic submission and an adjacent one.
 Five pages. Intro, related work, method, results, analysis, limitations. Writing cannot start later than 24 August and stay honest, so Phase 4 is a hard stop.
 
 ### 12.3 Scope bands, not cuts
@@ -699,7 +724,7 @@ Table parsing overruns, cut Tier 1's retry loop before cutting Tier 1. Cloud key
 1. **Where should the edge/cloud line actually sit?** §4.5 — the 3B model handled a full end-to-end verification correctly, which the original allocation did not anticipate. Options: keep the conservative allocation; move more to edge and escalate only on verifier failure; or treat the threshold as a swept parameter from the start. **Sub-question added 1 Aug:** should the edge tier fill the final output template at all? §4.4 provisionally reassigns that row to cloud, because the cloud model is already generating the explanation and a second 3B call to reformat it adds cost and a failure mode without adding anything. Cheap to reverse, so it is a default rather than a commitment.
 2. **Cloud API keys** — DeepSeek and/or Qwen, plus which DashScope region for Qwen (§11.2).
 3. **Is ~8 h per 100-example round acceptable**, or should batch runs move to Colab / a lab server now rather than as a fallback?
-4. ~~**Target venue and rigour level.**~~ **ANSWERED 30 Jul:** ~5-page workshop paper, *On-Device Intelligence: Foundation Models under Real-World Constraints*, deadline 30 Aug 2026 (§1.1). Leaderboard submission and the full 700-example run are consequently **out of scope** (§12.1).
+4. ~~**Target venue and rigour level.**~~ **ANSWERED 30 Jul:** ~5-page workshop paper, *On-Device Intelligence: Foundation Models under Real-World Constraints*, deadline 29 Aug 2026 AoE (§1.1, corrected 1 Aug). Leaderboard submission and the full 700-example run are consequently **out of scope** (§12.1).
 5. **Does the faithfulness metric interest him as a contribution in its own right?** It is the most novel piece and the natural centrepiece if accuracy saturates (§7.5). Now in **Band C** (§12.3), and the first thing to promote if the schedule loosens or faster hardware arrives, so his appetite for it is worth knowing *before* that decision rather than after.
 6. **Confirm plain-script implementation** over AutoGen (§3.11), with the debuggability rationale.
 
@@ -707,8 +732,10 @@ Table parsing overruns, cut Tier 1's retry loop before cutting Tier 1. Cloud key
 
 7. **Which two cloud models, and which provider?** He said newer models generally, and separately that Anthropic keys can be provided. Anthropic is the tighter comparison, since `claude-3-5-sonnet` is the paper's top scorer and a newer Claude extends that exact row. DeepSeek and Qwen match the cloud-edge framing in §4.1. Needs a decision before Phase 2 (3 Aug).
 8. **Which edge models to add?** The paper already covers Llama-3.2-3B, Llama-3.1-8B, Qwen2.5-7B, Mistral-7B and others (full list in `outputs/`). Ours must be models it did **not** evaluate, and each 7B-class slice run costs 2–3 nights (§12.1). Two is realistic; three is not.
-9. **Is the extraction/imputation finding acceptable as a headline contribution?** §11.8, measured on 11,200 responses at zero compute cost, and squarely on-venue. With Tiers 2–5 cut, the paper needs a result that does not depend on a long run chain. Worth confirming he agrees before building the paper around it.
-10. **Workshop submission mechanics** — exact page limit, template, anonymity requirement, and whether the 30 Aug deadline is anywhere-on-earth. These change the writing schedule in Phase 5 and none of them are known yet.
+9. **Is the extraction/imputation finding acceptable as a headline contribution?** §11.8, measured on 11,200 responses at zero compute cost. The paper needs at least one result that does not depend on a long run chain, since Band B is conditional (§12.3). Worth confirming he agrees before building the paper around it. *(Corrected 1 Aug: this item previously read "with Tiers 2–5 cut", which contradicts §12.3. Nothing is cut; scope is banded.)*
+
+   **[NEW 1 Aug] The call for papers argues this case for us.** Topic 05 is "Benchmarks and Evaluation for Interactive Real-World Deployment", asking for *metrics that jointly assess performance, latency, energy, memory, safety, and reliability under realistic deployment conditions*. A benchmark whose official scoring silently imputes a large share of a small model's reported accuracy is exactly a reliability-of-evaluation finding, and it is the workshop's own listed topic rather than our stretch of one. That is a strong argument to put to him alongside the question. Topic 02, "Efficient Adaptation, Inference and Reasoning under Real-World Constraints", covers the edge-cloud pipeline. **Name both topics on the submission.**
+10. ~~**Workshop submission mechanics.**~~ **ANSWERED 1 Aug 2026** from the workshop site (odi2026.github.io), not from the professor. Full table in §1.1. Headlines: the deadline is **29 August AoE, not 30**, the review is **double-blind**, the venue is **non-archival**, 5 pages excluding references, NeurIPS 2026 LaTeX template, submitted via OpenReview.
 11. **What faster hardware is actually available, and when?** Specs, access method, and date. This decides whether Band B (§12.3) opens: full-700 runs, end-to-end retrieval ablations, 7B comparisons. Two sub-questions matter. Does it have a usable GPU, which changes throughput by a large factor rather than a small one? And is Ollama's pinned-0.12.3 macOS-13 constraint (§11.10) even relevant there, or does a different machine mean a different and unpinned runtime? Until this is answered, plan against the current machine and treat anything faster as upside.
 
 ---
@@ -729,7 +756,7 @@ Table parsing overruns, cut Tier 1's retry loop before cutting Tier 1. Cloud key
    - **Baselines will not be re-run.** Use the paper's published numbers as the historical baseline, extend the cloud row with two post-publication models, and extend the edge row with local models the paper did not evaluate. See §9.1. He independently reached the same edge-only / cloud-only framing already in the plan.
    - **Confirmed** that establishing both ends before building the routed system is the right order.
 
-**Immediate next actions (30-day sprint, deadline 30 Aug):**
+**Immediate next actions (sprint, deadline 29 Aug AoE):**
 - [x] Install Ollama; pull models; benchmark; note throughput
 - [x] Clone the repo; confirm the real data and table formats
 - [x] Produce the visual build plan
