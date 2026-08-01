@@ -20,7 +20,7 @@ TAIL_CHARS = 300
 _BARE = re.compile(r"\b(entailed|refuted)\b", re.I)
 
 # hedge = "partially entailed", negation = "not entailed"
-# the below two regex contain $ so they only fire when the word sits direclty before the bare word (entailed/refuted)
+# the below two regex only fire when the word sits directly before the bare word (entailed/refuted)
 _HEDGE_BEFORE = re.compile(
     r"\b(?:partially|partly|mostly|largely|somewhat|slightly"
     r"|not\s+(?:entirely|fully|necessarily|completely))\b[\s*_'\"\[]{0,4}$", re.I
@@ -33,23 +33,31 @@ _NEGATION_BEFORE = re.compile(
 _OPPOSITE = {"entailed": "refuted", "refuted": "entailed"}
 
 
-def extract_label(response):
-    # Returns "entailed", "refuted", or None for a given response string based on the last occuring word
+def extract_label_with_source(response):
+    """Return (label, source) for one raw response string.
+
+    label is "entailed", "refuted", or None. source is one of "anchored",
+    "bare", "negated", "hedged", "none", and records which rule produced the
+    answer."""
 
     matches = _ANCHORED.findall(response)
     if matches:
-        return matches[-1].lower()
+        return matches[-1].lower(), "anchored"
 
     tail = response[-TAIL_CHARS:] # last 300 chars only
     bare = list(_BARE.finditer(tail))
     if not bare:
-        return None
+        return None, "none"
 
     last = bare[-1] # where bare was last fired
     before = tail[:last.start()] # the word right before a bare fire
     label = last.group(1).lower() # what bare was (entailed/refuted)
     if _HEDGE_BEFORE.search(before):
-        return None
+        return None, "hedged"
     if _NEGATION_BEFORE.search(before):
-            return _OPPOSITE[label]
-    return label
+        return _OPPOSITE[label], "negated"
+    return label, "bare"
+
+def extract_label(response):
+    # Returns "entailed", "refuted", or None. Used by the actual pipeline.
+    return extract_label_with_source(response)[0]

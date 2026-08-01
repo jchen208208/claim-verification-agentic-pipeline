@@ -28,11 +28,12 @@ Usage:
 import json
 import sys
 from pathlib import Path
+from collections import Counter
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from src.label_extractor import extract_label
+from src.label_extractor import extract_label_with_source
 
 OUTPUT_DIR = (REPO_ROOT / "FinDVer" / "outputs" / "testmini_outputs" / "rag"
               / "processed_cot_outputs")
@@ -47,13 +48,15 @@ def measure(path):
     """Return (n, fires, agrees) for one model's output file."""
     records = json.load(open(path))
     fires = agrees = 0
+    sources = Counter()
     for record in records:
-        label = extract_label(response_text(record))
+        label, source = extract_label_with_source(response_text(record))
+        sources[source] += 1
         if label:
             fires += 1
             if label == record["extracted_label"]:
                 agrees += 1
-    return len(records), fires, agrees
+    return len(records), fires, agrees, sources
 
 
 def main():
@@ -61,21 +64,29 @@ def main():
     if not files:
         raise FileNotFoundError(f"no model outputs under {OUTPUT_DIR}")
 
-    print(f"{'model':40s} {'n':>5s} {'regex fires':>12s} {'agrees':>8s}")
-    print("-" * 68)
+    print(f"{'model':38s} {'fires':>6s} {'agrees':>7s} "
+          f"{'anchored':>9s} {'bare':>6s} {'negated':>8s} {'hedged':>7s} {'none':>6s}")
+    print("-" * 96)
 
     total_n = total_fires = total_agrees = 0
+    total_sources = Counter()
     for path in files:
-        n, fires, agrees = measure(path)
+        n, fires, agrees, sources = measure(path)
         total_n += n
         total_fires += fires
         total_agrees += agrees
-        print(f"{path.stem:40s} {n:5d} {fires / n:11.1%} "
-              f"{agrees / fires if fires else 0:8.1%}")
+        total_sources += sources
+        print(f"{path.stem:38s} {fires / n:6.1%} {agrees / fires if fires else 0:7.1%} "
+              f"{sources['anchored'] / n:9.1%} {sources['bare'] / n:6.1%} "
+              f"{sources['negated'] / n:8.1%} {sources['hedged'] / n:7.1%} "
+              f"{sources['none'] / n:6.1%}")
 
-    print("-" * 68)
-    print(f"{f'TOTAL ({len(files)} models)':40s} {total_n:5d} "
-          f"{total_fires / total_n:11.1%} {total_agrees / total_fires:8.1%}")
+    print("-" * 96)
+    print(f"{f'TOTAL ({len(files)} models, {total_n})':38s} "
+          f"{total_fires / total_n:6.1%} {total_agrees / total_fires:7.1%} "
+          f"{total_sources['anchored'] / total_n:9.1%} {total_sources['bare'] / total_n:6.1%} "
+          f"{total_sources['negated'] / total_n:8.1%} {total_sources['hedged'] / total_n:7.1%} "
+          f"{total_sources['none'] / total_n:6.1%}")
 
 
 if __name__ == "__main__":
