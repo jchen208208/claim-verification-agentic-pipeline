@@ -102,4 +102,6 @@ One consequence of reusing the paper's published numbers, which is easy to miss.
 
 Logging, label extractor, and evidence assertion. Three of the five harness pieces remain, due 2 August.
 
-The script that produced the regex table still lives in a temporary scratchpad and will be wiped. Its numbers are now cited in three documents. It needs to move into the repository.
+### Also built
+
+`scripts/measure_extractor_baseline.py`, which regenerates the regex table above. Its data path is anchored to `__file__` rather than hardcoded, matching the loader. It holds its own copy of the regex in a constant called `PATTERN`, because it was written before `label_extractor.py` existed. That copy has to become an import once the extractor exists, otherwise the two drift apart and the measurement stops describing what is shipped.

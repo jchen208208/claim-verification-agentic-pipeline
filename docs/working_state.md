@@ -165,8 +165,11 @@ Build `src/label_extractor.py`.
 
 Development data is already on disk and needs no model run. Use `FinDVer/outputs/testmini_outputs/rag/processed_cot_outputs/Llama-3_2-3B-Instruct.json`, which is the closest available analogue to our 3B model, plus `Qwen2_5-7B-Instruct.json` for the 7B comparison. Each record has `output`, which is a list whose first element is the response text, and `extracted_label`, which is what `gpt-4o-mini` returned.
 
+The measurement script already exists: `scripts/measure_extractor_baseline.py`. It reproduces the table above in under a second and is the loop for widening the regex. Edit the pattern, rerun, watch the coverage column move.
+
 Order of work:
 
+0. The script currently holds its own copy of the regex, in a constant called `PATTERN`, because it was written before `label_extractor.py` existed. Change it to import the real extractor instead. Two copies of one regex will drift apart, and then the measurement stops describing the thing being shipped.
 1. Write the strict regex for the canonical sentence. Measure how often it fires on the Llama 3B file. The first pass measured 54.9 percent.
 2. Read a sample of the responses where it does not fire. Sort them into two piles: no verdict stated, and verdict stated in a form the pattern missed.
 3. Widen the patterns to cover the second pile only. Re-measure. Do not widen to cover the first pile, because those are genuinely unparseable and inventing a guess for them is exactly what we are trying not to do.
@@ -180,9 +183,9 @@ The harness is due 2 August, which leaves the label extractor, per example loggi
 
 ## Outstanding, not yet done
 
-The script that produced the regex table lives in a temporary scratchpad directory and will be wiped. Those numbers now appear in this file, in `build_log.md`, and in sections 9.1 and 11.8 of the architecture plan. The convention in `CLAUDE.md` is that one script regenerates every results table. Move it into the repository, something like `scripts/measure_extractor_baseline.py`, before relying on those numbers in the paper.
-
 Decide the two cloud models and the two added edge models before 3 August. See open questions 7 and 8 in the architecture plan.
+
+Answer open question 11: what faster machine is available, with what specs, and when. This decides whether Band B opens.
 
 Confirm the workshop mechanics: page limit, template, whether submissions are anonymous, and whether the 30 August deadline is anywhere on earth. None of this is known and all of it changes the writing schedule.
 
