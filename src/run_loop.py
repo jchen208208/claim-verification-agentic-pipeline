@@ -90,7 +90,7 @@ def run_one_claim(claim: Claim, config: dict, template: str, call_model: Callabl
         record.context_overflow = check_overflow(record.prompt_eval_count, record.eval_count, config["num_ctx"])
 
         label, source = extract_label_with_source(record.response)
-        record.extraction_label = label
+        record.extracted_label = LABEL_TO_BOOL.get(label) # from "entailed"/"refuted" to True/False
         record.extraction_source = source
 
     except Exception:
