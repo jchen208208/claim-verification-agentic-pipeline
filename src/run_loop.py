@@ -18,3 +18,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PROMPT_DIR = REPO_ROOT / "prompts"
 REPORT_DIR = REPO_ROOT / "FinDVer" / "financial_reports"
 
+def load_prompt_template(prompt_version):
+    # uses the versioned prompt file as a template, read once per run instead of once per claim
+    with open(PROMPT_DIR / f"{prompt_version}.txt") as f:
+        return f.read() # returns the entire prompt template as one string
+
+def read_report(filename):
+    # reads one report, takes around 7 ms which is why nothing is cached
+    with open(REPORT_DIR / filename) as f:
+        return json.load(f)
