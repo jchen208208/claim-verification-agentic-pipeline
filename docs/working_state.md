@@ -279,7 +279,7 @@ All three are the same shape: plausible looking output, no exception. This is wh
 
 `src/logger.py` is finished and verified. It was chosen over the evidence assertion deliberately, because the dependency between the two runs one way. The assertion's second check reads `prompt_eval_count` and `eval_count` off the Ollama response and has to store them per example, and the place it stores them is the log record. Building the assertion first would have meant inventing the record shape implicitly and reworking it. The assertion's second check is also untestable without a live model call, and the logger is fully testable with fabricated inputs.
 
-15 checks pass in `scratchpad/verify_logger.py`, which writes only to a scratch directory and never to `results/`. The two that matter: a truncated JSON file returns `False` instead of raising, which is the state a crash mid write leaves behind and the one case that would otherwise kill resume on startup; and three writes of the same id leave one file rather than three.
+15 checks passed, against fabricated `Record` objects and a scratch directory outside the repo, so `results/` was never touched. The script was throwaway and is deleted; the checks are listed in the build log. The two that matter: a truncated JSON file returns `False` instead of raising, which is the state a crash mid write leaves behind and the one case that would otherwise kill resume on startup; and three writes of the same id leave one file rather than three.
 
 Both bugs hit this session raised exceptions, unlike the afternoon's three. `mkdir(parent=True)` for `parents=True`, and calling `.mkdir()` on `results_dir` before coercing it with `Path()`, which left `write_result` rejecting a string argument that `has_result` accepted.
 
@@ -296,6 +296,8 @@ Also checked: all 700 `example_id` values are unique and filename safe, so they 
 **Piece 1, the evidence assertion.** Two checks, detailed below. Check 1 is testable straight away against `prompts/samples/ie-val-0_filled.txt`. Check 2 needs a live Ollama call, so it is naturally verified together with the run loop rather than before it.
 
 **Piece 2, the run loop.** This is the gap the original list of five never named. It walks the sample from `stratified_sample`, reads each claim's report, builds the prompt, calls Ollama with `num_ctx`, `num_predict`, temperature and seed passed explicitly, times the call, runs both assertion checks, extracts the label with `extract_label_with_source`, fills a `Record`, and calls `write_result`. It wraps each example in try/except so one bad table sets `status="failed"` and stores the traceback rather than ending the run, and it skips any id where `has_result` is already `True`. Every part it depends on now exists except the assertion, which is why the assertion comes first.
+
+**Keep the harness test this time.** The logger's 15 checks were thrown away, which was right while the pieces were independent. The run loop wires the loader, the sampler, the extractor, the logger, and the asserter together, so from tomorrow a broken interface between two of them is a silent whole night rather than one function returning the wrong thing. Decided 1 August: the test goes in `scripts/test_harness.py` and is committed. One file rather than a new `tests/` directory and a new convention, since there is exactly one such test. Move it if it ever becomes several.
 
 **Then the smoke run.** Details and its four jobs are further down this section.
 

@@ -280,7 +280,7 @@ Unlike the afternoon's three bugs, both of these raise. Worth noting the contras
 
 ### Verified
 
-15 checks, all passing, in `scratchpad/verify_logger.py`. It uses fabricated `Record` objects and a scratch directory, so it never touches `results/`.
+15 checks, all passing. The script was throwaway and was deleted after the run. It used fabricated `Record` objects and a scratch directory outside the repo, so it never touched `results/`. What it checked:
 
     directory absent before the write, created by the writer
     file is named for the example_id
