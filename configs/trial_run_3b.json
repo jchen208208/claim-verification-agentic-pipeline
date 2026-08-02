@@ -1,0 +1,15 @@
+{
+  "experiment": "trial_run_3b",
+
+  "model": "qwen2.5-coder:3b",
+  "num_ctx": 16384,
+  "num_predict": 2000,
+  "temperature": 0,
+  "seed": 0,
+  "prompt_version": "baseline_v1",
+
+  "retriever": "placeholder_token_overlap",
+  "top_k": 10,
+  "per_cell": 2,
+  "sample_seed": 0
+}

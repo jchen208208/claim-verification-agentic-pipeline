@@ -74,7 +74,7 @@ Separately, the direct prompting extractor tests `"entail" in output` before `"r
 
 ### Decided
 
-Sample size is 17 per cell, giving 102 examples and about 8 hours on the 3B model. Seed 0, fixed permanently, because every configuration compared has to run on the same examples. Use 2 per cell, giving 12 examples, for smoke tests.
+Sample size is 17 per cell, giving 102 examples and about 8 hours on the 3B model. Seed 0, fixed permanently, because every configuration compared has to run on the same examples. Use 2 per cell, giving 12 examples, for trial runs.
 
 Scoring reports two numbers from the same stored predictions. Strict, where unparseable is its own bucket and counts as wrong for the headline figure, with its rate reported. FINDVER compatible, where unparseable is coin flipped with a fixed seed, used only when placing our number beside a published one. The gap between them quantifies how much of a small model's official score is imputation.
 
@@ -174,7 +174,7 @@ The token soup and near empty generations in the upstream files are consistent w
 
 Sections 4.6 and 11.8 both stated that neither local model produced the required output sentence in week 1 testing. That was wrong. It described the first test round, which ran before `num_ctx` was set and whose prompt was corrupted by the loader bug. On the re-run at `num_ctx` 8192 both models did produce the required sentence. The section 4.6 table had been mixing the two rounds, since its own caption already says `num_ctx` 8192.
 
-The corrected value comes from recollection rather than a preserved artifact, so both places now mark it provisional. It will be settled by the first smoke run. Section 11.8 also gained a line saying the case for the extractor never rested on that datapoint, since otherwise the correction reads as undermining the whole item.
+The corrected value comes from recollection rather than a preserved artifact, so both places now mark it provisional. It will be settled by the first trial run. Section 11.8 also gained a line saying the case for the extractor never rested on that datapoint, since otherwise the correction reads as undermining the whole item.
 
 One bad test round propagated a false claim into two sections of the plan. Worth remembering when a week 1 finding is cited later.
 
@@ -225,7 +225,7 @@ Resident size for `qwen2.5-coder:3b` as `num_ctx` varies, on 16 GB physical: 409
 
 This corrects a claim made earlier the same day in section 4.3, that 16 GB was no place to allocate a 32k window. That was an assumption, not a measurement, and it was wrong. RAM is not the binding constraint for the 3B model. The 7B has a larger cache and has not been measured.
 
-The consequence is that a generous window is cheap insurance, because an unused window costs only that RAM and not time, while actual prompt tokens cost 19.1 tok/s of ingestion. Settings chosen: `num_ctx` 16384 and `num_predict` between 1500 and 2000. Upstream's 1024 truncated a verbose 3B mid reasoning, and Llama-3.2-3B's cleanly ending responses ran a median of 354 words and a max of 827, so roughly 1100 tokens covers the longest observed. That leaves 16384 against about 4500 prompt plus 2000 generation, roughly 9800 tokens of slack, which makes overflow arithmetically impossible rather than merely unlikely. Our own model still has to confirm the generation figure on the smoke run.
+The consequence is that a generous window is cheap insurance, because an unused window costs only that RAM and not time, while actual prompt tokens cost 19.1 tok/s of ingestion. Settings chosen: `num_ctx` 16384 and `num_predict` between 1500 and 2000. Upstream's 1024 truncated a verbose 3B mid reasoning, and Llama-3.2-3B's cleanly ending responses ran a median of 354 words and a max of 827, so roughly 1100 tokens covers the longest observed. That leaves 16384 against about 4500 prompt plus 2000 generation, roughly 9800 tokens of slack, which makes overflow arithmetically impossible rather than merely unlikely. Our own model still has to confirm the generation figure on the trial run.
 
 The model reports a 32768 context length and ships no baked-in parameters, so Ollama's own defaults apply unless we override them. We override both on every call regardless, which makes the defaults irrelevant.
 
@@ -306,7 +306,7 @@ The measured part is the prompt. The one filled sample kept from 31 July, `promp
 
 Twenty experiments at 102 examples is under 50 MB, and `results/` is not tracked. Storage is not a reason to log less. The alternative, dropping the prompt from the record, saves 15 KB per example and costs the ability to answer whether the evidence was actually in the prompt, which is the question that cost a test round in week 1.
 
-These are estimates from one real prompt, not a measurement of written files. The real number arrives with the smoke run.
+These are estimates from one real prompt, not a measurement of written files. The real number arrives with the trial run.
 
 ### Not done
 
@@ -481,4 +481,4 @@ Sections 3.4, 12.1 and the summary table in the plan were corrected.
 
 ### Not done
 
-The Ollama client (`call_model`), an experiment config file, the entry point script that wires them, and the smoke run itself. All five original harness pieces plus the run loop are built and verified.
+The Ollama client (`call_model`), an experiment config file, the entry point script that wires them, and the trial run itself. All five original harness pieces plus the run loop are built and verified.
