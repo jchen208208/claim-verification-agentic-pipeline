@@ -28,7 +28,7 @@ If a faster machine materialises the night budget stops binding and Band B opens
 
 Week 1 is done. The repository is cloned, the data structure is confirmed, both local models are installed and benchmarked on a real example, and the visual build plan has been sent to my professor.
 
-Three of the five harness pieces are built and verified: the loader, the stratified sampler, and the label extractor. The remaining two are per example logging and the evidence assertion. They are due 2 August.
+Four of the five harness pieces are built and verified: the loader, the stratified sampler, the label extractor, and per example logging. The remaining one is the evidence assertion, due 2 August. The **run loop** is a sixth piece that the original list of five never named. It is not optional and the smoke run cannot happen without it.
 
 ## What the professor decided on 30 July
 
@@ -49,12 +49,19 @@ This is a good fit for the compressed schedule, because cloud runs cost hours ra
     src/loader.py          load_raw, Claim, raw_to_claim, load_claims
     src/sampler.py         group_by_cell, stratified_sample, check_balance
     src/label_extractor.py extract_label, extract_label_with_source
+    src/logger.py          Record, write_result, has_result
     prompts/               baseline_v1.txt, samples/ie-val-0_filled.txt
     scripts/measure_extractor_baseline.py   regenerates the extractor table
 
 `load_claims()` returns all 700 testmini records as `Claim` objects. Every object has the same 11 fields no matter which subset it came from, so no code downstream has to know about the `explaination` misspelling or about which subsets carry extra fields. `Claim` is a frozen dataclass, so nothing in the pipeline can write into a record and corrupt later iterations.
 
 `stratified_sample(claims, per_cell)` returns a shuffled, balanced sample drawn from the six subset by label cells. The default seed is 0 and it must stay fixed, because every configuration we compare has to run on the same examples. The balance check runs inside the function, so an unchecked sample cannot exist. Use 2 per cell for smoke tests, which gives 12 examples, and 17 per cell for measured runs, which gives 102.
+
+`Record` is a 17 field dataclass holding everything about one example: the prompt, the raw response, the config used, both token counts, `done_reason`, the extracted label and which extractor level produced it, the gold label, timing, and a status and traceback slot. `write_result(record, results_dir)` writes it to `results/<experiment>/<example_id>.json` the moment the example finishes, and creates the directory itself. `has_result(example_id, results_dir)` is the resume check.
+
+Two details of the logger that are easy to get wrong later. Resume tests `status == "ok"` rather than file existence, because a failed example still writes a file and existence alone would skip it forever. And a truncated JSON file, which is what a crash mid write leaves behind, returns `False` rather than raising, so the run recovers instead of dying on startup.
+
+Unlike `Claim`, `Record` is not frozen. A claim is input and nothing should write into it. A record is output filled in three stages, before the call, after the call, and by the asserter.
 
 The loader returns report filenames, not report contents. Reports are read one at a time inside the run loop. Re-reading all 700 costs about 5 seconds total, measured, so there is no cache and no reason for one.
 
@@ -268,11 +275,29 @@ Later, the same guard condition was pasted twice, so the second branch tested `_
 
 All three are the same shape: plausible looking output, no exception. This is why the verification step for each block was "reproduce this exact number", not "check it looks reasonable".
 
+## Where I left off on 1 August, evening
+
+`src/logger.py` is finished and verified. It was chosen over the evidence assertion deliberately, because the dependency between the two runs one way. The assertion's second check reads `prompt_eval_count` and `eval_count` off the Ollama response and has to store them per example, and the place it stores them is the log record. Building the assertion first would have meant inventing the record shape implicitly and reworking it. The assertion's second check is also untestable without a live model call, and the logger is fully testable with fabricated inputs.
+
+15 checks pass in `scratchpad/verify_logger.py`, which writes only to a scratch directory and never to `results/`. The two that matter: a truncated JSON file returns `False` instead of raising, which is the state a crash mid write leaves behind and the one case that would otherwise kill resume on startup; and three writes of the same id leave one file rather than three.
+
+Both bugs hit this session raised exceptions, unlike the afternoon's three. `mkdir(parent=True)` for `parents=True`, and calling `.mkdir()` on `results_dir` before coercing it with `Path()`, which left `write_result` rejecting a string argument that `has_result` accepted.
+
+One thing recorded because it is silent if it ever breaks. A two line `_result_path()` helper was written and then removed as too small to justify a function. The `.json` suffix and the naming scheme now appear in both `write_result` and `has_result`. If those two ever disagree, `has_result` returns `False` for every example, the run repeats a whole night of work, and nothing raises.
+
+Storage was checked before committing to logging full prompts. About 23 KB per record, 2.3 MB for a 102 example run, 16 MB for a full 700. Estimated from one real filled prompt of 15,017 characters plus an assumed response length, so the real figure arrives with the smoke run. Storage is not a reason to log less.
+
+Also checked: all 700 `example_id` values are unique and filename safe, so they can name result files with no sanitising.
+
 ## Next session
 
-Two harness pieces left, both due 2 August, neither blocked on cloud keys: **per example logging** and the **evidence assertion**.
+**Start here, 2 August.** One harness piece left plus the run loop, neither blocked on cloud keys.
 
-**A gap worth naming.** The five harness pieces are the loader, the sampler, logging, the label extractor, and the evidence assertion. None of them is the **run loop**: the thing that walks the sample, builds each prompt, calls Ollama with the right options, catches exceptions per example, writes a result file as it goes, and skips ids that already have one. The smoke run cannot happen without it. Treat it as a third piece for tomorrow rather than discovering it mid session.
+**Piece 1, the evidence assertion.** Two checks, detailed below. Check 1 is testable straight away against `prompts/samples/ie-val-0_filled.txt`. Check 2 needs a live Ollama call, so it is naturally verified together with the run loop rather than before it.
+
+**Piece 2, the run loop.** This is the gap the original list of five never named. It walks the sample from `stratified_sample`, reads each claim's report, builds the prompt, calls Ollama with `num_ctx`, `num_predict`, temperature and seed passed explicitly, times the call, runs both assertion checks, extracts the label with `extract_label_with_source`, fills a `Record`, and calls `write_result`. It wraps each example in try/except so one bad table sets `status="failed"` and stores the traceback rather than ending the run, and it skips any id where `has_result` is already `True`. Every part it depends on now exists except the assertion, which is why the assertion comes first.
+
+**Then the smoke run.** Details and its four jobs are further down this section.
 
 The evidence assertion is now **two** checks, not one.
 
@@ -281,7 +306,7 @@ The evidence assertion is now **two** checks, not one.
 
 Settings are settled and need no further investigation: `num_ctx` 16384, `num_predict` 1500 to 2000, temperature 0, seed fixed. Pass them explicitly on every call.
 
-Then the first smoke run, 12 examples at 2 per cell, roughly one hour on the 3B model. It has four jobs.
+Then the first smoke run, 12 examples at 2 per cell, roughly one hour on the 3B model. Start it with `caffeinate -i`, plugged in, lid open. It has four jobs.
 
 1. Settle the provisional output format row in section 4.6 of the plan with a logged artifact instead of recollection.
 2. Produce the first responses from **our own** model, `qwen2.5-coder:3b`, at temperature 0. Everything the extractor was developed against is Llama-3.2-3B at temperature 1.0, which is a stand in. This is the first real validation of the extractor against the model we actually ship.

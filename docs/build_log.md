@@ -232,6 +232,81 @@ The model reports a 32768 context length and ships no baked-in parameters, so Ol
 Also recorded in section 4.3: raising both caps is not the fix and is not a coherent setting. `num_ctx` is the total window and prompt plus generation share it, so raising `num_predict` past the remaining room only changes which limit binds first. Uncapped output is a hazard rather than a fix, because a small model at temperature 0 can loop and consume an entire night on one example. And a larger `num_ctx` costs RAM at load time whether the tokens are used or not, which matters at 16 GB on CPU.
 
 
+### Not done at the end of the afternoon session
+
+Per example logging and the evidence assertion. Two of the five harness pieces remained. The extractor was committed across `9b09cfc`, `95da412`, and `5128a21`.
+
+---
+
+## 1 August 2026, evening session
+A short session, about an hour. One piece was chosen deliberately rather than starting both.
+
+### Decided: build the logger before the evidence assertion
+
+The two remaining pieces are not independent and the dependency runs one way.
+
+The evidence assertion is now two checks. The second one, `prompt_eval_count + eval_count >= num_ctx`, reads two numbers off the Ollama response and has to record them somewhere per example. That somewhere is the log record. Building the assertion first means inventing the record shape implicitly and reworking it afterwards.
+
+The second check is also untestable without a live model call, so it does not fit an hour. The logger is testable with fabricated inputs and no model at all.
+
+### Built
+
+`src/logger.py`. Three parts.
+
+`Record`, a dataclass of 17 fields. Six are known before the model call: `example_id`, `subset`, `gold_label`, `gold_explanation`, `prompt`, `config`. Seven are filled after it: `response`, `extracted_label`, `extraction_source`, `prompt_eval_count`, `eval_count`, `done_reason`, `elapsed_seconds`. Two are left for the evidence asserter: `evidence_present`, `context_overflow`. Two belong to the run loop's try/except: `status`, `traceback`.
+
+`Record` is deliberately **not** frozen, which is the opposite choice from `Claim` in the loader. A claim is input data and nothing should write into it. A record is output filled in three stages, so freezing it would mean rebuilding the object each time.
+
+`write_result(record, results_dir)` writes one JSON file per claim, named `<example_id>.json`, into a per experiment directory. It calls `mkdir(parents=True, exist_ok=True)` itself, so the experiment directory appears on first write and no setup step has to remember to create it. `results/` is already in `.gitignore`.
+
+`has_result(example_id, results_dir)` is the resume check.
+
+### Decided: three small things inside the logger
+
+**Resume tests `status == "ok"`, not file existence.** A failed example still writes a file, because that is the whole point of logging the traceback. Existence alone would skip failures forever and re-running to fix them would silently do nothing.
+
+**A `json.JSONDecodeError` returns `False` rather than propagating.** A process killed mid write leaves a half file. Without the catch, resume crashes on startup on the one file it exists to recover from.
+
+**The filename helper was inlined.** A two line `_result_path()` was written first and then removed, on the grounds that a one line abstraction used twice is not worth a function. The cost is that the `.json` suffix and the naming scheme now appear in two places, `write_result` and `has_result`, and if they ever disagree then resume returns `False` for every example, re-runs the whole night, and raises nothing. Recorded because the failure is silent, which is the class of bug this project keeps hitting.
+
+### Two bugs, both loud for once
+
+`mkdir(parent=True)` instead of `parents=True`. No such keyword, so it raises `TypeError`.
+
+`results_dir.mkdir(...)` called before coercing the argument with `Path()`. `has_result` coerced internally and `write_result` did not, so the same argument had two different contracts, and passing a string worked in one function and raised `AttributeError` in the other.
+
+Unlike the afternoon's three bugs, both of these raise. Worth noting the contrast: the afternoon's bugs all produced plausible tables and no exception.
+
+### Verified
+
+15 checks, all passing, in `scratchpad/verify_logger.py`. It uses fabricated `Record` objects and a scratch directory, so it never touches `results/`.
+
+    directory absent before the write, created by the writer
+    file is named for the example_id
+    all 17 fields survive the round trip through JSON
+    nested config survives, gold_label stays a bool, unfilled asserter fields are null
+    has_result: ok True, failed False, unknown id False
+    three writes of the same id leave one file, not three
+    a truncated json file returns False instead of raising
+    both functions accept a plain string path
+
+The last two are the ones that matter. A truncated file is exactly the state a crash mid write leaves behind, and it is the case that would otherwise take down resume on startup. Three writes leaving one file settles the duplicate question by test rather than by argument.
+
+### Checked: `example_id` is safe to use as a filename
+
+All 700 ids in testmini are unique and match `[A-Za-z0-9._-]+`, so no sanitising is needed and no two claims can collide on one file. Checked against the loader rather than assumed.
+
+### Estimated: the storage cost of logging every prompt
+
+The measured part is the prompt. The one filled sample kept from 31 July, `prompts/samples/ie-val-0_filled.txt`, is 15,017 characters. The response is assumed at roughly 2,000 tokens, about 8,000 characters, and the remaining fields at about 1,000. That gives roughly 23 KB per record.
+
+    102 example run     about 2.3 MB
+    700 example run     about 16 MB
+
+Twenty experiments at 102 examples is under 50 MB, and `results/` is not tracked. Storage is not a reason to log less. The alternative, dropping the prompt from the record, saves 15 KB per example and costs the ability to answer whether the evidence was actually in the prompt, which is the question that cost a test round in week 1.
+
+These are estimates from one real prompt, not a measurement of written files. The real number arrives with the smoke run.
+
 ### Not done
 
-Per example logging and the evidence assertion. Two of the five harness pieces remain, due 2 August. The extractor was committed across `9b09cfc`, `95da412`, and `5128a21`.
+The evidence assertion, and the run loop. Four of the five harness pieces are now built and verified. See the next session note in `working_state.md`.

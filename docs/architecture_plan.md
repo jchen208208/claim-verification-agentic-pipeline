@@ -548,7 +548,7 @@ Rationale: (a) build everything at once and you cannot attribute any change; (b)
 
 | Tier | Module(s) | Error category attacked | Status | Payoff / risk |
 |---|---|---|---|---|
-| — | Harness: loader, stratified sampler, logging, label extractor, evidence assertion | — | **in progress** · loader + sampler done and committed 31 Jul; label extractor next | Prerequisite for everything; small but non-optional (§11.8–11.9) |
+| — | Harness: loader, stratified sampler, logging, label extractor, evidence assertion, **run loop** | — | **in progress** · loader + sampler done 31 Jul; label extractor and logger done 1 Aug; evidence assertion + run loop remain | Prerequisite for everything; small but non-optional (§11.8–11.9). The run loop was missing from the original list of five and is not optional |
 | 0 | **Baseline:** plain CoT, RAG, ~100 stratified testmini examples — (i) edge-only, (ii) cloud-only | reference point | pending keys | Mandatory; answers "has 2026 closed the gap?" and sets both ends of the routing curve |
 | 1 | **Code execution + tables-as-DataFrames** | Computation + extraction | ready to start | Highest-certainty gain; foundation cost revised down (§7.1) |
 | 2 | **Claim-decomposed + hybrid retrieval** | Recall ceiling | — | Clean standalone metric; nobody has attacked it; also cuts runtime (§4.6) |
@@ -678,6 +678,8 @@ So "Tier 2 is expensive" is false as stated. Its measurement half is one of the 
 **Phase 1 · 31 Jul – 2 Aug · Finish the harness.**
 Label extractor (§11.8), per-example logging, evidence assertion (§11.9). Loader and sampler are done and committed. None of this is blocked on cloud keys. The label extractor is developed offline against the 11,200 stored responses in `outputs/`, at zero compute cost.
 
+**[UPDATED 1 Aug 2026]** The extractor and the logger are both done and verified. `src/logger.py` holds a 17-field `Record` dataclass, `write_result()` writing one JSON file per claim into `results/<experiment>/`, and `has_result()` giving resume by skipping ids that already completed. Resume tests `status == "ok"` rather than file existence, because a failed example still writes a file, and a truncated JSON file returns `False` rather than raising. **The phase is one item longer than this line says: the run loop was never in the list of five and the smoke run cannot happen without it.** Remaining: evidence assertion, then the run loop, then the 12-example smoke run.
+
 **Phase 2 · 3 – 10 Aug · Baselines.**
 Edge-only on the 102-example slice, 3B and 7B. Two new cloud models on the same slice, once keys arrive. **Published FINDVER numbers are reused as the historical baseline rather than re-run** (§9), which is what makes this phase fit at all. Hand-label ~25 failures per configuration. Deliverable: the baseline table plus error distributions.
 
@@ -761,7 +763,7 @@ Table parsing overruns, cut Tier 1's retry loop before cutting Tier 1. Cloud key
 - [x] Clone the repo; confirm the real data and table formats
 - [x] Produce the visual build plan
 - [x] Meeting held 30 Jul; venue, deadline, authorship, and baseline strategy settled
-- [~] Build the harness — loader and stratified sampler done and committed 31 Jul; logger, label extractor, evidence assertion remain. Next session builds the label extractor against the 11,200 stored responses in `outputs/` (§11.8); it needs no cloud keys and is not blocked. **Due 2 Aug.**
+- [~] Build the harness — loader and stratified sampler done 31 Jul; label extractor and logger done and verified 1 Aug. **Evidence assertion and the run loop remain.** The run loop was not in the original list of five and is not optional. Neither is blocked on cloud keys. **Due 2 Aug.**
 - [ ] Confirm workshop mechanics: page limit, template, anonymity, AoE deadline (§13 item 10)
 - [ ] Decide the two cloud models and the two added edge models (§13 items 7–8) — **needed before 3 Aug**
 - [ ] Smoke-test cloud keys on arrival; confirm DashScope region
