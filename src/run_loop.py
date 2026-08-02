@@ -9,10 +9,12 @@ import json
 import time
 import traceback
 from pathlib import Path
+from collections.abc import Callable
 
 from src.evidence_asserter import assert_evidence, check_overflow
 from src.label_extractor import extract_label_with_source
 from src.logger import Record, write_result, has_result
+from src.loader import Claim
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PROMPT_DIR = REPO_ROOT / "prompts"
@@ -47,11 +49,15 @@ def build_prompt(claim, chunks, template):
 
 LABEL_TO_BOOL = {"entailed": True, "refuted": False}
 
-def run_one_claim(claim, config, template, call_model, retrieve):
-    """Everything for one claim, returned as a filled Record. Never raises.
-
-    One bad table or a dead Ollama becomes status="failed" plus a traceback on
-    this example, so the run continues and resume retries it next time."""
+def run_one_claim(claim: Claim, config: dict, template: str, call_model: Callable[[str, dict], dict], retrieve: Callable[[Claim, dict], list[dict]]) -> Record:
+    """Fills in the Record for one claim. Doesn't raise any errors.
+    
+    function paramters:
+    - claim: a Claim object from the loader
+    - config: a dict, one per experiment, from configs/. Holds model, num_ctx, num_predict, temperature, seed, prompt_version. It goes two places: into call_model, which needs the Ollama options, and whole into the Record, so a result file states exactly what produced it.
+    - template: the prompt text with <REPORT> and <STATEMENT> still in it.
+    - call_model: a function: (prompt, config) -> dict
+    - retrieve: a function: (claim, report) -> list of context element dicts."""
 
     record = Record(
         example_id=claim.example_id,
@@ -66,15 +72,16 @@ def run_one_claim(claim, config, template, call_model, retrieve):
         report = read_report(claim.report)
         chunks = retrieve(claim, report)
         prompt, evidence_block = build_prompt(claim, chunks, template)
-        record.prompt = prompt   # filled the moment it exists, so a later
-                                 # failure still logs what went to the model
+        record.prompt = prompt
 
         record.evidence_present, record.evidences_found = assert_evidence(evidence_block, claim, report)
 
+        # times how long the entire generation took (including prompt evaluation and output generation)
         start = time.perf_counter()
         raw = call_model(prompt, config)
         record.elapsed_seconds = time.perf_counter() - start
 
+        # Ollama returns a raw dictionary with these elements: response = output string, prompt_eval_count = how many tokens it read from the prompt, eval_count = how many tokens it outputed, done_reason = stop (naturally finished generation) | length (generation truncated by num_predict cap)
         record.response = raw["response"]
         record.prompt_eval_count = raw.get("prompt_eval_count")
         record.eval_count = raw.get("eval_count")
@@ -83,9 +90,13 @@ def run_one_claim(claim, config, template, call_model, retrieve):
         record.context_overflow = check_overflow(record.prompt_eval_count, record.eval_count, config["num_ctx"])
 
         label, source = extract_label_with_source(record.response)
+        record.extraction_label = label
         record.extraction_source = source
 
     except Exception:
+        """A bad table or a Ollama bug becomes status="failed" plus a traceback on
+        this example, so the run continues and resume retries it next time."""
+
         record.status = "failed"
         record.traceback = traceback.format_exc()
 
