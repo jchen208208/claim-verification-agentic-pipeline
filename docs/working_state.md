@@ -28,7 +28,7 @@ If a faster machine materialises the night budget stops binding and Band B opens
 
 Week 1 is done. The repository is cloned, the data structure is confirmed, both local models are installed and benchmarked on a real example, and the visual build plan has been sent to my professor.
 
-Four of the five harness pieces are built and verified: the loader, the stratified sampler, the label extractor, and per example logging. The remaining one is the evidence assertion, due 2 August. The **run loop** is a sixth piece that the original list of five never named. It is not optional and the smoke run cannot happen without it.
+All five harness pieces are built and verified: the loader, the stratified sampler, the label extractor, per example logging, and the evidence assertion, finished 2 August. The **run loop** is a sixth piece that the original list of five never named. It is not optional and the smoke run cannot happen without it. It is the only thing left before the smoke run.
 
 ## What the professor decided on 30 July
 
@@ -46,12 +46,18 @@ This is a good fit for the compressed schedule, because cloud runs cost hours ra
 
 ## What is built
 
-    src/loader.py          load_raw, Claim, raw_to_claim, load_claims
-    src/sampler.py         group_by_cell, stratified_sample, check_balance
-    src/label_extractor.py extract_label, extract_label_with_source
-    src/logger.py          Record, write_result, has_result
-    prompts/               baseline_v1.txt, samples/ie-val-0_filled.txt
-    scripts/measure_extractor_baseline.py   regenerates the extractor table
+    src/loader.py            load_raw, Claim, raw_to_claim, load_claims
+    src/sampler.py           group_by_cell, stratified_sample, check_balance
+    src/label_extractor.py   extract_label, extract_label_with_source
+    src/logger.py            Record, write_result, has_result
+    src/evidence_asserter.py tokenize, count_report_tokens, pick_tokens,
+                             assert_evidence, check_overflow
+    prompts/                 baseline_v1.txt, samples/ie-val-0_filled.txt
+    test_scripts/measure_extractor_baseline.py     regenerates the extractor table
+    test_scripts/validate_evidence_asserter.py     validates the asserter, delete when trusted
+
+`scripts/` was renamed to `test_scripts/` on 2 August. The "Where things live"
+section of `CLAUDE.md` still says `scripts/` and needs updating.
 
 `load_claims()` returns all 700 testmini records as `Claim` objects. Every object has the same 11 fields no matter which subset it came from, so no code downstream has to know about the `explaination` misspelling or about which subsets carry extra fields. `Claim` is a frozen dataclass, so nothing in the pipeline can write into a record and corrupt later iterations.
 
@@ -289,13 +295,45 @@ Storage was checked before committing to logging full prompts. About 23 KB per r
 
 Also checked: all 700 `example_id` values are unique and filename safe, so they can name result files with no sanitising.
 
+## Where I left off on 2 August
+
+`src/evidence_asserter.py` is finished and validated against all 700 claims offline, with no model calls and no cloud quota. The harness is complete. Only the run loop remains.
+
+**How the check works.** For each gold context element, take its three rarest tokens, where rarity is counted against the whole report, and look for them in the evidence block. A token with report count 1 appears nowhere in the filing outside that element, so finding it proves the element reached the prompt. Rejected first idea: check for a key sentence. Nothing can pick the key sentence automatically across 700 examples, and a sentence is the fragile size, long enough that any reformatting or chunk boundary breaks the match. Rarity is computable, a token is short enough to survive table normalisation, and a prose element with no numbers still yields rare words.
+
+**The design decision that matters.** The check searches the evidence block only, never the whole prompt. Testing on `ie-val-0` before writing the code showed the natural witnesses for two of its three gold elements were `278.4` and `32253`, both figures the claim itself quotes. Since the prompt contains the claim, those would be found whether or not retrieval returned anything.
+
+The first fix was to filter out every token that also appears in the claim statement. That was built and it worked. The better fix, which came as a suggestion and replaced it, is structural: we control the prompt format, so search only the evidence block and the claim is out of scope by construction. This also keeps the strongest witnesses, which are exactly the numbers the claim copies, instead of discarding them. `claim_tokens` was then removed as redundant.
+
+Parsing the evidence block back out of the finished prompt was considered and rejected, because it would couple the asserter to a template that changes at every tier, and a delimiter that silently stopped matching would break the asserter silently. Instead `build_prompt` returns the evidence block alongside the prompt.
+
+**Validation, `test_scripts/validate_evidence_asserter.py`, about 1 m 45 s.** Four controls over all 700 claims:
+
+    gold   the gold elements                          700/700 present   correct
+    decoy  3 random non-gold elements, same report       0/700 present   correct
+    hard   non-gold elements sharing the most tokens     5/700 present   0.7%, see below
+           with the claim
+    claim  the claim statement alone                     0/700 present   correct
+
+False negatives are 0 out of 700. That is the dangerous direction, because it would excuse real model failures as retrieval misses.
+
+**178 of 700 claims, 25 percent, contain at least one witness from their own gold evidence.** That is the measurement justifying the scoping decision. Under a whole prompt check with an "any witness" rule they would all have been false positives.
+
+**The five false positives are structural.** Those gold elements have no unique witness. `ie-val-61`'s three are `direction`, `acquired` and `resigned`, five occurrences each. Raising the witness count from 3 to 7 removes only one of the five, so it is repeated content in the filing, not a tuning problem. Accepted at 0.7 percent under a deliberately adversarial control. Re-check it once the real hybrid retriever exists, since maximum lexical overlap is a proxy for a retrieval miss and not an upper bound.
+
+**Only 59.4 percent of gold elements have all three witnesses unique.** For roughly a fifth of elements a full match is strong evidence rather than proof, and that fifth is where the five false positives come from. `MIN_TOKEN_LEN` was swept and barely matters: 81.0, 80.4, 78.5 and 73.0 percent top witness uniqueness at lengths 2, 3, 4 and 5. Kept at 3, now measured rather than guessed.
+
+**Checked, not assumed:** `id` equals list position for all 137,045 context elements across all 600 reports, so gold indices can index `report["context"]` directly. No testmini claim has an empty `relevant_context` and no gold index is out of range. `test.json` was not checked.
+
+**No cache.** Tokenising and counting a whole report is a median 12.5 ms against a 285,000 ms model call.
+
 ## Next session
 
-**Start here, 2 August.** One harness piece left plus the run loop, neither blocked on cloud keys.
+**Start here, 3 August.** The run loop, then the smoke run. Neither is blocked on cloud keys.
 
-**Piece 1, the evidence assertion.** Two checks, detailed below. Check 1 is testable straight away against `prompts/samples/ie-val-0_filled.txt`. Check 2 needs a live Ollama call, so it is naturally verified together with the run loop rather than before it.
+**Open before the smoke run: what goes into the evidence block.** The pipeline is RAG only and Tier 0 is defined as plain CoT plus RAG, so `<REPORT>` receives retrieved chunks, not a filing. No retriever exists yet. A whole 218,000 character report cannot fit 16384 tokens, so the smoke run needs either a first cut retriever or a stated placeholder. If a placeholder is used, say so in the log, because `evidence_present` means something different when the block was not produced by retrieval.
 
-**Piece 2, the run loop.** This is the gap the original list of five never named. It walks the sample from `stratified_sample`, reads each claim's report, builds the prompt, calls Ollama with `num_ctx`, `num_predict`, temperature and seed passed explicitly, times the call, runs both assertion checks, extracts the label with `extract_label_with_source`, fills a `Record`, and calls `write_result`. It wraps each example in try/except so one bad table sets `status="failed"` and stores the traceback rather than ending the run, and it skips any id where `has_result` is already `True`. Every part it depends on now exists except the assertion, which is why the assertion comes first.
+**The run loop.** This is the gap the original list of five never named. It walks the sample from `stratified_sample`, reads each claim's report, builds the prompt, calls Ollama with `num_ctx`, `num_predict`, temperature and seed passed explicitly, times the call, runs both assertion checks, extracts the label with `extract_label_with_source`, fills a `Record`, and calls `write_result`. It wraps each example in try/except so one bad table sets `status="failed"` and stores the traceback rather than ending the run, and it skips any id where `has_result` is already `True`. Every part it depends on now exists except the assertion, which is why the assertion comes first.
 
 **Keep the harness test this time.** The logger's 15 checks were thrown away, which was right while the pieces were independent. The run loop wires the loader, the sampler, the extractor, the logger, and the asserter together, so from tomorrow a broken interface between two of them is a silent whole night rather than one function returning the wrong thing. Decided 1 August: the test goes in `scripts/test_harness.py` and is committed. One file rather than a new `tests/` directory and a new convention, since there is exactly one such test. Move it if it ever becomes several.
 

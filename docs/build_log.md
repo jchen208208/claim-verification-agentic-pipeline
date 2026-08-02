@@ -311,3 +311,122 @@ These are estimates from one real prompt, not a measurement of written files. Th
 ### Not done
 
 The evidence assertion, and the run loop. Four of the five harness pieces are now built and verified. See the next session note in `working_state.md`.
+
+---
+
+## 2 August 2026, third build session
+
+The fifth harness piece. Built, validated against all 700 claims offline, no model calls and no cloud quota.
+
+### Built
+
+`src/evidence_asserter.py`. Five functions.
+
+`tokenize(text)` turns text into comparable tokens. Two regexes. `_INNER_COMMA` deletes commas that sit between two digits, using lookbehind and lookahead so the digits are not consumed and consecutive groups all get handled, which turns `32,253` into `32253` while leaving the comma in `December 31, 2023` alone. `_TOKEN` matches `[a-z0-9]+(?:[.\-][a-z0-9]+)*`, so a token must begin with an alphanumeric and may contain a dot or hyphen only when another alphanumeric follows. `296.3` and `2024-02-06` survive whole, `debt.` loses its full stop, and `$`, `(`, `)`, `*`, `|` and the em dash can never be captured at all.
+
+`count_report_tokens(report)` builds a `Counter` over every token in one filing.
+
+`pick_tokens(element_text, report_counts, n)` returns the `n` rarest tokens in one gold context element, as `(token, count)` pairs. Rarity is measured against the whole report, not against the element.
+
+`assert_evidence(evidence_block, claim, report)` returns `(evidence_present, evidence_found)`.
+
+`check_overflow(prompt_eval_count, eval_count, num_ctx)` is the post call half.
+
+### Decided: witnesses are the rarest tokens, and rarity is computed not guessed
+
+The first idea was to check for a key sentence from each gold element. Rejected. Nothing can choose the key sentence automatically across 700 examples, and a sentence is the fragile size: long enough that any reformatting breaks the match, and long enough to be cut by a chunk boundary.
+
+What the check actually needs is distinctiveness, and distinctiveness is measurable. For each gold element, take its tokens, look up how often each appears in the whole report, and keep the three rarest. A count of 1 means the token appears nowhere in the filing outside that element, so finding it in the prompt proves the element reached the prompt.
+
+This solves three problems with one rule rather than three branches. Tokens are short, so they survive reformatting that a sentence would not. Table normalisation destroys pipes and spacing but not the numbers, so tables stop being a special case. And a prose element with no numbers still yields rare words, so `municipal` and `discounted` do the same job that `296.3` does elsewhere. No stopword list is needed either, because `the` has a count in the hundreds and rarity sorting buries it for free.
+
+The sort key is `(count, -len(token), token)`. The third term is not cosmetic. Python randomises string hashing per process, so a `set` of strings iterates in a different order every run, and without a total ordering the recorded witness would change from night to night.
+
+### Decided: scope the check to the evidence block, not the whole prompt
+
+This was the important call of the session, and it came from a suggestion that overrode the approach already being built.
+
+Testing the design on `ie-val-0` before writing it showed the witnesses chosen for gold elements 89 and 93 were `278.4` and `32253`. Both are figures the claim itself quotes. Since the prompt contains the claim, those tokens would be found in the prompt whether or not retrieval returned anything at all. FINDVER claims are built by copying figures out of the evidence, so the overlap is systematic and worst on exactly the examples that matter.
+
+The first fix was to filter out any token that also appears in the claim statement, passing `claim_tokens` into `pick_tokens` as a set. That works, and it was implemented and tested.
+
+The better fix, suggested rather than found here, was structural: since we control the prompt format, do not search the whole prompt at all. Search only the evidence block. The claim is then out of scope by construction rather than filtered out one token at a time, and the strongest witnesses, which are precisely the numbers the claim copies, stay usable instead of being discarded.
+
+Parsing the block back out of the finished prompt was considered and rejected. It would couple the asserter to the prompt template, the template changes at every tier, and a delimiter contract that silently stopped matching would break the asserter silently, which is the exact failure class the module exists to catch. Instead `build_prompt` returns the evidence block alongside the prompt, and the run loop carries a one line `assert evidence_block in prompt` to prove the substitution itself worked.
+
+`claim_tokens` was then removed as redundant. The validation below shows what it would have been protecting against, and shows the scoping handles it.
+
+### Decided: all witnesses must match, not any
+
+Three witnesses come from the same element, so if the element is intact all three should be present. A partial hit means something cut through the element, most likely a chunk boundary, which is information worth seeing rather than rounding away. `evidence_found` therefore stores `(matches, tried)` per gold index rather than a bare boolean, so a partial is visible in the result file.
+
+`tried > 0` guards the case of an element that yields no witnesses. Without it, `(0, 0)` satisfies `matches == tried` and an element that could not be checked would report as present. That never fires on testmini, where every gold element yields exactly three witnesses, but it is eight characters against a silent false pass on the one flag used to decide whether a failure was the model's fault.
+
+### Measured: the asserter, against all 700 claims
+
+`test_scripts/validate_evidence_asserter.py`, about 1 m 45 s, no model calls. Four controls, each fabricating an evidence block and asking what `assert_evidence` says.
+
+    control  evidence_block built from                        present=True  partial
+    gold     the gold elements                                     700/700        0
+    decoy    3 random non-gold elements, same report                 0/700       26
+    hard     non-gold elements of that report sharing the            5/700      196
+             most tokens with the claim
+    claim    the claim statement alone                               0/700      178
+
+The positive control is perfect. False negatives, which would be the dangerous direction because they excuse real model failures as retrieval misses, are 0 out of 700.
+
+`check_overflow` passes all five arithmetic cases, including both `None` paths.
+
+### Found: a quarter of claims contain a witness from their own gold evidence
+
+The `claim` control is the measurement that justifies the scoping decision. 178 of 700 claims, 25 percent, contain at least one witness token drawn from their own gold evidence. Under a whole prompt check with an "any witness" rule, every one of those would have been an outright false positive. Two decisions independently stopped it: scoping to the evidence block, and requiring all three witnesses rather than any. Neither is now an argument, both are measured.
+
+### Found: five structural false positives, and they are not tunable
+
+The `hard` control returned `True` for `ie-val-61`, `ie-val-193`, `numeric-val-84`, `numeric-val-87` and `numeric-val-214`.
+
+The cause is visible on inspection. Those gold elements have no unique witness at all. `ie-val-61`'s three witnesses are `direction`, `acquired` and `resigned`, each appearing five times in the filing. `numeric-val-84`'s appear twice each, which is the ordinary 10-K pattern of legal proceedings text repeated in two sections.
+
+More witnesses does not fix it. Measured through the real function: `N_TOKENS` 3 and 5 both give five false positives, and 7 removes one. So this is repeated content in the filing, not a witness count problem.
+
+One of the five is arguably not an error. If `numeric-val-84`'s text really does appear twice and retrieval returns the other copy, the model received the same information. `ie-val-61`, where three generic words collide across unrelated text, is a real false positive.
+
+Accepted at 5 in 700, for three reasons. The rate is 0.7 percent under a control built to be adversarial. The error taxonomy runs on about 25 hand labelled failures per configuration, so roughly 0.2 affected examples per round, and hand labelling means reading the prompt anyway. And the opposite error, the one that would quietly excuse model failures, is zero.
+
+The caveat on this control: maximum lexical overlap is a proxy for a retrieval miss, not an upper bound. The real retriever will be hybrid dense and BM25, so its misses will look different and this number should be re-checked once it exists.
+
+### Measured: MIN_TOKEN_LEN barely matters, so it stays at 3
+
+Share of the 1,964 gold elements whose top witness has report count 1:
+
+    MIN_TOKEN_LEN   2      3      4      5
+    top witness    81.0%  80.4%  78.5%  73.0%
+    all three      60.3%  59.4%  57.1%  50.9%
+
+Length 2 beats length 3 by 12 elements out of 1,964, and shorter tokens are more fragile under table reformatting. Kept at 3, now a measured choice rather than a guess.
+
+The second row is the one to remember. Only 59.4 percent of gold elements have all three witnesses unique, so for roughly a fifth of elements a full match is strong evidence rather than proof. That is the same fifth the five false positives come from.
+
+### Checked: three data assumptions the asserter depends on
+
+All confirmed by inspection, not assumed.
+
+`id` equals list position for all 137,045 context elements across all 600 report files, so indexing `report["context"][i]` by a gold index is correct.
+
+No claim in testmini has an empty or missing `relevant_context`, and no gold index is out of range for its report. `test.json` was not checked.
+
+Every one of the 1,964 gold elements in testmini yields exactly three witnesses, so `tried` is always 3 today. It is still stored, because `N_TOKENS` and `MIN_TOKEN_LEN` are per experiment settings and a result file reading `[2, 3]` explains itself where a bare `2` would not.
+
+### Measured: no cache is needed, twice over
+
+Tokenising and counting a whole report takes a median of 12.5 ms and a maximum of 20.3 ms, on filings with a median of 218,040 characters. Against a 285,000 ms model call that is 0.004 percent, so `count_report_tokens` is called once per claim and nothing is cached.
+
+For completeness, since 700 claims cite only 255 distinct reports, a cache would save about 445 rebuilds, or 5.6 seconds across a 55 hour run, and would hold about 128 MB resident. The reason to skip it is not the memory. It is that a module level dict is mutable state living across calls, which is what makes a run behave differently the second time.
+
+### Renamed
+
+`scripts/` became `test_scripts/`, mid session. `CLAUDE.md`'s "Where things live" section still says `scripts/` and needs updating.
+
+### Not done
+
+The run loop, the committed harness test, and the smoke run. Five of the five original harness pieces are now built and verified. The run loop, which the original list never named, is the last thing between here and the smoke run.
