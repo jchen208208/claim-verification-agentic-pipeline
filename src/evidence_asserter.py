@@ -12,3 +12,29 @@ mid-response.
 
 This helps us understand if the failure was caused by a corrupted input or a reasoning failure"""
 
+from collections import Counter
+import re
+
+def count_report_tokens(report):
+    # Counter over every token in one report, it's built once and reused for all claims that reference it.
+    text = "\n".join(element["context"] for element in report["context"])
+    return Counter(tokenise(text))
+
+def pick_tokens(element_text, report_counts, n=N_TOKENS):
+    """Return the n number of rarest tokens in one gold context element with the rarest first.
+    report_counts is a Counter object over every token in the whole report, so
+    report_counts[t] is how many times t appears in the report. A count of 1
+    means the token appears nowhere in the report outside this element, which
+    is the case that makes the presence check conclusive. """
+
+    candidates = {
+        t for t in tokenise(element_text)
+        # token must be a certain length so to check it's not noise (i.e. '*', '-'), and must contain a char or num
+        if len(t) >= MIN_TOKEN_LEN and any(c.isalnum() for c in t)
+    }
+
+    # ranked by rarest, then longest, then alphabetical
+    ranked = sorted(candidates, key=lambda t: (report_counts[t], -len(t), t))
+
+    # Returns a list of n (token, count) pairs unless the element has too few usable tokens or none.
+    return [(t, report_counts[t]) for t in ranked[:n]]
