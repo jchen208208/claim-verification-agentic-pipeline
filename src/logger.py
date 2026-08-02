@@ -26,6 +26,7 @@ class Record:
 
     # filled in by the evidence asserter
     evidence_present: bool | None = None
+    evidences_found: dict | None = None
     context_overflow: bool | None = None
 
     # set by the run loop's try/except

@@ -65,17 +65,17 @@ def assert_evidence(evidence_block, claim, report):
     report_counts = count_report_tokens(report)
     seen = set(tokenize(evidence_block))
 
-    evidence_found = {}
+    evidences_found = {}
     for i in claim.relevant_context:
         witnesses = pick_tokens(report["context"][i]["context"], report_counts) # report["context"] = 304-element list, [i] is the gold index since id = position in the report, and the last ["context"] is each element's actual text
         matches = sum(1 for token, _count in witnesses if token in seen) # checks how many of selected tokens for a gold element are in the prompt
-        evidence_found[i] = (matches, len(witnesses)) # stores number of witnesses found per element (0-3), len(witnesses) = how many witnesses we went searching for (always 3 for testmini)
+        evidences_found[i] = (matches, len(witnesses)) # stores number of witnesses found per element (0-3), len(witnesses) = how many witnesses we went searching for (always 3 for testmini)
 
     evidence_present = all(
-        searched > 0 and matches == searched for matches, searched in evidence_found.values()
+        searched > 0 and matches == searched for matches, searched in evidences_found.values()
     ) # True only if all matches were found for each relevant context element for a claim, aka all gold evidence present
 
-    return evidence_present, evidence_found
+    return evidence_present, evidences_found
 
 def check_overflow(prompt_eval_count, eval_count, num_ctx):
     """Return True if generation may have evicted prompt tokens,

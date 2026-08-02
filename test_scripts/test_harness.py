@@ -7,7 +7,7 @@ shows up as a wasted night. Run this before every overnight job.
 
 Assumed interface, which is what the run loop has to provide:
 
-    run_experiment(sample, config, results_dir, call_model, retrieve)
+    run_sample(sample, config, results_dir, call_model, retrieve)
 
         sample       list of Claim objects from src.sampler
         config       dict with model, num_ctx, num_predict, temperature, seed,
@@ -54,7 +54,7 @@ RECORD_FIELDS = {
     "example_id", "subset", "gold_label", "gold_explanation", "prompt", "config",
     "response", "extracted_label", "extraction_source", "prompt_eval_count",
     "eval_count", "done_reason", "elapsed_seconds", "evidence_present",
-    "context_overflow", "status", "traceback",
+    "evidences_found", "context_overflow", "status", "traceback",
 }
 
 GOOD_RESPONSE = ("The filing states the figure directly. Therefore, the claim "
@@ -123,9 +123,9 @@ def load_records(results_dir):
 
 def main():
     try:
-        from src.run_loop import run_experiment
+        from src.run_loop import run_sample
     except ImportError as exc:
-        print("src/run_loop.py does not expose run_experiment yet.")
+        print("src/run_loop.py does not expose run_sample yet.")
         print("  ", exc)
         print("\nThis test defines the interface the run loop has to satisfy.")
         print("See the module docstring for the expected signature.")
@@ -137,7 +137,7 @@ def main():
     # --- 1. happy path, perfect retrieval -------------------------------
     with tempfile.TemporaryDirectory() as tmp:
         model = ModelStub()
-        run_experiment(sample, CONFIG, tmp, model, retrieve_gold)
+        run_sample(sample, CONFIG, tmp, model, retrieve_gold)
         recs = load_records(tmp)
 
         check("one file per claim", len(recs) == 12, f"got {len(recs)}")
@@ -148,7 +148,7 @@ def main():
 
         one = next(iter(recs.values()))
         missing = RECORD_FIELDS - set(one)
-        check("all 17 Record fields present", not missing, f"missing {missing}")
+        check("all 18 Record fields present", not missing, f"missing {missing}")
 
         check("all status ok",
               all(r["status"] == "ok" for r in recs.values()))
@@ -165,8 +165,10 @@ def main():
         check("context_overflow False at 4102+631 vs 16384",
               all(r["context_overflow"] is False for r in recs.values()))
 
-        check("label extracted from the canned response",
-              all(r["extracted_label"] == "refuted" for r in recs.values()))
+        check("label extracted and converted to bool, refuted -> False",
+              all(r["extracted_label"] is False for r in recs.values()),
+              str({k: v["extracted_label"] for k, v in recs.items()
+                   if v["extracted_label"] is not False}))
         check("extraction_source recorded",
               all(r["extraction_source"] == "anchored" for r in recs.values()))
 
@@ -179,7 +181,7 @@ def main():
 
     # --- 2. retrieval misses -------------------------------------------
     with tempfile.TemporaryDirectory() as tmp:
-        run_experiment(sample, CONFIG, tmp, ModelStub(), retrieve_wrong)
+        run_sample(sample, CONFIG, tmp, ModelStub(), retrieve_wrong)
         recs = load_records(tmp)
         wrong = sum(r["evidence_present"] is False for r in recs.values())
         check("evidence_present False when retrieval misses", wrong >= 10,
@@ -187,16 +189,16 @@ def main():
 
     # --- 3. context overflow -------------------------------------------
     with tempfile.TemporaryDirectory() as tmp:
-        run_experiment(sample, CONFIG, tmp,
-                       ModelStub(prompt_eval=15000, eval_count=2000),
-                       retrieve_gold)
+        run_sample(sample, CONFIG, tmp,
+                   ModelStub(prompt_eval=15000, eval_count=2000),
+                   retrieve_gold)
         recs = load_records(tmp)
         check("context_overflow True at 15000+2000 vs 16384",
               all(r["context_overflow"] is True for r in recs.values()))
 
     # --- 4. unparseable response ---------------------------------------
     with tempfile.TemporaryDirectory() as tmp:
-        run_experiment(sample, CONFIG, tmp, ModelStub(text=UNPARSEABLE),
+        run_sample(sample, CONFIG, tmp, ModelStub(text=UNPARSEABLE),
                        retrieve_gold)
         recs = load_records(tmp)
         check("unparseable response gives label None, not a coerced default",
@@ -208,7 +210,7 @@ def main():
     victim = sample[3]
     with tempfile.TemporaryDirectory() as tmp:
         model = ModelStub(raise_on=[victim.statement])
-        run_experiment(sample, CONFIG, tmp, model, retrieve_gold)
+        run_sample(sample, CONFIG, tmp, model, retrieve_gold)
         recs = load_records(tmp)
 
         check("a raising example does not end the run", len(recs) == 12,
@@ -226,7 +228,7 @@ def main():
 
         # --- 6. resume ---------------------------------------------------
         model2 = ModelStub()
-        run_experiment(sample, CONFIG, tmp, model2, retrieve_gold)
+        run_sample(sample, CONFIG, tmp, model2, retrieve_gold)
         recs2 = load_records(tmp)
         check("resume re-runs only the failed example", len(model2.calls) == 1,
               f"called {len(model2.calls)} times")

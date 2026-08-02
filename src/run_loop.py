@@ -44,3 +44,49 @@ def build_prompt(claim, chunks, template):
 
     return prompt, evidence_block
 
+
+LABEL_TO_BOOL = {"entailed": True, "refuted": False}
+
+def run_one_claim(claim, config, template, call_model, retrieve):
+    """Everything for one claim, returned as a filled Record. Never raises.
+
+    One bad table or a dead Ollama becomes status="failed" plus a traceback on
+    this example, so the run continues and resume retries it next time."""
+
+    record = Record(
+        example_id=claim.example_id,
+        subset=claim.subset,
+        gold_label=claim.entailment_label,
+        gold_explanation=claim.explanation,
+        prompt="",
+        config=config,
+    )
+
+    try:
+        report = read_report(claim.report)
+        chunks = retrieve(claim, report)
+        prompt, evidence_block = build_prompt(claim, chunks, template)
+        record.prompt = prompt   # filled the moment it exists, so a later
+                                 # failure still logs what went to the model
+
+        record.evidence_present, record.evidences_found = assert_evidence(evidence_block, claim, report)
+
+        start = time.perf_counter()
+        raw = call_model(prompt, config)
+        record.elapsed_seconds = time.perf_counter() - start
+
+        record.response = raw["response"]
+        record.prompt_eval_count = raw.get("prompt_eval_count")
+        record.eval_count = raw.get("eval_count")
+        record.done_reason = raw.get("done_reason")
+
+        record.context_overflow = check_overflow(record.prompt_eval_count, record.eval_count, config["num_ctx"])
+
+        label, source = extract_label_with_source(record.response)
+        record.extraction_source = source
+
+    except Exception:
+        record.status = "failed"
+        record.traceback = traceback.format_exc()
+
+    return record
