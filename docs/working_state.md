@@ -52,9 +52,13 @@ This is a good fit for the compressed schedule, because cloud runs cost hours ra
     src/logger.py            Record, write_result, has_result
     src/evidence_asserter.py tokenize, count_report_tokens, pick_tokens,
                              assert_evidence, check_overflow
+    src/run_loop.py          load_prompt_template, read_report, build_prompt,
+                             run_one_claim, run_sample
+    src/placeholder_retriever.py   retrieve, top-k by token overlap
     prompts/                 baseline_v1.txt, samples/ie-val-0_filled.txt
     test_scripts/measure_extractor_baseline.py     regenerates the extractor table
     test_scripts/validate_evidence_asserter.py     validates the asserter, delete when trusted
+    test_scripts/test_harness.py                   26 checks on the run loop, committed, run before every overnight job
 
 `scripts/` was renamed to `test_scripts/` on 2 August. The "Where things live"
 section of `CLAUDE.md` still says `scripts/` and needs updating.
@@ -327,13 +331,33 @@ False negatives are 0 out of 700. That is the dangerous direction, because it wo
 
 **No cache.** Tokenising and counting a whole report is a median 12.5 ms against a 285,000 ms model call.
 
+## The recall ceiling was being read wrong, corrected 2 August
+
+The published ~68 to 70 percent recall is a **macro average of per claim fractions**, computed by `FinDVer/retriever/recall_evaluation.py` as the mean over claims of matched divided by needed. It is not the fraction of claims that received all their evidence. Section 3.4 of the plan used to gloss it as "3 in 10 claims are missing a piece". That does not follow, and it is wrong.
+
+Recomputed from upstream's own shipped retrieval output, all 700 testmini claims:
+
+    retriever, k=10                macro    element   all-gold
+    text-embedding-3-large         68.01%    62.4%     42.6%
+    bm25                           65.16%    62.8%     38.6%
+    contriever-msmarco             33.48%    28.4%     16.3%
+    ours, placeholder              57.54%    53.2%     31.6%
+
+68.01 reproduces the cited 67.91, so the published number is fine and only the reading was wrong. **The correct statement is that 57.4 percent of claims are missing at least one required piece, not 30 percent.** Use the all gold figure in the paper, or name the metric, because "68 percent recall" reads as "68 percent of claims are fine".
+
+**BM25 gets 65.16 percent against the paid embedding's 68.01, and beats it on element recall.** A free local retriever is within three points of `text-embedding-3-large`. Good for an on device paper, and it means the hybrid in section 7.3 has to clear 68.01 rather than treating 68 as far away.
+
 ## Next session
 
-**Start here, 3 August.** The run loop, then the smoke run. Neither is blocked on cloud keys.
+**Start here.** The Ollama client, a config file, the entry point script, then the smoke run.
 
-**Open before the smoke run: what goes into the evidence block.** The pipeline is RAG only and Tier 0 is defined as plain CoT plus RAG, so `<REPORT>` receives retrieved chunks, not a filing. No retriever exists yet. A whole 218,000 character report cannot fit 16384 tokens, so the smoke run needs either a first cut retriever or a stated placeholder. If a placeholder is used, say so in the log, because `evidence_present` means something different when the block was not produced by retrieval.
+**The placeholder retriever is what feeds the evidence block for now.** It gets 31.6 percent of claims complete, so expect `evidence=False` on roughly two thirds of the smoke run progress lines. That is honest and expected. Any accuracy from this run is floored by retrieval, not by the model, and must be labelled as such.
 
-**The run loop.** This is the gap the original list of five never named. It walks the sample from `stratified_sample`, reads each claim's report, builds the prompt, calls Ollama with `num_ctx`, `num_predict`, temperature and seed passed explicitly, times the call, runs both assertion checks, extracts the label with `extract_label_with_source`, fills a `Record`, and calls `write_result`. It wraps each example in try/except so one bad table sets `status="failed"` and stores the traceback rather than ending the run, and it skips any id where `has_result` is already `True`. Every part it depends on now exists except the assertion, which is why the assertion comes first.
+**Still to build.** `call_model`, an Ollama HTTP client of about 15 lines, posting to `localhost:11434/api/generate` with `num_ctx`, `num_predict`, temperature and seed passed explicitly. One config file in `configs/`. A short entry point script that imports `run_sample`, the retriever and the client, and wires them together. That script is the only place that names which retriever and which model an experiment used.
+
+**Then run `test_scripts/test_harness.py` before starting anything overnight.** It caught a silent bug on its first run that would have cost a full night.
+
+**Reference, the run loop.** This is the gap the original list of five never named. It walks the sample from `stratified_sample`, reads each claim's report, builds the prompt, calls Ollama with `num_ctx`, `num_predict`, temperature and seed passed explicitly, times the call, runs both assertion checks, extracts the label with `extract_label_with_source`, fills a `Record`, and calls `write_result`. It wraps each example in try/except so one bad table sets `status="failed"` and stores the traceback rather than ending the run, and it skips any id where `has_result` is already `True`. Every part it depends on now exists except the assertion, which is why the assertion comes first.
 
 **Keep the harness test this time.** The logger's 15 checks were thrown away, which was right while the pieces were independent. The run loop wires the loader, the sampler, the extractor, the logger, and the asserter together, so from tomorrow a broken interface between two of them is a silent whole night rather than one function returning the wrong thing. Decided 1 August: the test goes in `scripts/test_harness.py` and is committed. One file rather than a new `tests/` directory and a new convention, since there is exactly one such test. Move it if it ever becomes several.
 

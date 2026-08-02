@@ -427,6 +427,58 @@ For completeness, since 700 claims cite only 255 distinct reports, a cache would
 
 `scripts/` became `test_scripts/`, mid session. `CLAUDE.md`'s "Where things live" section still says `scripts/` and needs updating.
 
+### Built: the run loop, the placeholder retriever, and the committed harness test
+
+`src/run_loop.py`. Four pieces. `load_prompt_template` and `read_report` are the IO helpers. `build_prompt(claim, chunks, template)` returns `(prompt, evidence_block)` and asserts `evidence_block in prompt` as its own postcondition. `run_one_claim` does everything for one claim and returns a filled `Record`, catching every exception so it never raises. `run_sample` loads the template once, skips ids where `has_result` is already true, calls `run_one_claim`, writes each `Record` the moment it finishes, and prints a progress line with `flush=True`.
+
+**The model call and the retriever are injected, not imported.** `run_sample(sample, config, results_dir, call_model, retrieve)`. The harness test passes stubs and runs in seconds; the entry point passes the real ones. It also means the Tier 2 retriever replaces the Tier 0 one without touching `run_loop.py`. `run_loop.py` never imports either.
+
+`src/placeholder_retriever.py`. Scores every context element by how many distinct tokens it shares with the claim, keeps the top k, and hands them back **in document order rather than score order**, so tables stay near their captions. Deliberately the simplest thing that is still real retrieval.
+
+`test_scripts/test_harness.py`, committed rather than thrown away, because the run loop is the first code where six modules touch each other. 26 checks in six groups: happy path, retrieval misses, context overflow, unparseable response, one example raising, and resume. It stubs Ollama, uses a scratch directory outside the repo, and exits non-zero on failure so it works as a gate before an overnight run.
+
+### The harness test earned itself on its first run
+
+25 of 26 passed. The failure was one line in `run_one_claim`:
+
+    record.extraction_label = label        # wrong
+
+Two bugs in it. The field is `extracted_label`, and `Record` is a plain dataclass, so assigning an undeclared attribute silently creates a new one. `asdict()` serialises only declared fields, so the value was not merely misplaced, it was discarded and never reached the JSON. The `LABEL_TO_BOOL` conversion was also missing, which is why that constant was defined and unused.
+
+Nothing raised. All 12 examples wrote `extracted_label: null` and every run reported `status="ok"`. A 102-example overnight run would have completed normally and scored 100% unparseable. It also showed up in the progress line as `label=None` twelve times, so that column paid for itself immediately.
+
+Fixed to `record.extracted_label = LABEL_TO_BOOL.get(label)`. 26 of 26 pass.
+
+### Measured: the placeholder retriever, k=10, all 700 claims, 23 seconds
+
+    macro-average (upstream's metric)   57.54%
+    element recall                      53.2%
+    all-gold claims                     31.6%
+
+    by subset (element / all-gold)   ie 56.7 / 30.4   knowledge 45.9 / 16.5   numeric 59.1 / 44.8
+
+`k = 10` is upstream's setting, from `run_llm.py:41` and the comment in `scripts/inference/retrieval.sh`, where 3 and 5 were swept and discarded. Matching it makes our recall directly comparable rather than merely reasonable. Upstream also sorts its selected chunks back into id order in `retriever/get_top_n.py:20`, which independently matches the document-order choice above.
+
+`knowledge` is worst because it needs the most evidence per claim, 3.66 elements against `numeric`'s 1.87. One `ie` claim needs 20 gold elements and another needs 10, so at k=10 the first can never be complete no matter how good the ranking is.
+
+### Fact-checked, and section 3.4 of the plan was wrong
+
+The plan said the ~68-70% published recall means "for roughly 3 in 10 claims, at least one required piece of evidence never reaches the model". That does not follow. `FinDVer/retriever/recall_evaluation.py` computes the mean over claims of `matched / needed`, which is a **macro-average of per-claim fractions**, not the fraction of claims that got everything. The two diverge sharply when claims need several elements, and these need 2.8 on average.
+
+Upstream ships its actual retrieved indices in `outputs/testmini_outputs/retriever_output/`, so all three metrics were recomputed on the same 700 claims:
+
+    retriever, k=10                macro    element   all-gold
+    text-embedding-3-large         68.01%    62.4%     42.6%
+    bm25                           65.16%    62.8%     38.6%
+    contriever-msmarco             33.48%    28.4%     16.3%
+    ours, token overlap            57.54%    53.2%     31.6%
+
+68.01% reproduces the cited 67.91% to within rounding, so the published number is sound and only the gloss was wrong. **The correct claim-level statement is 57.4%, not 30%.** Nearly six claims in ten are missing at least one required piece even with the best upstream retriever. This makes the ceiling argument stronger, and it is the number the paper should use, or else name the metric explicitly, because "68% recall" reads as "68% of claims are fine".
+
+Two more results from the same recomputation. **BM25 reaches 65.16% against the paid embedding's 68.01% and beats it on element recall**, so a free local retriever is within three points of `text-embedding-3-large` on the metric the paper reports. That is worth something on its own for an on-device paper, and it means §7.3's hybrid has to beat 68.01% rather than treating 68% as distant. And k dominates: dense drops from 68.01% at k=10 to 54.53% at k=5 and 43.60% at k=3.
+
+Sections 3.4, 12.1 and the summary table in the plan were corrected.
+
 ### Not done
 
-The run loop, the committed harness test, and the smoke run. Five of the five original harness pieces are now built and verified. The run loop, which the original list never named, is the last thing between here and the smoke run.
+The Ollama client (`call_model`), an experiment config file, the entry point script that wires them, and the smoke run itself. All five original harness pieces plus the run loop are built and verified.

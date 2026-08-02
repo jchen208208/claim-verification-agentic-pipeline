@@ -9,9 +9,9 @@ It's injected into the run loop."""
 from src.evidence_asserter import tokenize
 
 TOP_K = 10 # the number FINDVER themselves used
-"""scripts/inference/retrieval.sh  "We use text-embedding-3-large & top-10 as the
-                                 main RAG evaluation setting"
-                                 top_ks=( #3  #5  10 )   3 and 5 commented out"""
+# scripts/inference/retrieval.sh  "We use text-embedding-3-large & top-10 as the
+                                 # main RAG evaluation setting"
+                                 # top_ks=( #3  #5  10 )   3 and 5 commented out"""
 
 def retrieve(claim, report, k=TOP_K):
     claim_tokens = set(tokenize(claim.statement))

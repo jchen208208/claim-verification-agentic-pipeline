@@ -191,7 +191,22 @@ Consequences worth internalising:
 **Decision (professor's explicit guidance): the pipeline is RAG-only.** Even if a full document technically *fits* in a small model's context window, that does not mean the model can *effectively use* information tens of thousands of tokens back. Fitting ≠ using. **[MEASURED]** Week-1 timings make this concrete in a second way: a ~4,000-token prompt already costs 3.5 minutes of ingestion on the 3B model (§4.6). A 41,000-token document would cost roughly ten times that per example — long-context is not merely inadvisable here, it is computationally out of reach on this hardware.
 
 ### 3.4 Recall and the recall ceiling
-**Evidence recall** = of the gold evidence pieces a claim needs, what fraction did retrieval actually fetch? The published FINDVER setup (OpenAI text-embedding-3, k=10) achieves only **~68–70%** (67.91% testmini / 69.53% test, per MACE). So for roughly **3 in 10 claims, at least one required piece of evidence never reaches the model** — a hard accuracy ceiling that no downstream reasoning improvement can break. Every published approach copied this setup rather than improving it. Because gold indices exist, retrieval can be improved and measured **in isolation, almost for free** — no LLM calls, just set comparisons — making "we raised recall from 68% to X%" a clean, self-contained reportable result that costs nothing in compute.
+**Evidence recall** = of the gold evidence pieces a claim needs, what fraction did retrieval actually fetch? The published FINDVER setup (OpenAI text-embedding-3, k=10) achieves only **~68–70%** (67.91% testmini / 69.53% test, per MACE). Every published approach copied this setup rather than improving it. Because gold indices exist, retrieval can be improved and measured **in isolation, almost for free** — no LLM calls, just set comparisons — making "we raised recall from 68% to X%" a clean, self-contained reportable result that costs nothing in compute.
+
+**[FACT-CHECKED 2 Aug 2026, and this section was wrong] The published number is a macro-average, and the "3 in 10 claims" gloss that used to sit here does not follow from it.** `FinDVer/retriever/recall_evaluation.py` computes `mean over claims of (matched / needed)`, i.e. the average *per-claim fraction*, not the fraction of claims that got everything. Those differ a lot when a claim needs several elements, and FINDVER claims need 2.8 on average (ie 3.04, knowledge 3.66, numeric 1.87). Recomputed directly from upstream's own shipped retrieval output in `outputs/testmini_outputs/retriever_output/`, all 700 testmini claims, three metrics side by side:
+
+| retriever, k=10 | macro-avg (their metric) | element recall | **all-gold** |
+|---|---|---|---|
+| `text-embedding-3-large` | **68.01%** | 62.4% | **42.6%** |
+| `bm25` | 65.16% | 62.8% | 38.6% |
+| `contriever-msmarco` | 33.48% | 28.4% | 16.3% |
+| ours, token overlap (§7.3 placeholder) | 57.54% | 53.2% | 31.6% |
+
+Our 68.01% reproduces the cited 67.91% to within rounding, so the published figure is sound; only the interpretation was wrong. **The real claim-level statement is that for 57.4% of claims, not 30%, at least one required piece of evidence never reaches the model.** That is close to six claims in ten, and it makes the ceiling argument stronger rather than weaker. Any sentence in the paper about the ceiling should use the all-gold figure or name the metric explicitly, because "68% recall" reads as "68% of claims are fine" and that is not what it means.
+
+**Reporting rule, decided 2 Aug.** Every recall number in the paper is reported on all three metrics, and each has one job. **Macro-average** is the comparability number: it is what upstream computes, so it is the only one that may sit in a table beside a published figure. **Element recall** is the honest retrieval measurement, since it weights every piece of evidence equally instead of favouring claims that need fewer. **All-gold** is the ceiling number, because it answers the question the ceiling argument actually asks, namely how often the model could not possibly have got it right. This mirrors the two-scorings decision for accuracy in §9: one number exists for comparison, another for truth, and mixing them silently is the failure to avoid.
+
+**Two further findings from the same recomputation.** First, **BM25 reaches 65.16% against the paid embedding's 68.01%, and beats it on element recall (62.8% vs 62.4%)**. A free, local, dependency-light retriever is within three points of `text-embedding-3-large` on the metric the paper reports. For an on-device paper that is a result in itself, and it means the hybrid of §7.3 starts from a strong free baseline rather than needing an embedding API. Second, k dominates: `text-embedding-3-large` drops from 68.01% at k=10 to 54.53% at k=5 and 43.60% at k=3, so the k sweep is not a formality.
 
 ### 3.5 How retrieval mechanically works — and which model does it
 Retrieval is **not** done by the generation model. It uses a separate, much smaller **embedding model** whose only job is converting text into a vector. The pipeline:
@@ -548,7 +563,7 @@ Rationale: (a) build everything at once and you cannot attribute any change; (b)
 
 | Tier | Module(s) | Error category attacked | Status | Payoff / risk |
 |---|---|---|---|---|
-| — | Harness: loader, stratified sampler, logging, label extractor, evidence assertion, **run loop** | — | **in progress** · loader + sampler done 31 Jul; label extractor and logger done 1 Aug; evidence assertion done and validated on all 700 claims 2 Aug; **only the run loop remains** | Prerequisite for everything; small but non-optional (§11.8–11.9). The run loop was missing from the original list of five and is not optional |
+| — | Harness: loader, stratified sampler, logging, label extractor, evidence assertion, **run loop** | — | **in progress** · loader + sampler done 31 Jul; label extractor and logger done 1 Aug; evidence assertion, run loop and placeholder retriever all done 2 Aug, with a committed 26-check harness test | **done** | Prerequisite for everything; small but non-optional (§11.8–11.9). The run loop was missing from the original list of five and is not optional. Remaining before the first run: Ollama client, config file, entry point |
 | 0 | **Baseline:** plain CoT, RAG, ~100 stratified testmini examples — (i) edge-only, (ii) cloud-only | reference point | pending keys | Mandatory; answers "has 2026 closed the gap?" and sets both ends of the routing curve |
 | 1 | **Code execution + tables-as-DataFrames** | Computation + extraction | ready to start | Highest-certainty gain; foundation cost revised down (§7.1) |
 | 2 | **Claim-decomposed + hybrid retrieval** | Recall ceiling | — | Clean standalone metric; nobody has attacked it; also cuts runtime (§4.6) |
@@ -694,7 +709,7 @@ Edge-only on the 102-example slice, 3B and 7B. Two new cloud models on the same 
 **Phase 3 · 11 – 20 Aug · Ablations, cheap-measurement work first.**
 Two strands run in parallel, because they compete for different resources.
 
-*Daytime, no model runs.* **Tier 2 retrieval recall**: claim decomposition, BM25 plus dense fusion, table-aware chunk metadata, *k* sweep, all scored against gold indices (§7.3, §9). This is the project's core question (§3.3) and it costs minutes. Target: meaningfully above the 68–70% recall ceiling.
+*Daytime, no model runs.* **Tier 2 retrieval recall**: claim decomposition, BM25 plus dense fusion, table-aware chunk metadata, *k* sweep, all scored against gold indices (§7.3, §9). This is the project's core question (§3.3) and it costs minutes. Target: meaningfully above the 68–70% recall ceiling. **[REVISED 2 Aug]** The starting point is better understood than it was: BM25 alone already reaches 65.16% on their metric (§3.4), so the fusion has to beat 68.01% rather than 68% being far away, and every recall number must be reported on all three metrics because the published one is a macro-average that reads as something else.
 
 *Overnight, one configuration per night.* **Tier 1 code execution and tables-as-DataFrames**, the highest-certainty accuracy gain, validated against gold `execution_result` (§2.5) before touching end-to-end runs. Then the end-to-end delta from whichever retrieval variant won on recall, if nights remain.
 
@@ -771,7 +786,7 @@ Table parsing overruns, cut Tier 1's retry loop before cutting Tier 1. Cloud key
 - [x] Clone the repo; confirm the real data and table formats
 - [x] Produce the visual build plan
 - [x] Meeting held 30 Jul; venue, deadline, authorship, and baseline strategy settled
-- [~] Build the harness — loader and stratified sampler done 31 Jul; label extractor and logger done and verified 1 Aug; evidence assertion done and validated against all 700 claims 2 Aug. **Only the run loop remains.** It was not in the original list of five and is not optional. Not blocked on cloud keys. **Due 3 Aug.**
+- [x] Build the harness — loader and stratified sampler done 31 Jul; label extractor and logger done and verified 1 Aug; evidence assertion, run loop and placeholder retriever done 2 Aug, with `test_scripts/test_harness.py` committed and passing 26 checks. Remaining before the first run: the Ollama client, one config file, and the entry point script.
 - [ ] Confirm workshop mechanics: page limit, template, anonymity, AoE deadline (§13 item 10)
 - [ ] Decide the two cloud models and the two added edge models (§13 items 7–8) — **needed before 3 Aug**
 - [ ] Smoke-test cloud keys on arrival; confirm DashScope region
@@ -789,7 +804,9 @@ Table parsing overruns, cut Tier 1's retry loop before cutting Tier 1. Cloud key
 | Best 2024 model (Claude-3.5-Sonnet, testmini) | 77.2% long-context / 75.0% RAG |
 | Human expert / non-expert | 93.3% / 86.7% |
 | CoT gain over direct output | ~5–7 pts |
-| Published evidence recall (dense, k=10) | 67.91% testmini / 69.53% test |
+| Published evidence recall (dense, k=10) | 67.91% testmini / 69.53% test — **macro-average of per-claim fractions**, not claim completeness (§3.4) |
+| Claims getting *all* gold evidence (dense, k=10, recomputed 2 Aug) | **42.6%** testmini — so 57.4% of claims are missing at least one piece |
+| BM25 at k=10, same data (recomputed 2 Aug) | 65.16% macro / 62.8% element / 38.6% all-gold — free and local, within 3 points of the paid embedding |
 | Claims requiring table evidence | 66–71% |
 | **Local 3B: total per example** | **4 m 45 s** (19.1 tok/s in, 6.7 tok/s out) |
 | **Local 7B: total per example** | **11 m 46 s** (7.8 tok/s in, 3.2 tok/s out) |
