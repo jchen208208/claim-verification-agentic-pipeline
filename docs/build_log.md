@@ -239,6 +239,7 @@ Per example logging and the evidence assertion. Two of the five harness pieces r
 ---
 
 ## 1 August 2026, evening session
+
 A short session, about an hour. One piece was chosen deliberately rather than starting both.
 
 ### Decided: build the logger before the evidence assertion
