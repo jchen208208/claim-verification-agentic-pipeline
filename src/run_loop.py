@@ -81,7 +81,7 @@ def run_one_claim(claim: Claim, config: dict, template: str, call_model: Callabl
         raw = call_model(prompt, config)
         record.elapsed_seconds = time.perf_counter() - start
 
-        # Ollama returns a raw dictionary with these elements: response = output string, prompt_eval_count = how many tokens it read from the prompt, eval_count = how many tokens it outputed, done_reason = stop (naturally finished generation) | length (generation truncated by num_predict cap)
+        # Ollama returns a raw dictionary with these elements: response = output string, prompt_eval_count = how many tokens it evaluated from the prompt (not how many tokens in the raw prompt), eval_count = how many tokens it outputed, done_reason = stop (naturally finished generation) | length (generation truncated by num_predict cap)
         record.response = raw["response"]
         record.prompt_eval_count = raw.get("prompt_eval_count")
         record.eval_count = raw.get("eval_count")
@@ -101,3 +101,35 @@ def run_one_claim(claim: Claim, config: dict, template: str, call_model: Callabl
         record.traceback = traceback.format_exc()
 
     return record
+
+
+def run_sample(sample, config, results_dir, call_model, retrieve):
+    """Iterate through the sample, run each claim, write each Record the moment it finishes."""
+
+    template = load_prompt_template(config["prompt_version"])
+    done = 0
+    failed = 0
+    skipped = 0
+
+    for n, claim in enumerate(sample, start=1):
+        # if the record has already been logged, skip it
+        if has_result(claim.example_id, results_dir):
+            skipped += 1
+            continue
+
+        record = run_one_claim(claim, config, template, call_model, retrieve)
+        write_result(record, results_dir)
+
+        if record.status == "ok":
+            done += 1
+        else:
+            failed += 1
+
+        print(f"[{n}/{len(sample)}] {claim.example_id:<18}"
+              f" {record.elapsed_seconds or 0:6.1f}s"
+              f"  label={record.extracted_label}"
+              f"  evidence={record.evidence_present}"
+              f"  status={record.status}", flush=True) # flush is set to true so text is displayed immediately instead of waiting for a new-line-character
+        # example output: numeric-val-214     301.9s  label=True   evidence=True   status=ok
+
+    print(f"\n{done} ok, {failed} failed, {skipped} skipped, out of {len(sample)}", flush=True)
