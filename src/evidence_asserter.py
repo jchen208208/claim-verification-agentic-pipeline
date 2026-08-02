@@ -51,3 +51,28 @@ def pick_tokens(element_text, report_counts, n=N_TOKENS):
     # Returns a list of n (token, count) pairs unless the element has too few usable tokens or none.
     return [(t, report_counts[t]) for t in ranked[:n]]
 
+def assert_evidence(evidence_block, claim, report):
+    """Return (evidence_present, evidence_found) for one claim object from the loader.
+
+    evidence_block is the formatted retrieved text that build_prompt inserted,
+    not the whole prompt. Limiting to just this chunk stops the claim's own wording
+    from satisfying a match.
+
+    evidence_found maps each relevant context index to (witnesses found, witnesses tried).
+    evidence_present is True only when every relevant context element had all of its
+    witnesses present."""
+
+    report_counts = count_report_tokens(report)
+    seen = set(tokenize(evidence_block))
+
+    evidence_found = {}
+    for i in claim.relevant_context:
+        witnesses = pick_tokens(report["context"][i]["context"], report_counts) # report["context"] = 304-element list, [i] is the gold index since id = position in the report, and the last ["context"] is each element's actual text
+        matches = sum(1 for token, _count in witnesses if token in seen) # checks how many of selected tokens for a gold element are in the prompt
+        evidence_found[i] = (matches, len(witnesses)) # stores number of witnesses found per element (0-3), len(witnesses) = how many witnesses we went searching for (always 3 for testmini)
+
+    evidence_present = all(
+        searched > 0 and matches == searched for matches, searched in evidence_found.values()
+    ) # True only if all matches were found for each relevant context element for a claim, aka all gold evidence present
+
+    return evidence_present, evidence_found
