@@ -28,7 +28,9 @@ If a faster machine materialises the night budget stops binding and Band B opens
 
 Week 1 is done. The repository is cloned, the data structure is confirmed, both local models are installed and benchmarked on a real example, and the visual build plan has been sent to my professor.
 
-The harness is finished. All five original pieces plus the run loop are built and verified: the loader, the stratified sampler, the label extractor, per example logging, the evidence assertion, and the run loop, which the original list of five never named. A placeholder retriever and a committed 26 check harness test are done too. Left before the trial run: the Ollama client, a config file, and the entry point script.
+**Everything needed to run an experiment now exists, and the first trial run was started at the end of the 2 August session.** The harness is complete: loader, stratified sampler, label extractor, per example logging, evidence assertion, and the run loop that the original list of five never named. Alongside it, a placeholder retriever, an Ollama client, a config file, an entry point at `run.py`, and a committed 26 check harness test that already caught one silent bug.
+
+One known defect is carried into that run deliberately. Real RAG prompts are about twice the size section 4.3 assumed, and two of the twelve trial examples exceed the context budget. Prompt trimming must be built before the 102 example run. Details in the next session section.
 
 ## What the professor decided on 30 July
 
@@ -55,13 +57,32 @@ This is a good fit for the compressed schedule, because cloud runs cost hours ra
     src/run_loop.py          load_prompt_template, read_report, build_prompt,
                              run_one_claim, run_sample
     src/placeholder_retriever.py   retrieve, top-k by token overlap
+    src/ollama_client.py     call_ollama, POST to localhost:11434
+    run.py                   entry point, at the repo root
+    configs/trial_run_3b.json      one config file per experiment
     prompts/                 baseline_v1.txt, samples/ie-val-0_filled.txt
     test_scripts/measure_extractor_baseline.py     regenerates the extractor table
     test_scripts/validate_evidence_asserter.py     validates the asserter, delete when trusted
     test_scripts/test_harness.py                   26 checks on the run loop, committed, run before every overnight job
 
+`results/` and `logs/` are both gitignored. `results/<experiment>/` holds one JSON
+per claim and is the real record; `logs/` holds console output captured with `tee`.
+
 `scripts/` was renamed to `test_scripts/` on 2 August. The "Where things live"
-section of `CLAUDE.md` still says `scripts/` and needs updating.
+section of `CLAUDE.md` still says `scripts/`, does not mention `run_loop.py`,
+`evidence_asserter.py`, `placeholder_retriever.py`, `ollama_client.py`, `run.py`,
+`configs/` or `logs/`, and needs updating.
+
+The command to run an experiment:
+
+    python3 test_scripts/test_harness.py && \
+    caffeinate -ims python3 run.py configs/<name>.json 2>&1 | tee logs/<name>.txt
+
+`caffeinate -ims` blocks idle, disk and system sleep, the last only on AC power, so
+stay plugged in. Keep the lid open, since caffeinate cannot override a clamshell
+close. Close Chrome and VS Code: RAM is not the constraint at 2.5 GB peak on a 16 GB
+machine, but this is CPU-only inference on a 2017 Intel chip and competing processes
+take cores from Ollama.
 
 `load_claims()` returns all 700 testmini records as `Claim` objects. Every object has the same 11 fields no matter which subset it came from, so no code downstream has to know about the `explaination` misspelling or about which subsets carry extra fields. `Claim` is a frozen dataclass, so nothing in the pipeline can write into a record and corrupt later iterations.
 
@@ -347,37 +368,55 @@ Recomputed from upstream's own shipped retrieval output, all 700 testmini claims
 
 **BM25 gets 65.16 percent against the paid embedding's 68.01, and beats it on element recall.** A free local retriever is within three points of `text-embedding-3-large`. Good for an on device paper, and it means the hybrid in section 7.3 has to clear 68.01 rather than treating 68 as far away.
 
-## Next session
+## Next session, 3 August: analyse the trial run
 
-**Start here.** The Ollama client, a config file, the entry point script, then the trial run.
+**The trial run was started at the end of the 2 August session.** Everything needed to run it exists. Read its output first, before building anything.
 
-**The placeholder retriever is what feeds the evidence block for now.** It gets 31.6 percent of claims complete, so expect `evidence=False` on roughly two thirds of the trial run progress lines. That is honest and expected. Any accuracy from this run is floored by retrieval, not by the model, and must be labelled as such.
+    results/trial_run_3b/          one JSON per example, 12 files
+    logs/trial_run_3b.txt          the console output, progress lines and tracebacks
 
-**Still to build.** `call_model`, an Ollama HTTP client of about 15 lines, posting to `localhost:11434/api/generate` with `num_ctx`, `num_predict`, temperature and seed passed explicitly. One config file in `configs/`. A short entry point script that imports `run_sample`, the retriever and the client, and wires them together. That script is the only place that names which retriever and which model an experiment used.
+Command used:
 
-**Then run `test_scripts/test_harness.py` before starting anything overnight.** It caught a silent bug on its first run that would have cost a full night.
+    python3 test_scripts/test_harness.py && \
+    caffeinate -ims python3 run.py configs/trial_run_3b.json 2>&1 | tee logs/trial_run_3b.txt
 
-**Reference, the run loop.** This is the gap the original list of five never named. It walks the sample from `stratified_sample`, reads each claim's report, builds the prompt, calls Ollama with `num_ctx`, `num_predict`, temperature and seed passed explicitly, times the call, runs both assertion checks, extracts the label with `extract_label_with_source`, fills a `Record`, and calls `write_result`. It wraps each example in try/except so one bad table sets `status="failed"` and stores the traceback rather than ending the run, and it skips any id where `has_result` is already `True`. Every part it depends on now exists except the assertion, which is why the assertion comes first.
+If it died partway, re-running the same command resumes: `has_result` skips ids whose
+`status` is already `ok` and retries everything else.
 
-**Keep the harness test this time.** The logger's 15 checks were thrown away, which was right while the pieces were independent. The run loop wires the loader, the sampler, the extractor, the logger, and the asserter together, so from tomorrow a broken interface between two of them is a silent whole night rather than one function returning the wrong thing. Decided 1 August: the test goes in `scripts/test_harness.py` and is committed. One file rather than a new `tests/` directory and a new convention, since there is exactly one such test. Move it if it ever becomes several.
+### What to check in the results, in this order
 
-**Then the trial run.** Details and its four jobs are further down this section.
+1. **`status`.** Any `failed` record is a real bug. The traceback is in the record.
+2. **`prompt_eval_count`.** This is the number the whole prompt-size problem below turns on. Compare it against the estimates: the pre-flight predicted ~3,000 to ~15,500 tokens, mean ~8,000, using 3.6 chars per token. Replace the estimate with the measurement everywhere it appears.
+3. **`context_overflow`.** Expect `true` on `ie-val-222` and `knowledge-val-65`, which were predicted to overflow. If it fired on those two and no others, the alarm works and the prediction was right. If it fired on more, prompts are bigger than estimated. If it fired on none, the chars-per-token estimate was too pessimistic.
+4. **`elapsed_seconds`.** Discard example 1, which includes model load (5.3 s measured on a cold model). Compare the rest against 4m45s. This is the number the whole schedule rests on and it is now suspect (see below).
+5. **`done_reason`.** Any `length` means generation hit the `num_predict` cap of 2000 and the response was cut off mid-reasoning. Those examples land in the unparseable bucket through no fault of the model, and `num_predict` needs raising.
+6. **`extracted_label` and `extraction_source`.** The first honest look at whether our own model, at temperature 0, produces the required concluding sentence. Everything the extractor was built against is Llama-3.2-3B at temperature 1.0.
+7. **`evidence_present` and `evidences_found`.** Expect roughly 4 of 12 to be fully present, since the placeholder retriever gets all gold evidence for 31.6 percent of claims. `0/3` in a progress line means the retriever missed entirely; `2/3` means it worked and k is too small.
 
-The evidence assertion is now **two** checks, not one.
+### The one thing that must be fixed before the 102-example run
 
-1. A distinctive token from the gold evidence is literally present in the prompt string. Catches loader and prompt building bugs, which is the week 1 failure.
-2. `prompt_eval_count + eval_count >= num_ctx` raises an alarm. Catches mid generation context eviction, measured today. Check 1 passes while that happens, so it cannot substitute.
+**Prompt trimming.** Measured on 2 August by building all 12 prompts with no model calls: the mean prompt is ~8,000 tokens against §4.3's assumed ~4,500, and two of the twelve exceed the 14,384 token budget. The cause is a single oversized table chunk, which is the risk §4.3 named and then dismissed as impossible. The mitigation that section prescribes, count tokens before sending and drop the lowest-ranked chunk until it fits, was never built.
 
-Settings are settled and need no further investigation: `num_ctx` 16384, `num_predict` 1500 to 2000, temperature 0, seed fixed. Pass them explicitly on every call.
+At 12 examples this wastes 2. At 102 it wastes roughly 17. Build it before that run.
 
-Then the first trial run, 12 examples at 2 per cell, roughly one hour on the 3B model. Start it with `caffeinate -i`, plugged in, lid open. It has four jobs.
+**Do not fix this by raising `num_ctx`.** A larger window trades a bounded problem for an unbounded one: §4.6 measured ingestion at 3-4x the cost of generation, so window size costs wall-clock rather than RAM, and wall-clock is the binding constraint. It also cannot rule out one pathological chunk. Trimming bounds prompt size, bounds runtime, and drops the least relevant chunk first.
+
+### The schedule number may be wrong, and the trial run settles it
+
+The 4m45s per example figure was measured in week 1 on a ~4,000 token prompt. Real RAG prompts average ~8,000. Extrapolating, the trial run should take about 100 minutes rather than 57, and a 102-example run about 14 hours rather than 8.
+
+**If that holds, section 12.1's night budget is roughly half what it says.** Recompute it from the trial run's real `elapsed_seconds` before scheduling any overnight run. This is the highest-value number the trial run produces.
+
+### The trial run's four original jobs
 
 1. Settle the provisional output format row in section 4.6 of the plan with a logged artifact instead of recollection.
-2. Produce the first responses from **our own** model, `qwen2.5-coder:3b`, at temperature 0. Everything the extractor was developed against is Llama-3.2-3B at temperature 1.0, which is a stand in. This is the first real validation of the extractor against the model we actually ship.
+2. Produce the first responses from **our own** model, `qwen2.5-coder:3b`, at temperature 0.
 3. Give the first honest `none` rate for our configuration. Do not carry the upstream 33 percent into the paper before this exists.
-4. Confirm the `num_predict` figure against real chain of thought lengths from our own model, rather than from Llama-3.2-3B's.
+4. Confirm the `num_predict` figure against real chain of thought lengths from our own model rather than Llama-3.2-3B's.
 
-Also still open from 31 July: the FINDVER leaderboard check and the citation sweep. Neither has been done, and both are needed before repeating any claim that nobody has attempted something.
+### Also still open from 31 July
+
+The FINDVER leaderboard check and the citation sweep. Neither has been done, and both are needed before repeating any claim that nobody has attempted something.
 
 ## Outstanding, not yet done
 

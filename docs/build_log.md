@@ -479,6 +479,53 @@ Two more results from the same recomputation. **BM25 reaches 65.16% against the 
 
 Sections 3.4, 12.1 and the summary table in the plan were corrected.
 
+### Built: the Ollama client, the config, and the entry point
+
+`src/ollama_client.py`. One function, `call_ollama(prompt, config)`, POSTing to `http://localhost:11434/api/generate` and returning Ollama's raw response dict. Uses `urllib` from the standard library rather than `requests`, because the project has no third-party dependencies and this does not justify the first one.
+
+Three things in it are load-bearing. **`"stream": False`**, because with streaming on, Ollama returns newline-delimited JSON objects rather than one document, `json.loads` on the body raises, and the token counts only appear in the final chunk. **`config["num_ctx"]` rather than `config.get(...)`**, so a missing key raises instead of silently falling back to Ollama's 4096 default and truncating every prompt for a whole night. **A 1800 second timeout**, because `urlopen` without one waits forever, and a hung server would mean an overnight run that produces nothing and never errors. No retries: a failed call raises, `run_one_claim` marks the example failed, and re-running resumes exactly those examples.
+
+Verified live against the pinned 0.12.3 server. The full chain works: real call, real response, `extract_label_with_source` returning `('refuted', 'anchored')`, `check_overflow` returning `False`.
+
+`configs/trial_run_3b.json`. Six keys are read by code (`model`, `num_ctx`, `num_predict`, `temperature`, `seed`, `prompt_version`); the rest (`experiment`, `retriever`, `top_k`, `per_cell`, `sample_seed`) are provenance, stored in every `Record` so a result file six weeks from now states what produced it.
+
+`run.py` at the repo root. The only file that names which retriever and which model client an experiment used, so swapping either is a one line change there and touches nothing in `src/`. Two details: `functools.partial(retrieve, k=config["top_k"])` binds *k* at wiring time so the config value is the one that actually runs rather than a label that happens to agree with the retriever's default; and the startup banner prints every key the code reads, so a typo raises at second zero instead of becoming twelve failed records an hour later.
+
+### Verified against the real Ollama API rather than from memory
+
+`done_reason` has two values on 0.12.3, both observed directly by forcing each: `"length"` when generation hits the `num_predict` cap, with `eval_count` equal to `num_predict` exactly, and `"stop"` when the model finishes on its own. `"stop"` does **not** mean healthy, because §4.3 measured that context eviction also reports `"stop"`, which is the whole reason `check_overflow` exists as a separate field.
+
+The response dict has 12 keys. Only four are used. `context` is the KV token list and must never be stored in a `Record`: on a real prompt it is thousands of integers, roughly 30 KB of noise per example. Durations are in nanoseconds. `load_duration` was 5.3 s of an 8.0 s call on a cold model, so `elapsed_seconds` for the **first** example of any run includes model load and is not comparable to the rest.
+
+Also checked, because it would have broken the overflow arithmetic silently: `prompt_eval_count` reports prompt length rather than work done. Three identical calls returned 52 every time, so prefix caching does not deflate it.
+
+### Found on pre-flight, and this one must be fixed before the 102 run
+
+Building the 12 trial prompts for real, with no model calls, showed **the plan's prompt size assumption is about half the truth**.
+
+    mean prompt   ~8,000 tokens        §4.3 assumed ~4,500
+    range         ~3,000 to ~15,500    budget is 16384 - 2000 = 14,384
+    over budget   2 of 12              ie-val-222 ~15,078, knowledge-val-65 ~15,514
+    at 12,000+    5 of 12
+
+The cause is the risk §4.3 named and then dismissed: report elements run to 4,000 characters, and ten concatenated is not 4,500 tokens. §4.3 called overflow "arithmetically impossible". It is not, and **the mitigation that section prescribes, trimming the lowest-ranked chunk until the prompt fits, was never built.**
+
+Decided to run the trial anyway rather than fix first. Those two examples will not error: the prompt fits ingestion at 15,514 < 16,384, so the overflow happens during generation, Ollama evicts prompt tokens, reports `done_reason: "stop"`, and `check_overflow` catches it. Running gives three things a fix-first order would not: real `prompt_eval_count` values to replace the 3.6 chars/token estimate, the overflow alarm exercised end to end on real data for the first time, and the other ten examples doing their normal job. Two of twelve is a finding, not a failure. At 102 examples it would be roughly 17 wasted, which is why the trim lands before that run.
+
+**Decided: do not fix this by raising `num_ctx`.** That trades a bounded problem for an unbounded one. §4.6 measured ingestion at 3-4× generation cost, so window size costs wall-clock rather than RAM, and wall-clock is the binding constraint. A bigger window also cannot rule out one pathological chunk.
+
+**Second consequence, and it affects the schedule.** The 4m45s per example figure was measured on a ~4,000 token prompt. At a mean of ~8,000, the trial run should take roughly 100 minutes rather than 57, and a 102-example run roughly 14 hours rather than 8. The night budget in §12.1 needs re-checking against the trial run's real timings.
+
+### Small decisions
+
+"Smoke run" renamed to "trial run" throughout, 18 occurrences across the three documents. The four remaining uses of "smoke test" refer to checking a cloud API key works, which is a different activity, and were left alone.
+
+The entry point is `run.py` rather than `main.py` or `run_workflow.py`. "Experiment" is already the project's vocabulary, in `CLAUDE.md`, in the config's own `experiment` key, and in the `results/<experiment>/` path, so a different word for the same thing in one place would be the odd one out.
+
+`logs/` created and added to `.gitignore`. Console output captured with `tee`; the per-example JSON in `results/` remains the real record.
+
+Decided but **not applied before the trial run**: printing `evidence=2/3` in the progress line rather than `evidence=False`, computed from `evidences_found`. The trial run's log therefore carries the bool. A column of `0/3` means the retriever is broken; a column of `2/3` means it works and *k* is too small. The bool cannot distinguish those, and it is the line that gets read at 2am. `evidence_present` itself stays all-or-nothing, because it answers a per-example question, namely whether the model could possibly have been right, and a graded flag would blur the distinction the error taxonomy depends on.
+
 ### Not done
 
-The Ollama client (`call_model`), an experiment config file, the entry point script that wires them, and the trial run itself. All five original harness pieces plus the run loop are built and verified.
+The trial run itself, and the prompt trimming mitigation above.

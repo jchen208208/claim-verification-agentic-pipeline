@@ -312,6 +312,21 @@ ollama run qwen2.5-coder:3b --verbose
 
 That leaves `16384 > ~4,500 prompt + 2,000 generation` with roughly 9,800 tokens of slack, so overflow is arithmetically impossible rather than merely unlikely.
 
+**[MEASURED 2 Aug 2026, and the paragraph above is wrong] Real RAG prompts are about twice the assumed size, and two of twelve overflow.** The ~4,500 figure came from one filled sample built by hand in week 1. Built for real, with the placeholder retriever at *k*=10, the 12-example trial sample gives:
+
+    mean prompt   ~8,000 tokens        assumed ~4,500
+    range         ~3,000 to ~15,500    budget is 16384 - 2000 = 14,384
+    over budget   2 of 12              ie-val-222 ~15,078, knowledge-val-65 ~15,514
+    at 12,000+    5 of 12
+
+(Character counts measured exactly; token counts estimated at 3.6 chars/token from the week-1 sample of 15,017 chars ≈ 4,200 tokens. Real `prompt_eval_count` values arrive with the trial run.)
+
+The cause is precisely the residual risk this section already named and then dismissed: a single oversized table chunk. Report elements run to 4,000 characters, and ten of them concatenated is not 4,500 tokens. **The prescribed mitigation in this section, "count tokens before sending and trim or drop the lowest-ranked chunk until it fits", was never built.** It is now required before the 102-example run, where 2 wasted examples in 12 becomes ~17 in 102.
+
+**Do not fix this by raising `num_ctx`.** That trades a bounded problem for an unbounded one. §4.6 measured prompt ingestion at 3-4× the cost of generation, so window size costs wall-clock rather than RAM, and wall-clock is the binding constraint (§12.1). A larger window also cannot rule out a pathological single chunk. Trimming bounds prompt size, bounds runtime, and degrades gracefully by dropping the least relevant chunk first.
+
+**Second consequence: the runtime estimate for every RAG run is roughly double what §4.6 implies.** The 4m45s per example figure was measured on a ~4,000-token prompt. At a mean of ~8,000, extrapolation gives ~100 minutes for 12 examples rather than ~57, and therefore roughly 14 hours for 102 rather than 8. **This affects the night budget in §12.1 directly and needs re-checking against the trial run's real timings before any overnight run is scheduled.**
+
 **There is no input-token parameter.** `num_ctx` is the total window, so prompt size is entirely ours to manage. This is safe only because the pipeline is RAG-only (§3.3): we never pass a filing, we pass *k* retrieved chunks, so prompt length is set by *k* and chunk size rather than by document length. The residual risk is a single oversized table chunk blowing the budget alone. Mitigation: count tokens before sending and trim or drop the lowest-ranked chunk until it fits.
 
 **The defence that actually holds is the assertion, not the number.** Log both counts on every call and alarm when either sits at its ceiling. That catches the failure whatever the settings are, including the case where a prompt grows later and quietly crosses a line that used to be fine.
