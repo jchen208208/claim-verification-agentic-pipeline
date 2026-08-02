@@ -1,7 +1,7 @@
 """Logs the data and results of each test example,
 one JSON file per claim and stored in the /results folder"""
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from pathlib import Path
 import json
 
@@ -32,3 +32,13 @@ class RunRecord:
     status: str = "ok" # if run loop catches an exception, status = "failed"
     traceback: str | None = None # then puts traceback error message string into here
 
+def write_result(record, results_dir):
+    # one JSON file per claim and written as soon as the example finishes
+    results_dir = Path(results_dir)
+    results_dir.mkdir(parent=True, exist_ok=True)
+
+    path = results_dir / f"{record.example_id}.json"
+    with open(path, "w") as f:
+        json.dump(asdict(record), f, indent=2)
+
+    return path
