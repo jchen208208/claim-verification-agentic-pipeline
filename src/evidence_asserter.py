@@ -15,6 +15,21 @@ This helps us understand if the failure was caused by a corrupted input or a rea
 from collections import Counter
 import re
 
+# we want the 3 "best" tokens to be the indicators
+N_TOKENS = 3
+MIN_TOKEN_LEN = 3
+
+_INNER_COMMA = re.compile(r"(?<=\d),(?=\d)")
+_TOKEN = re.compile(r"[a-z0-9]+(?:[.\-][a-z0-9]+)*")
+
+def tokenise(text):
+    """Split text into comparable tokens.
+
+    Used for the report counts, the gold element candidates, and the prompt
+    check, so all three sides must call this and nothing else."""
+    text = _INNER_COMMA.sub("", text.lower())
+    return _TOKEN.findall(text)
+
 def count_report_tokens(report):
     # Counter over every token in one report, it's built once and reused for all claims that reference it.
     text = "\n".join(element["context"] for element in report["context"])
@@ -29,8 +44,8 @@ def pick_tokens(element_text, report_counts, n=N_TOKENS):
 
     candidates = {
         t for t in tokenise(element_text)
-        # token must be a certain length so to check it's not noise (i.e. '*', '-'), and must contain a char or num
-        if len(t) >= MIN_TOKEN_LEN and any(c.isalnum() for c in t)
+        # token must be a certain length so to check it's not noise (i.e. '*', '-')
+        if len(t) >= MIN_TOKEN_LEN
     }
 
     # ranked by rarest, then longest, then alphabetical
@@ -38,3 +53,4 @@ def pick_tokens(element_text, report_counts, n=N_TOKENS):
 
     # Returns a list of n (token, count) pairs unless the element has too few usable tokens or none.
     return [(t, report_counts[t]) for t in ranked[:n]]
+
