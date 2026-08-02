@@ -27,3 +27,20 @@ def read_report(filename):
     # reads one report, takes around 7 ms which is why nothing is cached
     with open(REPORT_DIR / filename) as f:
         return json.load(f)
+
+def build_prompt(claim, chunks, template):
+    """Returns (prompt, evidence_block).
+    The evidence block is the retrieved text and is returned
+    separately because the evidence asserter has to check it in isolation."""
+
+    # chunks are the retrieved context element dicts
+    evidence_block = "\n\n".join(chunk["context"] for chunk in chunks)
+
+    # builds the prompt
+    prompt = (template.replace("<REPORT>", evidence_block).replace("<STATEMENT>", claim.statement))
+
+    # the template could lose its placeholder in a later version and we need to prevent the prompt going to the model with no evidence in it at all
+    assert evidence_block in prompt
+
+    return prompt, evidence_block
+
