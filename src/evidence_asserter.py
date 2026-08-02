@@ -22,18 +22,15 @@ MIN_TOKEN_LEN = 3
 _INNER_COMMA = re.compile(r"(?<=\d),(?=\d)")
 _TOKEN = re.compile(r"[a-z0-9]+(?:[.\-][a-z0-9]+)*")
 
-def tokenise(text):
-    """Split text into comparable tokens.
-
-    Used for the report counts, the gold element candidates, and the prompt
-    check, so all three sides must call this and nothing else."""
+def tokenize(text):
+    # Split text into comparable tokens
     text = _INNER_COMMA.sub("", text.lower())
     return _TOKEN.findall(text)
 
 def count_report_tokens(report):
     # Counter over every token in one report, it's built once and reused for all claims that reference it.
     text = "\n".join(element["context"] for element in report["context"])
-    return Counter(tokenise(text))
+    return Counter(tokenize(text))
 
 def pick_tokens(element_text, report_counts, n=N_TOKENS):
     """Return the n number of rarest tokens in one gold context element with the rarest first.
@@ -43,7 +40,7 @@ def pick_tokens(element_text, report_counts, n=N_TOKENS):
     is the case that makes the presence check conclusive. """
 
     candidates = {
-        t for t in tokenise(element_text)
+        t for t in tokenize(element_text)
         # token must be a certain length so to check it's not noise (i.e. '*', '-')
         if len(t) >= MIN_TOKEN_LEN
     }
