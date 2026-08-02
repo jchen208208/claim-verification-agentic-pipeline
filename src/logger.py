@@ -32,14 +32,12 @@ class Record:
     status: str = "ok" # if run loop catches an exception, status = "failed"
     traceback: str | None = None # then puts traceback error message string into here
 
-def _result_path(example_id, results_dir):
-    return Path(results_dir) / f"{example_id}.json"
-
 def write_result(record, results_dir):
     # one JSON file per claim and written as soon as the example finishes
-    results_dir.mkdir(parent=True, exist_ok=True)
+    results_dir = Path(results_dir)
+    results_dir.mkdir(parents=True, exist_ok=True)
 
-    path =  _result_path(record.example_id, results_dir)
+    path = results_dir / f"{record.example_id}.json"
     with open(path, "w") as f:
         json.dump(asdict(record), f, indent=2)
 
@@ -47,7 +45,7 @@ def write_result(record, results_dir):
 
 def has_result(example_id, results_dir):
     # returns true only if a completed, readable result already exists with the results directory
-    path = _result_path(example_id, results_dir)
+    path = Path(results_dir) / f"{example_id}.json"
     if not path.exists():
         return False
 
