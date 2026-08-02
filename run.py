@@ -1,5 +1,5 @@
 """The entire process: run one experiment described by a config file.
-    python3 run_experiment.py configs/trial_run_3b.json"""
+    python3 run.py configs/trial_run_3b.json"""
 
 import functools
 import json
@@ -18,8 +18,16 @@ RESULTS_ROOT = REPO_ROOT / "results"
 
 def main():
     if len(sys.argv) != 2:
-        print("usage: python3 run_experiment.py configs/<name>.json")
+        print("usage: python3 run.py configs/<name>.json")
         return 1
+
+    # loads in configs/<name>.json
+    with open(sys.argv[1]) as f:
+        config = json.load(f)
+
+    retriever = functools.partial(retrieve, k=config["top_k"])
+
+    sample = stratified_sample(load_claims(), config["per_cell"], seed=config["sample_seed"])
 
     results_dir = RESULTS_ROOT / config["experiment"]
 
@@ -32,8 +40,7 @@ def main():
     print(f"seed          {config['seed']}")
     print(f"prompt        {config['prompt_version']}")
     print(f"retriever     {config['retriever']}, k={config['top_k']}")
-    print(f"sample        {len(sample)} examples, {config['per_cell']} per cell, ")
-    print(f"seed {config['sample_seed']}")
+    print(f"sample        {len(sample)} examples, {config['per_cell']} per cell, " f"seed {config['sample_seed']}")
     print(f"results       {results_dir}\n", flush=True)
 
     run_sample(sample, config, results_dir, call_ollama, retriever)
