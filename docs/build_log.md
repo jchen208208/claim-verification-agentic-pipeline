@@ -529,3 +529,174 @@ Decided but **not applied before the trial run**: printing `evidence=2/3` in the
 ### Not done
 
 The trial run itself, and the prompt trimming mitigation above.
+
+---
+
+## 2 August 2026, late — the trial run completed
+
+The first end-to-end run of the pipeline on our own model. 12 examples, `qwen2.5-coder:3b`, temperature 0, `num_ctx` 16384, `num_predict` 2000, placeholder token-overlap retriever at *k*=10, prompt `baseline_v1`. **12 ok, 0 failed, 0 skipped.** 80.7 minutes wall-clock. Console output in `logs/trial_run_3b.txt`, the real record in `results/trial_run_3b/`, 12 JSON files.
+
+The harness test passed 26/26 immediately before, as designed.
+
+**One operator error worth recording, because it cost nothing only by luck.** The first invocation was pasted across two lines, so zsh ran `python3 run.py` with no argument and then tried to execute `configs/trial_run_3b.json` as a command, giving `permission denied`. `run.py` printed its usage line and exited, so nothing ran. Had `run.py` defaulted to some config instead of requiring the argument, this would have silently run the wrong experiment overnight. Requiring the argument is the correct design and stays.
+
+### Headline results
+
+    examples completed          12 / 12, no failures, no skips
+    accuracy                    8 / 12   (67%)
+    unparseable                 0 / 12
+    evidence present (strict)   4 / 12   (33%)
+    wall-clock                  80.7 min, mean 404 s/example
+    prompt tokens               2,283 - 11,134, mean 6,610, median 7,110
+    response tokens             261 - 496, mean 394
+    done_reason                 "stop" on all 12
+    context_overflow            False on all 12
+
+Per subset: `ie` 4/4 correct with 2/4 evidence present, `numeric` 2/4 with 1/4, `knowledge` 2/4 with 1/4. Gold is 6 True / 6 False and predictions are 6 True / 6 False, so the sample is balanced and the model is not answering constant.
+
+### The single most important result: zero unparseable
+
+**Our own model at temperature 0 stated a usable verdict on all 12 of 12.** 11 fired at the `anchored` level and 1 at `bare`.
+
+This is the measurement §11.8 and the 1 August note said could only come from running our own model, and it lands where the temperature-0 hypothesis predicted. Upstream's Llama-3.2-3B, at temperature 1.0 with `max_tokens` 1024, has a 33% `none` rate. Ours is 0% on 12. Twelve examples cannot establish a rate, and the honest reading is only that the rate is not 33% and probably not close to it. But the two mechanisms named on 1 August, sampled decoding and a biting generation cap, were both turned off here and the failure mode went with them. **Do not carry the upstream 33% or the "45% of 3B responses fail the format" figure into the paper.** The 102-example run gives the first number with a usable confidence interval.
+
+### What the responses actually look like, and four things the extractor survived
+
+Read all 12 response texts rather than only the extracted labels. Four format behaviours appeared that the extractor handles, none of which were designed against our own model, since all of its development data was Llama-3.2-3B at temperature 1.0.
+
+**1. The verdict is frequently not the last sentence, despite the prompt demanding it.** `ie-val-108`, `ie-val-49` and `numeric-val-51` all state "Therefore, the claim is X" and then keep writing explanatory text after it. `knowledge-val-105` is the extreme case: its verdict sits mid-response with roughly 400 characters of text following, in a 2,084-character response. **The `anchored` level searches the whole response, which is the only reason these parsed.** A last-line or last-300-character rule would have failed on four of twelve. This retroactively justifies the level-1 design and is worth stating in the paper.
+
+**2. Markdown emphasis inside the verdict sentence.** Four responses wrote "the claim is \*\*entailed\*\*" with asterisks. The anchored pattern tolerates it. Qwen2.5-Coder is a code-tuned model and formats in markdown by habit.
+
+**3. The model copies the prompt's own template placeholder.** `knowledge-val-33` ended with, literally, `Therefore, the claim is {refuted}.` — braces included, lifted from the prompt's instruction `"Therefore, the claim is {entailment_label}."` The anchored pattern did not match through the braces; the `bare` level caught it in the tail window and returned `refuted`. **This is the one example of twelve that needed level 2, and it is a prompt bug, not a model bug.** Showing the model a literal `{entailment_label}` invites it to echo the braces. Consider giving the format example with the placeholder already filled in, in the next prompt version.
+
+**4. Duplicated conclusions.** `ie-val-222` and `numeric-val-242` both state the verdict twice, in two different phrasings. Harmless here because both agree, but the extractor's "last match wins inside a level" rule is what decides such a case, and it has now been exercised on real data.
+
+Also checked: **all 12 responses end with terminal punctuation**, and `done_reason` is `stop` on all 12. No generation was cut off.
+
+### `num_predict` 2000 is roughly four times larger than needed
+
+Longest response was 496 tokens and 354 words; mean 394 tokens. The 1 August estimate of "~1,100 tokens covers the longest observed" was derived from Llama-3.2-3B and is comfortably conservative for our model, which is markedly less verbose. The cap is not costing anything, since it is a ceiling rather than a reservation, but the *budget arithmetic* in §4.3 subtracts it from the window. At `num_predict` 800 the prompt budget rises from 14,384 to 15,584 tokens. Not urgent. Recheck against the 102-example run before touching it, because 12 examples is a thin basis for a tail bound.
+
+### Context overflow did not happen, and the chars-per-token estimate was the reason
+
+**0 of 12 overflowed.** The pre-flight on 2 August predicted 2 of 12 would, and named them. Both came in far under:
+
+    example              predicted    measured    error
+    ie-val-222            ~15,078      11,134     -26%
+    knowledge-val-65      ~15,514      10,770     -31%
+    mean over 12          ~8,000        6,610     -17%
+
+**The cause is the 3.6 chars/token conversion, which was wrong.** Measured over all 12 real prompts, the true ratio is **4.36 characters per token**, ranging 2.46 to 5.19 across examples. The 3.6 figure came from one hand-built week-1 sample. Financial filing text tokenises more efficiently than assumed, most likely because it is repetitive and heavy in common English words and formatted numbers.
+
+Headroom as it actually stands:
+
+    largest prompt + its generation      11,630  vs  16,384
+    largest prompt + full num_predict    13,134  vs  16,384
+
+So overflow is not merely absent, it is comfortably out of reach at *k*=10 with these settings. **The consequence to record honestly: the overflow alarm has still never fired on real data.** It passes in the harness against fabricated counts, and that is all the evidence there is for it. It stays in, since it costs nothing and guards the §4.3 eviction behaviour, but it is not yet validated in production.
+
+Per-example variation in the ratio is itself informative. `numeric-val-242` sits at 2.46 chars/token and `knowledge-val-65` at 5.19. The low end is table-heavy content, where pipe delimiters and digit strings fragment into many tokens; the high end is prose. **A character-count budget is therefore not a safe proxy for a token budget on this data, because the conversion swings by 2x with content type.** Any trimming logic must count tokens, not characters.
+
+### The real cost model: runtime is linear in prompt tokens, R² = 0.995
+
+Fitting elapsed time against prompt tokens over the 11 examples after the first, which is excluded because it carries the 5.3 s model load:
+
+    elapsed = 0.0641 s per prompt token       R² = 0.995
+    implied ingestion rate                    15.6 tok/s
+
+A two-parameter fit separating ingestion from generation was attempted and **rejected as degenerate**: `eval_count` only varies from 261 to 496 across the sample, so the generation term is unidentifiable and came back negative. That is a property of the sample, not a finding about the model. Do not report separated rates from this run.
+
+The single-variable fit is strong enough to plan against:
+
+    prompt size    predicted time
+     2,000 tok       1.8 min
+     4,000 tok       3.9 min
+     6,610 tok       6.7 min   (our mean)
+    11,000 tok      11.4 min
+
+**§4.6's conclusion that prompt ingestion dominates is confirmed and strengthened.** It is not merely 3-4x generation, it accounts for essentially all of the variance. The measured 15.6 tok/s ingestion is 18% slower than the 19.1 tok/s measured in week 1 on a single example, consistent with thermal behaviour over a longer run, a larger working set, or both.
+
+### The schedule number was wrong, and it is worse than the revised guess
+
+Mean per example, excluding the first, is **419.4 s, or 7.0 minutes**. Against the week-1 figure of 4 m 45 s.
+
+    run                  plan says   trial run implies
+    102-example slice        ~8 h          11.9 h
+    full testmini, 700      ~55 h          81.6 h
+
+The 2 August pre-flight predicted ~14 h for 102 by extrapolating from an ~8,000-token mean. The mean turned out to be 6,610 rather than 8,000, so that estimate overshot, but the per-token cost is higher than assumed, so the two errors only partly cancel. **11.9 hours is the number to plan against.**
+
+This matters for the night budget in §12.1. A 102-example 3B slice no longer fits in a single overnight window with margin: 11.9 hours started at 9pm finishes at 9am. It is still one night, but it is a full one, and any run that starts late spills into the next day. **The full-700 run at 81.6 hours is now ~10 nights of the ~20 remaining, up from ~7.** It moves further into the conditional band, not out of it.
+
+**The lever is prompt size, and it is a direct multiplier.** At the fitted rate, cutting the mean prompt from 6,610 to 3,000 tokens would take a 102-example run from 11.9 hours to about 5.4. That is the strongest argument yet for tighter retrieval, and it is an efficiency argument that stands independently of the recall argument. It is the same conclusion §7.3 and §12.1 reached on recall grounds, now with a wall-clock number attached.
+
+### Retrieval: the 12-example slice reproduces the population figure
+
+    claim-level, all gold present     4 / 12    33%   (offline over 700: 31.6%)
+    element-level, fully present     22 / 36    61%   (offline over 700: 53.2%)
+    element-level, partial            1 / 36
+    element-level, absent            13 / 36
+
+The claim-level figure lands within 1.4 points of the placeholder retriever's measured 31.6% over all 700 claims, so the stratified sample is behaving.
+
+**The question the 2 August build log posed is answered: the retriever misses entirely rather than running out of room.** Of the 14 gold elements not fully retrieved, 13 scored `0/3` witnesses and only 1 scored partial. `0/3` means the element was never retrieved at all; a `2/3` pattern would have meant retrieval worked and *k* was too small. This is a ranking problem, not a *k* problem, and it is exactly what a token-overlap baseline should be expected to fail at. Raising *k* would not fix it, and would cost wall-clock linearly.
+
+### How solid is `evidence_present = True` on these four specific claims?
+
+The 2 August validation established the general position: 0 false negatives in 700, 5 false positives in 700 under an adversarial control, and only 59.4% of gold elements having all three witnesses unique in their report. That is a population figure. The four claims that scored `True` here were checked individually, since the trial run's headline accuracy split rests on them.
+
+Of the **10 gold elements across those 4 claims, 8 have all three witnesses unique in the report** (count 1), which makes their presence conclusive: those tokens appear nowhere in the filing outside that element, so finding them in the evidence block proves the element reached the prompt. Two do not:
+
+    ie-val-108, element 19    represented(2) controlled(2) purchased(2)
+    numeric-val-242, elem 258  1.5(2)  0.00(3)  0.32(3)
+
+`numeric-val-242`'s element 258 is the weak one. Its witnesses are short, generic numeric strings appearing up to three times in the filing, so a 3/3 match there could in principle come from a different retrieved chunk that happens to contain all three. It is the one element in the trial run where `evidence_present = True` is meaningfully softer than proof — and it is, awkwardly, the same example as the broken-arithmetic finding above.
+
+This does not change the 4/4 accuracy figure, which is about labels, not retrieval. It does mean **"all gold evidence reached the model" is proof for 8 of the 10 elements and strong evidence for the other 2.** The asymmetry recorded on 2 August still holds and is the one that matters: `False` is reliable, since false negatives are 0 in 700, so a claim flagged as missing evidence really was missing it.
+
+### Accuracy, and the one result worth being careful about
+
+    overall                  8 / 12   (67%)
+    evidence present         4 / 4    (100%)
+    evidence absent          4 / 8    (50%, exactly chance)
+
+The shape is the one the retrieval-ceiling argument predicts, and it is the first end-to-end evidence for it in this project. **It is also four examples on one side and eight on the other, and 4/4 is entirely consistent with luck.** At n=4 the 95% interval on 100% runs down to roughly 40%. Do not put this in the paper. Do not treat it as confirmation. It is a reason to prioritise retrieval, which was already the priority, and it is a hypothesis the 102-example run can actually test.
+
+The 50% on the evidence-absent half is worth one further note. It is what a coin flip gives, but the model is not flipping a coin. It reasons confidently over the wrong chunks and reaches a decisive wrong answer, which is a different failure with the same score.
+
+### A correct label from broken arithmetic, and why label accuracy overstates quality
+
+`numeric-val-242` is scored correct. Gold is entailed, the model said entailed, evidence was fully present. The reasoning contains two separate errors:
+
+    Total Net Loss = $15,800,000 + $0.015 million = $15,800,015
+    The calculated total net loss ($15,800,015) matches the claimed total ($15.815 million).
+
+The first line treats `$0.015 million` as $15 rather than $15,000, a factor of 1,000. That is **data trap 7 in `CLAUDE.md`, the magnitude trap, occurring live in our own pipeline for the first time.** The second line then declares $15,800,015 equal to $15,815,000, which it is not, off by about $15,000. The two errors happen to leave the verdict unchanged, so the example scores as a success.
+
+Three consequences.
+
+1. **Label accuracy overstates reasoning quality on the numeric subset, and we now have a concrete instance rather than a concern.** This is a direct argument for the per-error-category analysis that §5.3 names as part of the contribution, and it is the kind of example that belongs in the paper as a figure.
+2. **It is a direct argument for the code sandbox in §7.2.** A model that computes `15800000 + 0.015e6` in Python cannot make the unit error, and cannot declare two unequal numbers equal.
+3. **The error taxonomy needs a category for "correct label, invalid reasoning".** It is not a format failure, not a retrieval failure, and not a label error. Without the category it is invisible, because the only automated signal, the label, says the example passed. Detecting it needs the explanation checked, which is the faithfulness verifier in §7.5, currently in the stretch band.
+
+Whether this is common or a single instance is unknown from 12 examples, and the numeric subset was only 4 of them.
+
+### Small thing that will bite later: `evidences_found` does not round-trip through JSON
+
+In Python the asserter returns `{14: (3, 3)}`, an int key mapping to a tuple. Reading the result file back gives `{'14': [3, 3]}`, a string key mapping to a list. JSON has no integer keys and no tuples. Nothing is lost, but any analysis script that does `evidences_found[i]` with an integer `i`, or compares a value against a tuple, gets a `KeyError` or a silent `False`. Encountered while writing the analysis for this entry. Coerce keys with `int(k)` on read.
+
+### What this run settled, against the four jobs it was given
+
+1. **Output format, §4.6's provisional row.** Settled with a logged artifact. Our model does produce a usable verdict, 12 of 12, though frequently not as the final sentence. The provisional "yes" in that row is now measured, with the caveat that it was measured on `baseline_v1` at `num_ctx` 16384 and not on `ie-val-0` at 8192.
+2. **First responses from our own model at temperature 0.** Done, 12 logged.
+3. **First honest `none` rate for our configuration.** 0 of 12. Not a rate yet, but enough to retire the upstream 33% as a forecast.
+4. **`num_predict` confirmed against our own model's chain-of-thought lengths.** Done. 496 max against a 2,000 cap.
+
+Plus three it was not given: the real chars-per-token ratio, the real cost model, and the first end-to-end evidence-present split.
+
+### Not done
+
+Prompt trimming is still not built. **Its justification has changed and should be restated honestly:** it was specified to prevent overflow, and overflow does not occur. It is now a wall-clock optimisation, competing against building a real retriever, which would reduce prompt size and raise recall at the same time. Given that runtime is linear in prompt tokens and the placeholder retriever misses entirely rather than partially, **the retriever is the better next investment and trimming should probably wait behind it.** Trimming still has to exist before any run at a larger *k*, and it must count tokens rather than characters, per the ratio finding above.
+
+Still open from 31 July, both untouched: the FINDVER leaderboard check and the citation sweep.

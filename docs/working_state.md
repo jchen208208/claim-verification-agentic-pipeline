@@ -28,9 +28,11 @@ If a faster machine materialises the night budget stops binding and Band B opens
 
 Week 1 is done. The repository is cloned, the data structure is confirmed, both local models are installed and benchmarked on a real example, and the visual build plan has been sent to my professor.
 
-**Everything needed to run an experiment now exists, and the first trial run was started at the end of the 2 August session.** The harness is complete: loader, stratified sampler, label extractor, per example logging, evidence assertion, and the run loop that the original list of five never named. Alongside it, a placeholder retriever, an Ollama client, a config file, an entry point at `run.py`, and a committed 26 check harness test that already caught one silent bug.
+**Everything needed to run an experiment exists, and the first trial run is complete.** The harness is complete: loader, stratified sampler, label extractor, per example logging, evidence assertion, and the run loop that the original list of five never named. Alongside it, a placeholder retriever, an Ollama client, a config file, an entry point at `run.py`, and a committed 26 check harness test that already caught one silent bug.
 
-One known defect is carried into that run deliberately. Real RAG prompts are about twice the size section 4.3 assumed, and two of the twelve trial examples exceed the context budget. Prompt trimming must be built before the 102 example run. Details in the next session section.
+**The trial run finished on 2 August. 12 of 12 completed, no failures, 80.7 minutes.** Results in `results/trial_run_3b/`, console output in `logs/trial_run_3b.txt`. The pipeline works end to end. Full analysis in the build log entry for 2 August, late; the summary and everything it changes are in the section below.
+
+The defect that was carried into the run deliberately, the expected context overflow on two examples, **did not occur.** The prompt size estimate was too pessimistic. Prompt trimming is therefore no longer urgent, and its justification has changed from correctness to wall clock. See the trial run section below.
 
 ## What the professor decided on 30 July
 
@@ -98,7 +100,7 @@ The loader returns report filenames, not report contents. Reports are read one a
 
 ## Sample size decision
 
-17 per cell, 102 examples, about 8 hours on the 3B model. That is one configuration per overnight run.
+17 per cell, 102 examples. **Measured cost, from the trial run: about 12 hours on the 3B model, not 8.** That is still one configuration per overnight run, but it is a full night rather than a comfortable one, so a run has to start in the evening rather than late.
 
 At 102 examples the margin of error on accuracy is roughly plus or minus 10 points. The slice can show that retrieval is broken or that the cloud model is much better. It cannot rank two prompts that differ by 3 points. The full 700 run is for final numbers.
 
@@ -368,55 +370,187 @@ Recomputed from upstream's own shipped retrieval output, all 700 testmini claims
 
 **BM25 gets 65.16 percent against the paid embedding's 68.01, and beats it on element recall.** A free local retriever is within three points of `text-embedding-3-large`. Good for an on device paper, and it means the hybrid in section 7.3 has to clear 68.01 rather than treating 68 as far away.
 
-## Next session, 3 August: analyse the trial run
+## The trial run, completed 2 August
 
-**The trial run was started at the end of the 2 August session.** Everything needed to run it exists. Read its output first, before building anything.
+**12 of 12 completed, 0 failed, 0 skipped, 80.7 minutes.** The pipeline works end to end.
+Config: `qwen2.5-coder:3b`, temperature 0, `num_ctx` 16384, `num_predict` 2000, placeholder
+token overlap retriever at k=10, prompt `baseline_v1`, 12 examples, 2 per cell, seed 0.
 
-    results/trial_run_3b/          one JSON per example, 12 files
-    logs/trial_run_3b.txt          the console output, progress lines and tracebacks
+    accuracy                    8 / 12   (67%)
+    unparseable                 0 / 12
+    evidence present (strict)   4 / 12   (33%)
+    prompt tokens               2,283 - 11,134, mean 6,610
+    response tokens             261 - 496, mean 394
+    done_reason                 "stop" on all 12
+    context_overflow            False on all 12
 
-Command used:
+Per subset: ie 4/4 correct, numeric 2/4, knowledge 2/4. Gold is 6 True and 6 False,
+predictions are 6 True and 6 False, so nothing degenerate.
 
-    python3 test_scripts/test_harness.py && \
-    caffeinate -ims python3 run.py configs/trial_run_3b.json 2>&1 | tee logs/trial_run_3b.txt
+Full analysis in the build log, entry for 2 August, late. The five things that change
+what happens next are below.
 
-If it died partway, re-running the same command resumes: `has_result` skips ids whose
-`status` is already `ok` and retries everything else.
+### 1. Zero unparseable. Our own model states a verdict.
 
-### What to check in the results, in this order
+11 of 12 fired at the `anchored` level, 1 at `bare`. **The upstream 33 percent none rate is
+not our rate.** Twelve examples cannot establish a rate, so the honest claim is only that it
+is not 33 percent and probably not near it. The 1 August prediction was that temperature 0
+and a generous `num_predict` would remove both mechanisms driving that figure, and the
+result is consistent with it. Do not write "3B models fail the output format 45 percent of
+the time" into the paper. The 102 example run gives the first number with a real interval.
 
-1. **`status`.** Any `failed` record is a real bug. The traceback is in the record.
-2. **`prompt_eval_count`.** This is the number the whole prompt-size problem below turns on. Compare it against the estimates: the pre-flight predicted ~3,000 to ~15,500 tokens, mean ~8,000, using 3.6 chars per token. Replace the estimate with the measurement everywhere it appears.
-3. **`context_overflow`.** Expect `true` on `ie-val-222` and `knowledge-val-65`, which were predicted to overflow. If it fired on those two and no others, the alarm works and the prediction was right. If it fired on more, prompts are bigger than estimated. If it fired on none, the chars-per-token estimate was too pessimistic.
-4. **`elapsed_seconds`.** Discard example 1, which includes model load (5.3 s measured on a cold model). Compare the rest against 4m45s. This is the number the whole schedule rests on and it is now suspect (see below).
-5. **`done_reason`.** Any `length` means generation hit the `num_predict` cap of 2000 and the response was cut off mid-reasoning. Those examples land in the unparseable bucket through no fault of the model, and `num_predict` needs raising.
-6. **`extracted_label` and `extraction_source`.** The first honest look at whether our own model, at temperature 0, produces the required concluding sentence. Everything the extractor was built against is Llama-3.2-3B at temperature 1.0.
-7. **`evidence_present` and `evidences_found`.** Expect roughly 4 of 12 to be fully present, since the placeholder retriever gets all gold evidence for 31.6 percent of claims. `0/3` in a progress line means the retriever missed entirely; `2/3` means it worked and k is too small.
+**Four format behaviours found by reading the actual response texts.** The verdict is
+frequently not the last sentence: four of twelve continue writing after it, and one puts it
+mid response with 400 characters following. Only the whole response `anchored` search caught
+those, so the level 1 design is now justified by data rather than by argument. The model
+writes markdown bold inside the verdict sentence. Two responses state the verdict twice.
+And `knowledge-val-33` copied the prompt's own placeholder braces, ending with
+`Therefore, the claim is {refuted}.` literally. That last one is a prompt bug, not a model
+bug, and it is the only example that needed the `bare` level. Fill the placeholder in the
+format example in the next prompt version.
 
-### The one thing that must be fixed before the 102-example run
+### 2. Context overflow did not happen. The estimate was wrong, not the plan.
 
-**Prompt trimming.** Measured on 2 August by building all 12 prompts with no model calls: the mean prompt is ~8,000 tokens against §4.3's assumed ~4,500, and two of the twelve exceed the 14,384 token budget. The cause is a single oversized table chunk, which is the risk §4.3 named and then dismissed as impossible. The mitigation that section prescribes, count tokens before sending and drop the lowest-ranked chunk until it fits, was never built.
+**0 of 12 overflowed.** The two examples predicted to overflow came in 26 and 31 percent
+below prediction. The cause is the 3.6 characters per token conversion, which was taken from
+one hand built week 1 sample. **The measured ratio is 4.36 characters per token**, ranging
+2.46 to 5.19 across examples.
 
-At 12 examples this wastes 2. At 102 it wastes roughly 17. Build it before that run.
+    largest prompt + its generation      11,630  vs  16,384
+    largest prompt + full num_predict    13,134  vs  16,384
 
-**Do not fix this by raising `num_ctx`.** A larger window trades a bounded problem for an unbounded one: §4.6 measured ingestion at 3-4x the cost of generation, so window size costs wall-clock rather than RAM, and wall-clock is the binding constraint. It also cannot rule out one pathological chunk. Trimming bounds prompt size, bounds runtime, and drops the least relevant chunk first.
+Overflow is comfortably out of reach at k=10. Two consequences. **The overflow alarm has
+still never fired on real data**, so it is validated only against fabricated counts in the
+harness. And because the ratio swings by 2x with content type, table heavy chunks at the low
+end and prose at the high end, **a character budget is not a safe proxy for a token budget on
+this data.** Any trimming logic must count tokens.
 
-### The schedule number may be wrong, and the trial run settles it
+### 3. Runtime is linear in prompt tokens, and the schedule number is worse than thought
 
-The 4m45s per example figure was measured in week 1 on a ~4,000 token prompt. Real RAG prompts average ~8,000. Extrapolating, the trial run should take about 100 minutes rather than 57, and a 102-example run about 14 hours rather than 8.
+Fitted over the 11 examples after the first, which carries the 5.3 s model load:
 
-**If that holds, section 12.1's night budget is roughly half what it says.** Recompute it from the trial run's real `elapsed_seconds` before scheduling any overnight run. This is the highest-value number the trial run produces.
+    elapsed = 0.0641 s per prompt token       R2 = 0.995
+    implied ingestion rate                    15.6 tok/s
+    mean per example                          419 s (7.0 min)
 
-### The trial run's four original jobs
+A fit separating ingestion from generation was attempted and **rejected as degenerate**,
+because `eval_count` only varies 261 to 496 so the generation term is unidentifiable. Do not
+report separated rates from this run.
 
-1. Settle the provisional output format row in section 4.6 of the plan with a logged artifact instead of recollection.
-2. Produce the first responses from **our own** model, `qwen2.5-coder:3b`, at temperature 0.
-3. Give the first honest `none` rate for our configuration. Do not carry the upstream 33 percent into the paper before this exists.
-4. Confirm the `num_predict` figure against real chain of thought lengths from our own model rather than Llama-3.2-3B's.
+    run                  plan says   measured
+    102 example slice        ~8 h      11.9 h
+    full testmini, 700      ~55 h      81.6 h
+
+**Section 12.1's night budget needs correcting.** A 102 example slice is still one night but
+a full one, 9pm to 9am. The full 700 run is now about 10 nights of the roughly 20 remaining,
+up from 7, which pushes it further into the conditional band.
+
+**Prompt size is the whole cost model, so it is the whole lever.** At the fitted rate,
+cutting the mean prompt from 6,610 to 3,000 tokens takes a 102 example run from 11.9 hours
+to about 5.4. That is an efficiency argument for tighter retrieval standing on its own,
+separate from the recall argument, and it points at the same work.
+
+### 4. The retriever misses entirely, it does not run out of room
+
+    claim level, all gold present     4 / 12    33%   (offline over 700: 31.6%)
+    element level, fully present     22 / 36    61%
+    element level, partial            1 / 36
+    element level, absent            13 / 36
+
+The claim level figure lands within 1.4 points of the placeholder retriever's measured 31.6
+percent over all 700 claims, so the stratified sample behaves.
+
+**This answers the question the 2 August log posed.** Of the 14 gold elements not fully
+retrieved, 13 scored `0/3` witnesses and one was partial. `0/3` means never retrieved at all.
+A column of `2/3` would have meant retrieval worked and k was too small. This is a ranking
+problem, so raising k does not fix it and costs wall clock linearly.
+
+**How solid is `evidence_present = True` on these four claims?** Checked individually rather
+than resting on the 700 claim average, because the accuracy split below depends on them. Of
+the 10 gold elements across the 4 claims, **8 have all three witnesses unique in the report**,
+which makes presence conclusive, since those tokens appear nowhere in the filing outside that
+element. Two do not: `ie-val-108` element 19, whose witnesses appear twice each, and
+`numeric-val-242` element 258, whose witnesses are short numeric strings appearing up to three
+times. The second is the one place in the trial run where True is meaningfully softer than
+proof. The asymmetry from 2 August still holds and is the one that matters: **False is
+reliable**, because false negatives are 0 in 700.
+
+### 5. Accuracy split by retrieval, and why not to trust it yet
+
+    overall                  8 / 12   (67%)
+    evidence present         4 / 4    (100%)
+    evidence absent          4 / 8    (50%, exactly chance)
+
+This is the shape the retrieval ceiling argument predicts and the first end to end evidence
+for it. **It is also four examples against eight, and 4/4 is entirely consistent with luck.**
+At n=4 the 95 percent interval on 100 percent runs down to roughly 40 percent. Do not put it
+in the paper and do not treat it as confirmation. It is a reason to prioritise retrieval,
+which was already the priority, and a hypothesis the 102 example run can actually test.
+
+One note on the other half. 50 percent is what a coin flip gives, but the model is not
+flipping a coin. It reasons confidently over the wrong chunks to a decisive wrong answer,
+which is a different failure with the same score.
+
+### A correct label from broken arithmetic
+
+`numeric-val-242` scores correct, with evidence fully present, and its reasoning contains two
+separate errors. It computed `$15,800,000 + $0.015 million = $15,800,015`, treating $0.015
+million as $15 rather than $15,000, then declared $15,800,015 equal to $15.815 million, which
+is off by about $15,000. Both errors happen to leave the verdict unchanged.
+
+That is **data trap 7 in `CLAUDE.md`, the magnitude trap, appearing live in our own pipeline
+for the first time.** Three consequences. Label accuracy overstates reasoning quality on the
+numeric subset, and we now have a concrete instance rather than a worry, which is exactly
+what the per error category analysis in section 5.3 is for. It is a direct argument for the
+code sandbox in section 7.2, since a model computing in Python cannot make either error. And
+**the error taxonomy needs a category for "correct label, invalid reasoning"**, which is
+otherwise invisible because the only automated signal, the label, says the example passed.
+Detecting it needs the faithfulness verifier in section 7.5, currently in the stretch band.
+
+Whether this is common is unknown. The numeric subset was 4 of the 12.
+
+### Two small operational things
+
+The first invocation of `run.py` was pasted across two lines, so zsh ran it with no argument
+and then tried to execute the config path as a command, giving `permission denied`. Nothing
+ran, `run.py` printed usage and exited. **Requiring the config argument is what made this
+harmless**, and it stays that way. A default config would have silently run the wrong
+experiment overnight.
+
+`evidences_found` does not round trip through JSON. In Python it is `{14: (3, 3)}`, an int
+key mapping to a tuple. Read back from the result file it is `{'14': [3, 3]}`, a string key
+mapping to a list, because JSON has neither integer keys nor tuples. Analysis code that
+indexes it with an integer gets a `KeyError`. Coerce with `int(k)` on read.
+
+### What the trial run settled, against the four jobs it was given
+
+1. **The provisional output format row in section 4.6.** Settled with a logged artifact
+   instead of recollection. Our model does produce a usable verdict, though frequently not as
+   the final sentence. Caveat: measured on `baseline_v1` at `num_ctx` 16384, not on
+   `ie-val-0` at 8192, so it does not literally replace that row's measurement.
+2. **First responses from our own model at temperature 0.** Done, 12 logged.
+3. **First honest none rate for our configuration.** 0 of 12.
+4. **`num_predict` against our own model's reasoning lengths.** Done. Longest response was
+   496 tokens and 354 words against a 2,000 cap, so the cap is about 4x larger than needed.
+   It costs nothing, being a ceiling and not a reservation, but it is subtracted from the
+   prompt budget in section 4.3. Leave it until the 102 run gives a better tail estimate.
+
+Plus three it was not given: the real chars per token ratio, the real cost model, and the
+first end to end evidence present split.
+
+### Prompt trimming: still not built, and the reason for it has changed
+
+It was specified to prevent overflow. **Overflow does not occur**, so it is now a wall clock
+optimisation rather than a correctness fix. It competes against building a real retriever,
+which would cut prompt size and raise recall at once. Given that runtime is linear in prompt
+tokens and the placeholder misses entirely rather than partially, **the retriever is the
+better next investment and trimming should probably wait behind it.** Trimming still has to
+exist before any run at a larger k, and it must count tokens rather than characters.
 
 ### Also still open from 31 July
 
-The FINDVER leaderboard check and the citation sweep. Neither has been done, and both are needed before repeating any claim that nobody has attempted something.
+The FINDVER leaderboard check and the citation sweep. Neither has been done, and both are
+needed before repeating any claim that nobody has attempted something.
 
 ## Outstanding, not yet done
 
@@ -428,8 +562,28 @@ Answer open question 11: what faster machine is available, with what specs, and 
 
 ## Measured performance, for planning purposes
 
-On a roughly 4000 token prompt, the 3B model takes about four minutes forty five seconds end to end and the 7B model takes about eleven minutes forty five. Memory use peaked at 2.5 GB and 5 GB respectively, so RAM is not the constraint. CPU speed is.
+**Superseded for the 3B model by the trial run, 2 August. Use these numbers.**
 
-That works out to roughly eight hours for a hundred examples on the 3B model, or about fifty five hours for the full seven hundred example development set. Any plan involving repeated full runs needs to account for that.
+Runtime on the 3B model is linear in prompt tokens, fitted over 11 real examples at
+R squared 0.995:
+
+    elapsed = 0.0641 s per prompt token, about 15.6 tokens per second ingestion
+    mean per example, at our current mean prompt of 6,610 tokens:  419 s, 7.0 min
+    102 examples   11.9 h
+    700 examples   81.6 h
+
+The week 1 figures below were measured on one example with a roughly 4,000 token prompt and
+are what the plan was built on. The 3B row is now known to be optimistic, because real RAG
+prompts are larger than that sample and the sustained ingestion rate is 15.6 tokens per
+second rather than 19.1. The 7B row has not been re measured and is still an estimate.
+
+    3B   4 m 45 s per example,  ~8 h per 100,  ~55 h for 700   superseded, see above
+    7B  11 m 46 s per example, ~20 h per 100, ~137 h for 700   not re measured
+
+Memory peaked at 2.5 GB and 5 GB respectively, so RAM is not the constraint. CPU speed is.
+
+Because cost is linear in prompt tokens, prompt size is the only real lever on wall clock.
+Cutting the mean prompt from 6,610 to 3,000 tokens would take a 102 example run from 11.9
+hours to about 5.4.
 
 Reading a report file from disk takes about 7 milliseconds, so re-reading one per claim across all 700 costs about 5 seconds in total. That is 0.02 percent of an 8 hour run and is why the loader does not cache.
