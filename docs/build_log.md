@@ -700,3 +700,183 @@ Plus three it was not given: the real chars-per-token ratio, the real cost model
 Prompt trimming is still not built. **Its justification has changed and should be restated honestly:** it was specified to prevent overflow, and overflow does not occur. It is now a wall-clock optimisation, competing against building a real retriever, which would reduce prompt size and raise recall at the same time. Given that runtime is linear in prompt tokens and the placeholder retriever misses entirely rather than partially, **the retriever is the better next investment and trimming should probably wait behind it.** Trimming still has to exist before any run at a larger *k*, and it must count tokens rather than characters, per the ratio finding above.
 
 Still open from 31 July, both untouched: the FINDVER leaderboard check and the citation sweep.
+
+---
+
+## 3 August 2026 — the professor's reply, and the experimental design it forced
+
+Not a build session. Correspondence and experimental design. Nothing was run and no code changed.
+
+### What was sent and what came back
+
+The email sent to the professor reported that the harness was nearly finished, that the loader, the stratified sampler and the label extractor were built and tested, and that the retriever was next. It described the Ollama context eviction finding and the fix. It asked two questions: which two cloud models and from which provider, and which two local models. It made the case for Anthropic, on the grounds that `claude-3-5-sonnet` is the paper's top scorer so a newer Claude extends that exact row. It mentioned a DeepSeek key was already in hand, and that a family desktop with a GPU and 32 GB of RAM might become available.
+
+His reply, in full substance, was three things. He has a server with an **"NVIDIA RTX 4090 Ti"** and asked whether it would be useful. He recommends **DeepSeek**, noting a recently released model whose performance seems nearly comparable to Claude. And he called the Ollama finding **"a very valuable finding."**
+
+### He answered one of the two questions
+
+The cloud question was answered: DeepSeek. **The local model question was not answered at all.** The server offer reads as an implicit "you will have compute so it matters less," but it does not name models. Open question 8 is still open, and it is the one that gates the schedule, because Phase 2 starts on 3 August.
+
+He also **did not address the Anthropic argument.** His "nearly comparable to Claude" is a substitution argument about model strength, and the argument made to him was not about strength. Consequence recorded below.
+
+### Checked: which of these models already have a published FINDVER row
+
+Listed `FinDVer/outputs/testmini_outputs/rag/processed_cot_outputs/`. Sixteen files. Two matter here:
+
+    claude-3-5-sonnet-20241022.json    the paper's top scorer
+    DeepSeek-V2-Lite-Chat.json         a small MoE model
+
+So DeepSeek **is** published, but as V2-Lite-Chat. A new frontier DeepSeek's only published predecessor is therefore a weak lite model, and the gap between them is so large the comparison carries no information. A newer Claude would extend the strongest published row directly.
+
+**This is coupled to §9.1 and is not merely a preference.** §9.1 settled that published numbers are reused as the historical baseline instead of re-running 16 models, and that decision is what makes Phase 2 fit in 30 days at all. Choosing models with no meaningful published predecessor weakens the strategy holding the timeline together.
+
+**Decided:** DeepSeek is the primary cloud model, settled, and the key is already in hand. Ask once for an Anthropic key as the *second* cloud model, stating that specific reason in one sentence. If he declines, fall back to two DeepSeek models split on **chat versus reasoning**, which at least answers the routing question in open question 1 rather than producing two correlated rows.
+
+Also needed from him: the exact model strings and endpoint. He said "recently released" and the model was not named. Do not guess a model ID.
+
+### Also confirmed from the same file list: the edge models
+
+Neither `Qwen2.5-Coder-3B` nor `Qwen2.5-Coder-7B` appears. The closest is `Qwen2_5-7B-Instruct`, a different model. So the existing choice satisfies open question 8's "must not already be evaluated" constraint.
+
+**Decided, pending his objection:** the second edge model is **Qwen2.5-Coder-7B**. Same family, so 3B to 7B is a clean scaling comparison with everything else held fixed. §4.6's numbers for it are still recollection and need settling regardless. And the code tuning is load-bearing for Tier 1, which is why Coder was chosen in the first place.
+
+### A contradiction in open question 8, flagged rather than worked around
+
+OQ8 requires that our edge models be ones FINDVER did **not** evaluate. That optimises for adding new rows to a table.
+
+But the paper's claim is that the *pipeline* improves a small model. The cleanest evidence for that is the **same model, published baseline versus ours**, so that the pipeline is the only variable. `Llama-3_2-3B-Instruct.json` is published, with 700 stored responses already on disk. Under OQ8 that disqualifies it. Under a pipeline-contribution framing it makes it the best candidate available.
+
+The confound is real: upstream's RAG setup is not ours, so it is not a fully controlled comparison. It is still far closer than a brand new model. **OQ8 may be written for the wrong objective.** Not resolved here. Raise it with him.
+
+### The GPU server, and the rule that comes with it
+
+Open question 11 is partly answered. A GPU server exists. Specs, access method and availability date are still unknown, and **"RTX 4090 Ti" is not a product that shipped** — there is a 4090 at 24 GB and a 5090 at 32 GB, and the 4090 Ti was announced and cancelled. The real card and VRAM have to be confirmed before anything is planned against it.
+
+**Decided: the GPU changes where experiments run, not what the paper claims about hardware.**
+
+- Accuracy and ablations run on the GPU.
+- **The MacBook stays the device of record** for every latency, throughput and memory number that appears in the paper.
+- **Never print a GPU-derived number under a MacBook label.** A run that happened on the 4090 cannot produce a MacBook runtime figure, and substituting one would be fabricated data. This was considered explicitly and rejected.
+- **Never mix machines inside one results table.** Temperature 0 does not guarantee identical tokens across a CPU backend and CUDA, and quantisation may differ. If one configuration is re-run on the server, every configuration it is compared against is re-run there too. The 2 August trial-run numbers are MacBook-only.
+- Keep the edge tier at **8B or below** regardless of the 24 GB of VRAM. Running a 14B or 32B model and still calling it on-device would not survive review at this venue.
+
+The honest version costs almost nothing, because the MacBook measurement already exists. §4.6's fitted cost model came from one 80-minute run.
+
+### 3B stays the paper's primary model. 7B is a row, not a switch.
+
+Considered switching the primary edge model to 7B now that a GPU may remove the wall-clock objection. Rejected.
+
+The argument that decides it: **a bigger model eats the contribution.** The pipeline's measured delta is largest where the base model is weakest. If 7B already handles the arithmetic and the tables unaided, the ablation shows a smaller gain and the paper says less. Secondary reasons: every measured number in the project is 3B, and the venue rewards the smaller model.
+
+This is what §12.3 already says. Band A is 3B baselines; Band B holds "7B slice comparisons." A row, not a replacement.
+
+### The baseline design: four conditions, not three
+
+Worked out in full because the obvious three-condition design has a hole in it.
+
+| # | Condition | Runs on | Establishes |
+|---|---|---|---|
+| 1 | 3B, RAG, one call, no pipeline | local | edge-only floor |
+| 2 | DeepSeek, RAG, one call, no pipeline | cloud | single big call |
+| 3 | DeepSeek in **every** pipeline role | cloud | all-big-model, ≈ MACE |
+| 4 | 3B + DeepSeek routed | local + cloud | ours |
+
+**Condition 3 is a baseline that does run through the pipeline, and it is mandatory.** §5.3's claim is "matches or beats the all-big-model version at a fraction of the cost," and that claim cannot be made without measuring the all-big-model version. The instinct to keep every baseline outside the pipeline is right for conditions 1 and 2 and wrong for 3.
+
+§5.3 already encodes this and it was missed on first reading: *"always escalate ≈ MACE's design; never escalate = edge-only floor; the interesting result lives between."* Condition 3 is always-escalate. Condition 1 is never-escalate. Ours is a point on a curve the plan already committed to producing.
+
+**"No pipeline" does not mean no RAG.** The pipeline is RAG-only by the professor's decision and the filings are far too long to pass whole. Every condition uses the same retrieval, same *k*, same slice, same prompt version, same `num_ctx`, temperature 0, same label extractor. Only the pipeline machinery varies, or the delta is not attributable to anything.
+
+**Framing, recorded so it does not drift.** "We beat DeepSeek" is not the headline. If condition 4 beats condition 2, report it, but a reviewer answers it with "you beat a single-prompt use of a cloud model, which nobody deploys." The claim is matching condition 3 at a fraction of the cost. Beating condition 2 is a bonus.
+
+**Cost:** conditions 1 and 4 are local, about 12 h each at 102 examples, so two nights. Conditions 2 and 3 are cloud, hours not nights. Affordable before any GPU arrives.
+
+**Scoring:** all four are internal comparisons, so per §9 they are strict versus strict. FINDVER-compatible scoring is only for the one table where our numbers sit beside published ones.
+
+### Two results tables, one variable each
+
+A question worth recording because the answer is counter-intuitive. Holding retrieval constant across conditions 1 to 4 does not defeat the purpose of building a good retriever. It is what makes the comparison mean anything. Giving DeepSeek a worse retriever would make any win attributable to retrieval rather than architecture.
+
+- **Pipeline table.** Retrieval fixed, architecture varies across conditions 1 to 4. Isolates routing.
+- **Retrieval table.** Architecture fixed, retrieval varies: whole-claim dense, +BM25, +decomposition, *k* sweep. Isolates the retriever.
+
+The retrieval table splits in two, and the halves have very different costs. **Recall against gold `relevant_context` has no architecture column at all**, because retrieval runs before any model call. That half is minutes. The **end-to-end accuracy delta** does need a fixed architecture, and it is fixed to our edge-cloud pipeline, since that is the system the paper claims. That half is a night, and it sits in Band B.
+
+Also corrected, because the question rested on a wrong assumption: **there is no configuration where the cloud model retrieves its own evidence.** DeepSeek over an API has no access to the filing. Retrieval here is BM25 plus embeddings plus plain Python, a mechanical step that runs before any model call.
+
+### n = 102 cannot support the paper's central claim
+
+§9 puts the margin at ±10 points at n=102. "Matches condition 3" is therefore unprovable at that sample size, because a tie and a 5-point loss are indistinguishable. This is the single biggest threat to the contribution statement, and the full-700 run is the only thing that fixes it.
+
+§12.3 already said this: *"if compute appears, this is the first thing it buys."* It is now the concrete reason to accept the server.
+
+### Three latency quantities that are not measured, and must be
+
+Recorded so they are not discovered during the writing phase.
+
+1. **7B latency on the MacBook.** The 11 m 46 s figure is one week-1 example and recollection. If a 7B row goes in the paper, either re-measure it or label it an estimate.
+2. **Pipeline latency, as opposed to baseline latency.** The measured 7.0 min per example is `baseline_v1`, placeholder retriever, *k*=10, no code execution, no table parsing, no cloud round-trip. The finished system is a different number. **This gap exists whether or not a GPU is involved**, because the system does not exist yet.
+3. **Cloud round-trip latency.** Calls per example times API latency. Part of the edge-cloud story and entirely unmeasured, since no key has been used yet.
+
+**The plan for all three: budget one MacBook night at the end,** after the pipeline is frozen, to measure the final configuration's per-example latency and peak RAM on the real device. One run, one table. That same run doubles as the accuracy-portability check, confirming the verdicts reproduce off CUDA, which converts an assumption into a measurement.
+
+### Open question 4 is wrong on attribution, not just stale
+
+OQ4 reads: *"ANSWERED 30 Jul: ~5-page workshop paper... Leaderboard submission and the full 700-example run are consequently out of scope."*
+
+Two problems. First, **the professor did not say this.** The "consequently out of scope" clause was an inference from the deadline, written as though it were his ruling. That is an attribution error and matters more than currency, because he may in fact want a leaderboard submission.
+
+Second, §12.3 was revised the following day, 31 July, and explicitly overturns it: *"An earlier draft of this section cut Tiers 2–5, the full-700 run, and the leaderboard submission outright. That was wrong on two counts."* Band B now holds all three as conditional. OQ9 carries a note dated 1 August making exactly this correction. **OQ4 needed the identical fix and was missed.**
+
+Both halves of the clause are now void anyway. Full-700 is affordable on the GPU. And the argument against the leaderboard is structural rather than about compute: **a leaderboard ranks accuracy only, our contribution is cost-accuracy, and a 3B edge model plus routing will not top a board of frontier models.** Chasing it means competing on the axis where we are weakest while the axis where we win goes unmeasured. FINDVER does have a leaderboard, and the test split ships with labels so scoring can also be done locally.
+
+### Caught in session: fabricated recall numbers in an explanation, and a gap they exposed
+
+While explaining the shape of the retrieval tables, illustrative recall figures were invented and not labelled as invented: "baseline 68%, +BM25 74%, +decomposition 79%." All three are fake. They also contradict the real measurements in §3.4, and in a misleading direction: **BM25 actually measures 65.16%, which is *below* the 68.01% baseline** on the reported macro-average, not above it. It does beat the embedding on element recall, 62.8% against 62.4%, which is the honest version of the "BM25 is competitive" point. Decomposition has not been built or measured at all, so that row had no basis whatsoever.
+
+Recorded because the failure mode is the one §3.4 and the accuracy rules already warn about, and it happened anyway in a throwaway explanation rather than in a results table. The target to beat is **68.01%**.
+
+**The same question exposed a real gap: MACE's accuracy figure is not in any of our documents.** §6.1 records its four weaknesses, its zero-shot-no-training profile, and the 27–92B scaling remark, but never the headline number. Meanwhile §5.3 states our contribution as matching the all-big-model design, and §9.2's condition 3 exists specifically to compare against it. **The number the paper is built to match is unrecorded.** Pull it from arXiv 2604.17225.
+
+Related and easy to get wrong: MACE's 67.91% recall is not a target. It is FINDVER's own retrieval setup copied unchanged, and §6.1 lists it as Weakness 2. And because the project is RAG-only, the comparable Claude-3.5-Sonnet accuracy is **75.0% RAG, not 77.2% long-context**. The long-context column should not appear anywhere in the paper.
+
+### Also corrected: §9.2 did not explain what the delta table measures
+
+As first written, the "two results tables" subsection stated the delta table's cost and its fixed-architecture requirement but never said what it measures or why the recall table alone is insufficient. Rewritten to say it plainly: recall is a **proxy**, a higher recall number does not by itself mean better verdicts, and without the delta table the paper can only claim "we raised recall by N points" with no evidence that anything changed.
+
+### Decided at the end of the session: the retriever moves ahead of the baselines, and nothing runs tonight
+
+§12.2 schedules the edge-only baselines to start on 3 August. That was reconsidered and reordered. **No run was started.** Three independent reasons, each sufficient on its own:
+
+1. **The retriever is still the placeholder at 57.54% recall.** §9.2 requires every condition to share the same retrieval, so a baseline measured now is invalidated the moment the real retriever lands. The 2 Aug entry above already concluded the retriever was the better next investment; this makes it a scheduling decision rather than a preference.
+2. **A 102-example 3B run is ~11.9 h.** Started late it finishes the following afternoon, costing the next day as well (§12.1).
+3. **Machine choice is unsettled.** MacBook and server results cannot share a table, so a local run now is repeated once the server arrives.
+
+The reorder is cheap because **the retriever is chosen on recall alone, with no model calls**. It consumes daytime, not nights. Full revised timeline in §12.2 and in `working_state.md`.
+
+### Worked out: when each condition is measured, and one correction
+
+The four conditions are not measured at the same point. They split by dependency:
+
+    1  edge-only            depends on retrieval only        run once retrieval is frozen
+    2  single big call      depends on retrieval only        run once retrieval is frozen
+    3  all-big-model        retrieval AND the pipeline       run once the pipeline is frozen
+    4  ours                 retrieval AND the pipeline       run once the pipeline is frozen
+
+**So the order is 1 and 2 early, 3 and 4 late, all four together at 700.** Neither "all four at the start" nor "all four at the end," which is how it was being read.
+
+This preserves the 30 July meeting outcome. He asked that both ends be measured before the routed system is built, and conditions 1 and 2 **are** those ends. Neither needs the pipeline to exist.
+
+**Correction to an earlier framing in this same session.** Conditions 1, 2 and 3 were described as fixed reference points measured once. That is wrong for condition 3, which runs the cloud model in *every pipeline role* and therefore moves whenever the pipeline moves, exactly like condition 4. Only 1 and 2 are stable across pipeline changes.
+
+**The module-by-module comparison is condition 4 only.** §8's result structure — baseline, +code execution, +retrieval — is a claim about our own system. Nothing is claimed about condition 3 with a half-built pipeline, so it is never measured that way. Condition 3 is run **once, against the frozen final pipeline**, which is where §5.3's claim lives. This matters for cost: it means the four-condition comparison is one round, not one round per module.
+
+**Retrieval is the variable that invalidates everything.** A module change moves conditions 3 and 4. A retrieval change moves **all four**. That asymmetry is the structural argument for settling retrieval before spending any night, and it is affordable precisely because recall needs no model calls.
+
+**Machine choice is part of the freeze**, not a detail to settle later. Where conditions 1–4 run must be decided **before condition 1 starts**. The deadline is roughly 7 August under the revised timeline. If there is no server access by then, start on the MacBook and accept re-running.
+
+### Not done
+
+The FINDVER leaderboard check and the citation sweep. **Now slipped three times.** These block every "nobody has done X" sentence in §6.6, and they also block calling MACE the strongest published approach, which several arguments above lean on.
+
+Nothing was measured this session. No code changed. The Ollama overflow alarm has still never fired on real data, and the professor calling the eviction finding "valuable" does not change that.

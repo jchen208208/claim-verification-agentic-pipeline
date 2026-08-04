@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 2 August 2026.
+Last updated: 3 August 2026.
 
 ---
 
@@ -22,7 +22,7 @@ An earlier draft of the replan cut tiers 2 through 5 outright. That was wrong. I
 
 Read section 12.1 of the plan before scheduling anything that runs locally. The short version: between 3 and 23 August there are about 20 usable nights, one 3B slice run costs one night, one 7B slice run costs two to three, and a full 700 run would cost seven on this machine. Results have to freeze by 23 August so that writing can start on the 24th.
 
-If a faster machine materialises the night budget stops binding and Band B opens. Specs and availability are unknown as of 31 July. See open question 11 in the plan. Until it is real, plan against this machine and treat anything faster as upside.
+If a faster machine materialises the night budget stops binding and Band B opens. **Updated 3 August: the professor has offered a GPU server.** Specs, access method and date are still unknown, so plan against this machine until the server is real, but Band B is now likely rather than hypothetical. See the 3 August section below and open question 11 in the plan.
 
 ## Where the project stands
 
@@ -47,6 +47,94 @@ Three decisions came out of the meeting.
 This is a good fit for the compressed schedule, because cloud runs cost hours rather than nights and reusing published numbers removes 16 runs we cannot afford.
 
 **One consequence that is easy to miss.** The published numbers were produced with `gpt-4o-mini` extraction and coin flip imputation of unparseable outputs. Putting our strictly scored numbers in the same table as theirs would compare two different measurements, and would understate our models exactly where they fail the output format, which at 3B is about 45 percent of the time. Any table mixing our numbers with published ones has to use the FINDVER compatible scoring. The strict numbers go in a separate table with the unparseable rate beside them. The two number reporting decided below is therefore no longer optional.
+
+## What the professor said on 3 August, and what he did not
+
+He replied to the progress email with three things. He has a server with an **"NVIDIA RTX 4090 Ti"** and asked whether it would be useful. He recommends **DeepSeek**, mentioning a recently released model that seems nearly comparable to Claude. He called the Ollama eviction finding **"a very valuable finding."**
+
+**He answered one of the two questions asked.** The cloud model question is answered: DeepSeek. **The local model question was not answered at all.** Open question 8 is still open and it gates the schedule.
+
+**He did not address the Anthropic argument.** "Nearly comparable to Claude" is about model strength, and the argument put to him was not about strength. The published model list was checked: `claude-3-5-sonnet-20241022.json` is the paper's top scorer, and DeepSeek appears only as `DeepSeek-V2-Lite-Chat.json`, a small MoE model. So a new frontier DeepSeek extends a row whose only predecessor is weak, while a newer Claude extends the strongest row directly. This matters because section 9.1 makes reuse of published numbers load-bearing for the whole timeline.
+
+**Decided:** DeepSeek is the primary cloud model. Ask once for an Anthropic key as the second, with that one specific reason. If he declines, use two DeepSeek models split on chat versus reasoning rather than two correlated versions. Get the exact model strings and endpoint from him; the model was not named and should not be guessed.
+
+**Decided, pending his objection:** the second edge model is **Qwen2.5-Coder-7B**. Neither Coder variant appears in the published list, so both satisfy open question 8.
+
+**Note that "RTX 4090 Ti" is not a product that shipped.** There is a 4090 at 24 GB and a 5090 at 32 GB. Confirm the real card, the VRAM, the access method, and whether jobs can run for days before planning against it.
+
+## The hardware rule, decided 3 August
+
+The GPU changes where experiments run. It does not change what the paper claims about hardware.
+
+- Accuracy and ablations run on the GPU.
+- **The MacBook is the device of record** for every latency, throughput and memory number in the paper.
+- **Never print a GPU derived number under a MacBook label.** A run on the 4090 cannot produce a MacBook runtime, and substituting one would be fabricated data. This was considered explicitly and rejected.
+- **Never mix machines inside one results table.** Temperature 0 does not guarantee identical tokens across CPU and CUDA. If one configuration moves to the server, everything it is compared against moves too. The 2 August trial numbers are MacBook only.
+- Keep the edge model at **8B or below** whatever the VRAM allows.
+
+**3B stays the paper's primary model. 7B is a row, not a switch.** A bigger model eats the contribution, because the pipeline's delta is largest where the base model is weakest. If 7B handles the arithmetic unaided, the ablation shows less.
+
+**Budget one MacBook night at the end**, after the pipeline is frozen, to measure the final configuration's per example latency and peak RAM on the real device. That run doubles as the accuracy portability check, confirming verdicts reproduce off CUDA.
+
+## The baseline design, settled 3 August
+
+Four conditions, not three. The three condition version has a hole in it.
+
+    1  3B, RAG, one call, no pipeline           local          edge only floor
+    2  DeepSeek, RAG, one call, no pipeline     cloud          single big call
+    3  DeepSeek in every pipeline role          cloud          all big model, approx MACE
+    4  3B + DeepSeek routed                     local + cloud  ours
+
+**Condition 3 is a baseline that does run through the pipeline, and it is mandatory.** Section 5.3 claims we match the all big model version at a fraction of the cost, and that cannot be claimed without measuring it. Section 5.3 already said so: always escalate is MACE's design, never escalate is the edge only floor, the interesting result lives between.
+
+**"No pipeline" does not mean no RAG.** Every condition uses the same retrieval, same k, same slice, same prompt version, same `num_ctx`, temperature 0, and the same label extractor. Only the pipeline machinery varies.
+
+**The claim is matching condition 3 cheaply, not beating condition 2.** If we beat condition 2, report it, but leading with it invites the answer that nobody deploys a cloud model as a single prompt.
+
+Cost: conditions 1 and 4 are local, about 12 h each at 102 examples, so two nights. Conditions 2 and 3 are cloud, hours. All four are internal comparisons, so all four are scored strict against strict.
+
+**Two results tables, one variable each.** Pipeline table: retrieval fixed, architecture varies across the four conditions. Retrieval table: architecture fixed, retrieval varies. Holding retrieval constant is what makes the pipeline comparison mean anything, rather than defeating the point of building a retriever. The recall half of the retrieval table has no architecture column at all, because retrieval runs before any model call, and it costs minutes. The end to end delta half is fixed to our pipeline and costs a night.
+
+There is no configuration where the cloud model retrieves its own evidence. It has no access to the filing.
+
+**n = 102 cannot support the central claim.** At ±10 points a tie and a 5 point loss are indistinguishable, so "matches condition 3" is unprovable at that sample size. The full 700 run is the only fix, and it is the first thing the server buys.
+
+**When each condition is measured.** The four are not all run at the same point. Conditions 1 and 2 are a single model call with no pipeline, so they depend only on retrieval and can run as soon as retrieval is frozen. Conditions 3 and 4 both go through the pipeline, so they cannot be measured until it exists. **The order is 1 and 2 early, 3 and 4 late, then all four together at 700.** This still gives the professor what he asked for on 30 July, since conditions 1 and 2 are the two ends he wanted measured first.
+
+**Correction to an earlier framing.** Condition 3 is not a fixed reference point. It runs the cloud model in every pipeline role, so it moves whenever the pipeline moves, exactly like condition 4. Only conditions 1 and 2 are stable across pipeline changes.
+
+**The module by module comparison is condition 4 only.** Baseline, then plus code execution, then plus better retrieval, is a claim about our own system. Nothing is claimed about condition 3 with only part of the pipeline built, so it is never measured that way. Condition 3 is run once against the frozen final pipeline.
+
+**Retrieval invalidates everything.** Change a module and only conditions 3 and 4 move. Change retrieval and all four move, because every condition must share the same retrieval. This is why retrieval is settled first, and settling it costs no nights because the retriever is chosen on recall alone with no model calls.
+
+**Machine choice is part of the freeze.** Results from different machines cannot sit in one table, so where conditions 1 to 4 run must be decided **before condition 1 starts**. Running condition 1 on the Mac and condition 4 on the server means re-running condition 1.
+
+**Which conditions run at 700.** A 700 run cannot be compared against a 102 run, so both sides of any comparison need the same n. Conditions 3 and 4 at 700 are mandatory, because that pair is the whole reason to buy the full run. Condition 1 is nearly free on the GPU so include it. Condition 2 is the bonus comparison and is the first to drop. **Ablations stay at 102.** Iterate at 102, freeze the winner, then run the final comparison at 700.
+
+**Cloud quota, not wall clock, is the constraint on the 700 run.** Condition 3 puts the cloud model in every pipeline role, so at 700 examples it is by far the largest consumer of calls. Ask the professor about quota before committing to conditions 2 and 3 at full scale.
+
+## The plan from here, revised 3 August
+
+**Nothing ran on 3 August, and that was deliberate.** Phase 2 in the plan starts the edge only baselines that day. Three separate things each made a run that night a throwaway. The retriever is still the placeholder at 57.5% recall, and every condition has to share the same retrieval, so any baseline measured now dies when the real retriever lands. A 102 example run is about 12 hours, so a late start eats the next day too. And the machine question is not settled, so a Mac run gets repeated if the server arrives.
+
+**The retriever moved ahead of the baselines.** This is a change from section 12.2, which puts baselines first. It costs nothing, because the retriever is chosen on recall alone, with no model calls. Daytime work, not nights.
+
+    3 Aug        leaderboard check, citation sweep, MACE accuracy number    reading only
+    4-7 Aug      build the retriever, choose on recall, freeze retrieval    no nights
+    7-9 Aug      conditions 1 (3B and 7B) and 2 at 102                      nights + cloud hours
+    9-16 Aug     pipeline modules one at a time, code execution and tables
+                 first, condition 4 at 102 after each                       most of the nights
+    15 Aug       decision point, drop what is not working
+    17-20 Aug    freeze pipeline, conditions 3 and 4 at 102, full table     cloud + nights
+    20-23 Aug    700 run, conditions 1, 3, 4, plus 2 if quota allows        GPU only
+    23 Aug       results freeze, hard stop
+    24-29 Aug    write
+
+**The machine decision has a deadline of about 7 August**, because that is when condition 1 starts and it cannot be split across two machines. If there is no server access by then, start on the Mac at 12 hours per run and accept re-running later.
+
+**Separately, and whatever happens with the server:** one Mac night at the very end, after the pipeline freezes, for real latency and peak RAM on the actual device.
+
+**Honest caveat.** This is tighter than the original phasing, because moving the retriever first pushes everything right by several days. Without the server the 700 run does not happen, and the claim that we match condition 3 stays unprovable at plus or minus 10 points.
 
 ## What is built
 
@@ -554,9 +642,23 @@ needed before repeating any claim that nobody has attempted something.
 
 ## Outstanding, not yet done
 
-Decide the two cloud models and the two added edge models before 3 August. See open questions 7 and 8 in the architecture plan.
+~~Decide the two cloud models and the two added edge models before 3 August.~~ **Partly done 3 August.** Cloud: DeepSeek is primary, decided by him. Still need the exact model string and endpoint, and an answer on whether an Anthropic key is available for the second slot. Edge: he did not answer, so Qwen2.5-Coder-3B and Qwen2.5-Coder-7B proceed as a decision unless he objects. Open questions 7 and 8 both remain formally open.
 
-Answer open question 11: what faster machine is available, with what specs, and when. This decides whether Band B opens.
+~~Answer open question 11: what faster machine is available, with what specs, and when.~~ **Partly done 3 August.** A GPU server exists and he has offered it. Still need the real card and VRAM, the access method, whether it is shared, and whether jobs can run for days. Note "RTX 4090 Ti" is not a product that shipped.
+
+**Reply to him.** Confirm the server and ask the four questions above. State the two edge models as a decision rather than a question, since Phase 2 starts now and cannot wait on his inbox. Make the Anthropic case in one sentence. Raise the open question 8 contradiction below.
+
+**Raise the open question 8 contradiction with him.** OQ8 requires edge models FINDVER did not evaluate, which optimises for new table rows. But the paper's claim is that the pipeline improves a small model, and the cleanest evidence for that is the same model, published baseline against ours, with the pipeline as the only variable. `Llama-3_2-3B-Instruct` is published with 700 stored responses already on disk. OQ8 disqualifies it; a pipeline contribution framing makes it the best candidate. The confound is that upstream's RAG setup is not ours. Not resolved.
+
+**MACE's accuracy number is not written down anywhere.** Section 6.1 records its weaknesses and the 27 to 92B scaling remark, but not the headline figure. Section 5.3 states our contribution as matching the all big model design and section 9.2 builds condition 3 to compare against it, so the number we are trying to match is currently unknown. Pull it from arXiv 2604.17225. Related: since the project is RAG only, the comparable Claude-3.5-Sonnet figure is **75.0% RAG, not 77.2% long context**. MACE's recall of 67.91% is not a target, it is FINDVER's own setup copied unchanged.
+
+**Three latency quantities are not measured and must be, before writing.**
+
+1. 7B latency on the MacBook. The 11 m 46 s figure is one week 1 example and recollection. Re-measure it or label it an estimate.
+2. Pipeline latency as opposed to baseline latency. The measured 7.0 min is `baseline_v1` with the placeholder retriever at k=10, no code execution, no table parsing, no cloud round trip. The finished system is a different number. This gap exists whether or not a GPU is involved, because the system does not exist yet.
+3. Cloud round trip latency. Calls per example times API latency. Entirely unmeasured, no key used yet.
+
+All three are covered by the one MacBook night budgeted at the end, after the pipeline freezes.
 
 ~~Confirm the workshop mechanics.~~ **Done 1 August, from the workshop site rather than the professor.** It is a NeurIPS 2026 workshop in Sydney, 11 or 12 December. Five pages excluding references, NeurIPS 2026 LaTeX template, submitted through OpenReview. Review is **double blind**, so no author names and no identifying repository link in the PDF. The venue is **non archival**, so a fuller version can go elsewhere later and this paper does not have to be the final word. Deadline 29 August AoE. Full table in section 1.1 of the plan.
 
