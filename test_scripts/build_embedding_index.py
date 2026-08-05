@@ -118,10 +118,18 @@ def embed_report(report_name):
 
 
 def main():
-    per_cell = int(sys.argv[1]) if len(sys.argv) > 1 else 17
+    # "all" indexes every report behind all 700 claims. A stratified sample cannot
+    # reach that: the smallest subset-by-label cell holds 100, so per_cell tops out
+    # at 100 and yields 600 claims. Deciding fusion on recall needs the same 700
+    # claims our BM25 figures are measured on, so the comparison is like for like.
+    arg = sys.argv[1] if len(sys.argv) > 1 else "17"
 
     claims = load_claims()
-    sample = stratified_sample(claims, per_cell)
+    if arg == "all":
+        per_cell, sample = None, list(claims)
+    else:
+        per_cell = int(arg)
+        sample = stratified_sample(claims, per_cell)
     reports = sorted({claim.report for claim in sample})
 
     OUT_DIR.mkdir(exist_ok=True)
