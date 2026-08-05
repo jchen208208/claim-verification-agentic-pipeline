@@ -181,16 +181,124 @@ exactly. Only about 1.1 blends anything.
 
 ## What happens next, in order
 
-1. **Build claim decomposition.** §4.4 assigns it to the edge 3B, §8 puts it in Tier 2. About
-   15-20 s per claim, so 3-4 h for all 700, paid once because sub-claims cache to disk.
-2. **Score BM25 plus decomposition on all 700.** Free, no index needed, no model calls beyond
-   the cached sub-claims. May be a large win by itself.
-3. **Only then, if the dense arm still looks worth it**, finish the index, about 4.8 h for the
-   remaining 166 reports, and settle fusion at n=700 where 2.5 points is resolvable.
+### Claim decomposition is closed. It does not help retrieval.
+
+**Tested and negative, 5 August.** 174 claims needing 4 or more gold elements, which is where
+BM25's deficit lives, 36.7 minutes of 3B model time, six merge strategies. Full detail in
+§3.4.3 of the plan.
+
+    whole claim only, the bar     57.88%
+    best decomposed variant       57.53%   max raw score across queries
+    worst                         45.27%   RRF across queries
+
+**The decompositions themselves were good.** Numbers, dates and names came through exactly,
+which was the main risk to BM25's exact-string matching. About a fifth of sub-claims are
+fragments rather than self-contained facts, but they still carry the tokens BM25 needs. The
+failure is not decomposition quality.
+
+**A false positive was caught mid-analysis.** The union of whole-claim and sub-claim results
+scores 76.14%, and 101 of 174 claims had gold that only sub-claims found. That was read as
+"the merge is failing, not the split." It was wrong: the union holds 30.3 candidates against
+10, and the whole claim at k=30 scores **79.37%**, better than the union. Any multi-query
+comparison must control for candidate count or it produces this same illusion.
+
+**No further decomposition testing on other samples is needed.** The test already ran on the
+population where the mechanism had the most to fix. On easier claims there is less room, not
+more. **This does not close decomposition for Tier 1 reasoning**, which is what §3.6's original
+observation was actually about and which is measured end to end, not on recall.
+
+### The real finding: k is the biggest lever we have
+
+Our BM25 over all 700 claims:
+
+    k=5    62.39%      k=20   84.56%
+    k=10   74.60%      k=25   86.34%
+    k=15   81.12%      k=30   88.51%
+
+**k=10 to k=30 is worth 13.9 macro points.** The whole dense-fusion question was worth +2.5,
+and the published baseline everyone copied is 68.01%. This is a parameter, not a component.
+
+### Four factors decide k, and only one is free
+
+1. **Recall.** Free, measured, above.
+2. **Ingestion cost.** k sets prompt length, and prompt length is the entire cost model at
+   R² 0.995. Generation barely moves: trial-run `eval_count` ranged only 261-496. Being
+   measured now.
+3. **Accuracy. No data at all.** Higher k adds distractors as well as gold, and a 3B model may
+   not ignore them. The only contrary evidence is the trial run's 4/4 with evidence present
+   against 4/8 without, which is n=4 and already flagged as untrustworthy. **Costs one
+   overnight run per k value.**
+4. **The deployment story**, a paper decision rather than a measurement. The MacBook is the
+   device of record, so the latency reported is the MacBook number no matter where accuracy was
+   measured. Doubling per-example time weakens the exact axis §6.1 attacks MACE on.
+
+**A GPU does not remove factor 4.** Accuracy and ablations may run on the server, and a k sweep
+qualifies. But reported deployment cost stays the MacBook figure. A GPU makes the experiment
+affordable, not the operating point cheap.
+
+**Likely paper framing: the curve, not the maximum.** Recall against measured per-example
+latency across k, on the device, with a defensible operating point chosen. Stronger than a
+single tuned k, and it turns the cost of high k into the finding.
+
+### The current configuration has a live overflow defect
+
+Token calibration done, 6 real calls. **Measured ingestion is 12.8-23.2 tok/s, mean about 16**,
+the first clean figure; the old 15.6 absorbed generation. **Chars per token is 3.31 on
+table-heavy content against 4.44 on prose**, so it is not a constant and a character budget is
+not a safe proxy.
+
+Prompt tokens across all 700 at the conservative 3.31 ratio:
+
+    k     mean     p90      max   over 14384   over 30768
+    10    4426    9490    19466      15/700       0/700
+    15    6472   13627    29589      62/700       0/700
+    20    8454   17734    36544     104/700       6/700
+    30   12328   26885    52241     139/700      53/700
+
+**About 15 of 700 claims overflow at the current k=10 with `num_ctx` 16384.** Not caused by
+raising k. Never caught because the trial run was 12 examples. Ollama 0.12.3 evicts the oldest
+prompt tokens silently and still reports `done_reason: "stop"`, so those examples would return
+confident answers over evidence that had scrolled out of view.
+
+**Prompt trimming is now mandatory, not an optimisation**, and it counts tokens. **k=30 is
+unreachable** with 53 of 700 over even at `num_ctx` 32768, so **k=20 is the practical ceiling**
+and is the high candidate for the k experiment.
+
+### Corrected: fusion is decided BEFORE condition 1
+
+The earlier plan, to decide k through condition 1 and settle the dense arm afterwards, is
+invalid. §9.2 requires every condition to share the same retrieval and says changing retrieval
+moves all four conditions. Condition 1 freezes the retriever, so adding a dense arm afterwards
+forces a re-run.
+
+The two questions need different evidence, which is what dissolves the circularity. **Fusion or
+no fusion is a retriever choice decided on recall, which is free**, since fusion changes which k
+chunks are retrieved rather than how many, so the distractor argument does not apply. **k is
+decided on recall and accuracy**, since k is exactly the knob trading gold against distractors.
+
+### What happens next, in order
+
+1. **Finish the embedding index**, remaining 166 reports, about 4.8 h, one evening under
+   `caffeinate`. Re-running `build_embedding_index.py` with a larger `per_cell` skips everything
+   already done.
+2. **Decide fusion on recall**, BM25 against BM25-plus-nomic at k = 10, 15, 20. Free, minutes.
+3. **Freeze the retriever.**
+4. **Build prompt trimming.** Required at any k, counts tokens, and it is on the critical path
+   ahead of condition 1 because of the overflow defect above.
+5. **Condition 1 at two k values**, 10 and 20. The winner becomes the official condition 1, the
+   loser is a k-ablation row for the paper. **Machine must be decided before this starts**, and
+   whichever machine is chosen carries the whole results table.
+
+Steps 1 to 4 need no GPU and are not blocked on the professor.
 
 **Keep `embeddings/`.** Deleting was the contriever contingency and nomic is not contriever.
-Decomposition changes the queries for both arms anyway, so any fusion settled now would be
-invalidated by step 1.
+
+### New document: `docs/paper_numbers.md`
+
+Every figure that could appear in the PDF, with what it measures, its `n`, the script that
+regenerates it, and **what it may legitimately sit beside**. Also carries a closing list of
+claims that are not yet supported, so they are not written by accident. The build log stays a
+dated narrative including wrong turns; the new file is the lookup table.
 
 **No `src/dense_retriever.py` exists and none should yet.** `embed()` and `load_index()` live
 in `test_scripts/measure_dense_recall.py` deliberately, so that no pipeline code is written for
