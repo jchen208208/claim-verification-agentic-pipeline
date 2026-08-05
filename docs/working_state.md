@@ -144,6 +144,39 @@ published baseline. Union ceiling is 82.85%. `nomic-embed-text` now has to prese
 2.5-point gain rather than a 6-point one. Score it alone first. **The target is no longer
 68.01%, it is whether a fully local hybrid clears our own 74.60%.**
 
+## Where to pick up on 5 August
+
+**Read this first.** Everything below in this section is the state at the end of 4 August.
+
+**Running overnight, if it was launched:** `test_scripts/build_embedding_index.py 17`, which
+embeds the 20,718 context elements behind the 89 reports of the 102-claim slice, about 2.5 h.
+Output is one raw float32 file per report in `embeddings/`, gitignored, plus a
+`manifest.json`. Resume is by report and tested on byte length, so re-running skips whatever
+finished and retries the rest. Check `logs/embedding_index.txt` and the manifest's `failures`
+list first thing.
+
+**The first job of the morning is the dense arm go/no-go.** Score `nomic-embed-text` **alone**
+on those 102 claims, cosine similarity against the cached vectors, and compare it to our BM25
+on the same 102. The decision rule was set on 4 August by the contriever result:
+
+    nomic lands near 68%      fuse; expect roughly +2 points over BM25 alone
+    nomic lands near 33%      do not fuse. Contriever at 33.48% cost us 5.1 points.
+                              Delete embeddings/ and ship BM25 alone.
+    nomic lands in between    try weighted RRF, BM25 two votes to dense one, before
+                              deciding
+
+There is no numpy on this machine, so the vectors are stored as raw float32 via
+`array.array` and cosine similarity has to be pure Python or numpy installed first. At 102
+claims that is seconds either way.
+
+**Then claim decomposition**, which is independent of all of the above and does not need the
+GPU. §4.4 assigns it to the edge 3B and §8 puts it in Tier 2. Roughly 15-20 s per claim, so
+3-4 h for all 700, paid once because the sub-claims cache to disk. It improves BM25 as well as
+any dense arm, so it is worth doing whatever the go/no-go says.
+
+**Still unanswered by the professor:** the GPU. The machine decision has a deadline of about
+7 August, because condition 1 cannot be split across two machines.
+
 ## The hardware rule, decided 3 August
 
 The GPU changes where experiments run. It does not change what the paper claims about hardware.
@@ -157,6 +190,10 @@ The GPU changes where experiments run. It does not change what the paper claims 
 **3B stays the paper's primary model. 7B is a row, not a switch.** A bigger model eats the contribution, because the pipeline's delta is largest where the base model is weakest. If 7B handles the arithmetic unaided, the ablation shows less.
 
 **Budget one MacBook night at the end**, after the pipeline is frozen, to measure the final configuration's per example latency and peak RAM on the real device. That run doubles as the accuracy portability check, confirming verdicts reproduce off CUDA.
+
+**Added 4 August: cached model outputs used as pipeline inputs are not covered by the mixing rule.** The rule above is about measured numbers. Claim decomposition (§4.4, assigned to the edge 3B) produces sub-claims that are then used as retrieval queries, and retrieval recall is scored by comparing element ids against gold, with no timing and no model-accuracy claim in it. So generating decompositions on the server and scoring recall from them does not mix machines in any table. The same holds for the embedding index.
+
+Two places it does bite. **The final MacBook latency night must run decomposition on the MacBook**, or the pipeline latency figure silently omits a real pipeline step. And **temperature 0 does not guarantee identical tokens across CPU and CUDA**, so sub-claims generated on the server may not regenerate byte-identically here. A recall number measured from them is therefore reproducible from the cached file, not from a re-run on a different machine. Cache the sub-claims to disk and treat that file as the artifact of record.
 
 ## The baseline design, settled 3 August
 

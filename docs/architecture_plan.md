@@ -327,6 +327,23 @@ Two of these overturned a prediction, which is why they are recorded rather than
 
 Provenance, stated accurately because it is a candidate paper sentence. The tokenizer is `src/evidence_asserter.tokenize`, written 2 August for the asserter, where the inner-comma handling was a deliberate choice for numeric tokens. Dropping punctuation was **not** chosen for retrieval reasons by anyone; it was inherited by reusing that tokenizer in BM25. What is new on 4 August is the measurement showing it matters and the mechanism explaining why. Write it as a finding, never as a designed insight.
 
+**[MEASURED 4 Aug 2026] `k1` and `b` were swept, and the defaults are kept deliberately.**
+
+| `k1` \ `b` | 0.00 | 0.25 | 0.50 | 0.75 | 1.00 |
+|---|---|---|---|---|---|
+| 0.9 | 70.37 | 72.77 | 73.95 | 74.72 | 74.91 |
+| 1.2 | 70.00 | 72.84 | 73.89 | **74.97** | 74.60 |
+| 1.5 | 69.56 | 72.88 | 74.42 | 74.60 | 74.68 |
+| 2.0 | 69.23 | 72.84 | 74.67 | 74.69 | 74.80 |
+
+Macro recall, all 700 claims, k=10. The best cell is `k1 = 1.2, b = 0.75` at 74.97% against the defaults' 74.60%.
+
+**Decision: keep `k1 = 1.5, b = 0.75` and do not take the 0.37.** Eight configurations sit between 74.6 and 75.0, which at n = 700 is inside sampling noise. More seriously, the sweep ran on all 700 test claims, so taking its winner is selecting on the test set. §9 already records that the 102-example slice makes about 15% of any final number self-optimised; adopting a constant tuned on the full 700 would make it 100%. An untuned standard configuration is worth more in the paper than 0.37 points bought that way. Report the sweep as evidence the defaults are not load-bearing, not as a tuning result.
+
+**What the sweep does show is that `b` carries the retriever and `k1` does not.** Turning length normalisation off costs about 5 points (69.56 at `b = 0` against 74.60 at 0.75), while `k1` across 0.9 to 2.0 moves under half a point. This corroborates the tokenizer finding above from an independent direction: length handling is where this retriever's accuracy lives, which is precisely why upstream's punctuation-inflated element lengths cost them so much.
+
+One qualifier on that reading. At `b = 0`, with length normalisation entirely off and the table mechanism therefore inert, we still score 69.56% against upstream's 65.16%. So the table-length effect is a large part of our advantage but not all of it, and the IDF variant carries the remainder.
+
 **[REVISED 4 Aug 2026] The dense arm's case is now thinner, but it survives.**
 
 | at k=10 | macro | element | all-gold |

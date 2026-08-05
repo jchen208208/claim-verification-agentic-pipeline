@@ -13,6 +13,11 @@ results/
 # results/ is the real record; these are for reading progress and tracebacks.
 logs/
 
+# Cached nomic-embed-text vectors, raw float32, one file per report. Derived
+# data: delete it and test_scripts/build_embedding_index.py rebuilds it.
+# ~178 MB for the full 60,871-element index. See section 11 item 11 of the plan.
+embeddings/
+
 # Python
 __pycache__/
 *.py[cod]

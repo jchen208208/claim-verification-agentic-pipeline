@@ -1195,3 +1195,135 @@ not survive, and BM25 alone is already a publishable retrieval result. The targe
 68.01%; it is whether a fully local hybrid clears our own 74.60%.
 
 No model was run today and no cloud quota was used.
+
+### The k1/b sweep, and why the winner is not adopted
+
+20 configurations over all 700 claims at k=10, macro recall:
+
+    k1 \ b     0.00     0.25     0.50     0.75     1.00
+    0.9       70.37    72.77    73.95    74.72    74.91
+    1.2       70.00    72.84    73.89    74.97    74.60
+    1.5       69.56    72.88    74.42    74.60    74.68
+    2.0       69.23    72.84    74.67    74.69    74.80
+
+Best is `k1 = 1.2, b = 0.75` at 74.97% against the defaults' 74.60%.
+
+**Decided: keep the defaults, 1.5 and 0.75, and do not take the 0.37 points.** Eight cells sit
+between 74.6 and 75.0, which at n = 700 is inside sampling noise. And the sweep ran on all 700
+test claims, so adopting its winner is selecting on the test set. §9 already concedes that the
+102-example slice makes about 15% of a final number self-optimised; a constant tuned on the
+full 700 would make that 100%. An untuned standard configuration is worth more than 0.37 points
+bought that way. The sweep is reported as evidence the defaults are not load-bearing, not as a
+tuning result.
+
+**What it does establish: `b` carries this retriever and `k1` does not.** Length normalisation
+off costs about 5 points, 69.56 at `b = 0` against 74.60 at 0.75, while `k1` from 0.9 to 2.0
+moves under half a point. Independent corroboration of the tokenizer finding: length handling
+is where the accuracy lives, which is exactly why upstream's punctuation-inflated lengths cost
+them so much.
+
+**One qualifier.** At `b = 0` the table-length mechanism is inert, and we still score 69.56%
+against upstream's 65.16%. So the table effect is a large part of our advantage, not all of it;
+the IDF variant carries the rest.
+
+### The fusion is not free insurance: a weak arm actively hurts
+
+    ours bm25 alone                          74.60%   70.5%   50.4%
+    RRF(ours, text-embedding-3 @ 68.01)      77.14%   72.1%   54.3%
+    RRF(ours, contriever @ 33.48)            69.46%   63.7%   42.7%
+    RRF(ours, embed, contriever)             72.83%   67.4%   48.3%
+
+**Contriever drags our BM25 down by 5.1 points**, and adding it to the good pair costs 4.3.
+RRF weights every list equally, so a bad ranker gets an equal vote. This was assumed to be a
+safe operation and it is not.
+
+**Consequence for the dense arm.** `nomic-embed-text` has to be measured alone before it is
+fused with anything. The break-even sits somewhere between contriever's 33.48% and
+`text-embedding-3`'s 68.01% and we do not know where. If it lands low, the correct action is to
+delete the vectors and ship BM25 alone, which is already a publishable retrieval result.
+Weighted RRF, giving BM25 two votes to the dense arm's one, is the fallback if nomic turns out
+real but mediocre.
+
+**Cost-saving on the go/no-go:** embed only the reports behind a ~102-claim sample rather than
+all 255 reports, about a seventh of the work, and build the full index only if it passes.
+
+### Correction: claim decomposition is a pipeline component, not an optional extra
+
+It was described this session as "the first thing here that isn't free," which understated its
+status. §4.4 assigns *claim decomposition into atomic facts* to the **edge 3B**, and §8 lists it
+in Tier 2 beside hybrid retrieval. It is planned pipeline work.
+
+Its cost is also smaller than implied, because **the output caches**. The prompt is the claim
+plus instructions, roughly 200 tokens, so at the fitted 0.0641 s/token it is about 15-20 s per
+claim and 3-4 hours for all 700, paid once. Every retrieval experiment afterwards reuses the
+saved sub-claims for free, exactly like the embedding index. That is an evening, not a night,
+and it does not need the GPU.
+
+### The hardware rule extended: cached model outputs are inputs, not results
+
+Recorded in `working_state.md` alongside the 3 August rule. The no-mixing rule governs
+*measured numbers*. Sub-claims and embeddings are inputs consumed by a scoring step that
+compares element ids against gold, with no timing and no model-accuracy claim, so producing
+them on the server does not mix machines in any table.
+
+Two places it does bite. The final MacBook latency night must run decomposition **on the
+MacBook**, or the pipeline latency figure omits a real step. And temperature 0 does not
+guarantee identical tokens across CPU and CUDA, so server-generated sub-claims may not
+regenerate byte-identically here; a recall number measured from them is reproducible from the
+cached file rather than from a re-run. Treat that file as the artifact of record.
+
+### Measured: nomic-embed-text throughput, and the dense arm gets more expensive
+
+Run against the local Ollama server on 50 real context elements from `ie-val-0`'s report,
+mean length 968 characters.
+
+    dimensions                  768        confirms the 178 MB index estimate
+    50 elements, batched      21.62 s
+    per element                0.432 s
+
+    102-claim slice     89 reports    20,718 elements    2.5 h
+    48-claim pilot      42 reports    10,612 elements    1.3 h
+    full testmini      255 reports    60,871 elements    7.3 h
+
+**The full index is a night, not an afternoon**, which changes the trade. The dense arm's
+expected payoff is at most the +2.54 that `text-embedding-3-large` bought on top of our BM25,
+and nomic is weaker than that, so realistically less. Contriever showed it can be negative.
+Against roughly 18 remaining nights, a full index on spec is a bad buy.
+
+**Decided: measure on the 102-claim slice first, 2.5 h.** Same seed-0 stratified slice used
+everywhere else, so the number is comparable, and plus or minus 10 points at n=102 is far more
+than enough to separate 33% from 68%, which is the only question that matters.
+
+### `test_scripts/build_embedding_index.py`
+
+Embeds every element of every report behind a stratified sample and caches the vectors.
+
+**No numpy on this machine**, discovered here. Storage is therefore `array.array("f")` raw
+float32, which is the same bytes a `.npy` holds minus the header, one file per report, rows in
+`report["context"]` order. Row i is element id i, safe because id equals list position. Nothing
+in this script does arithmetic, so the dependency was avoidable entirely; whoever reads the
+vectors back can use numpy or not.
+
+**Resume is by report and tested on byte length, not existence**, the same distinction the
+logger needed on 1 August. The file is written under a `.partial` name and `os.replace`d only
+when complete, so the final name never exists in a half-written state. An interrupted 2.5 h run
+costs at most one report.
+
+Also handled: a blank element is sent as a single space, because Ollama rejects an empty string
+and a blank element would otherwise kill the run 90 minutes in; the returned dimension is
+asserted against 768 per batch, so a silently swapped model fails loudly; and one HTTP retry
+before a report is recorded as failed and the run continues.
+
+`embeddings/` added to `.gitignore`.
+
+### Confirmed for the record: what caffeinate actually does
+
+It runs the job as a child process and holds the no-sleep assertion only for that process's
+lifetime, releasing it on exit. The machine therefore stays awake for the duration of the job
+and returns to its normal idle timer afterwards, rather than staying awake all night. `-ims`
+still allows the display to sleep. It cannot override a closed lid.
+
+**Validated on the smoke run:** vectors read back at the right count, and cosine ranking works.
+**nomic-embed-text returns L2-normalised vectors, norm exactly 1.000**, so cosine similarity is
+a plain dot product. That removes the normalisation step from tomorrow's scoring code and makes
+pure Python fast enough at n=102 without installing numpy.
