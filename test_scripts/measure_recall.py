@@ -182,7 +182,7 @@ def union(*retrievals_list):
     return merged
 
 
-def rrf(rankings, k=DEFAULT_K, c=RRF_C):
+def rrf(rankings, k=DEFAULT_K, c=RRF_C, weights=None):
     """Reciprocal rank fusion of several ranked lists into one top-k.
 
     Each element scores 1/(c + rank) in every list it appears in, and the scores
@@ -199,12 +199,15 @@ def rrf(rankings, k=DEFAULT_K, c=RRF_C):
     rankings: list of dicts, example_id -> ranked list of ids, best first.
     Ties break on element id so a run cannot vary.
     """
+    if weights is None:
+        weights = [1.0] * len(rankings)
+
     fused = {}
     for example_id in rankings[0]:
         scores = {}
-        for ranking in rankings:
+        for ranking, weight in zip(rankings, weights):
             for rank, element_id in enumerate(ranking[example_id], start=1):
-                scores[element_id] = scores.get(element_id, 0.0) + 1.0 / (c + rank)
+                scores[element_id] = scores.get(element_id, 0.0) + weight / (c + rank)
         ordered = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))
         fused[example_id] = [element_id for element_id, _ in ordered[:k]]
     return fused
