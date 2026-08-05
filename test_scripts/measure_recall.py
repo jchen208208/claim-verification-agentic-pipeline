@@ -36,6 +36,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src.loader import load_claims
 from src.placeholder_retriever import retrieve
+from src.bm25_retriever import retrieve as bm25_retrieve
 from src.run_loop import read_report
 
 # Upstream's shipped rankings. all/ holds the FULL ranking over every element in
@@ -145,6 +146,19 @@ def run_placeholder(k=DEFAULT_K):
     return retrievals
 
 
+def run_ours(retrieve_fn, k=DEFAULT_K):
+    """Run one of our own retrievers over all 700 claims.
+
+    Returns ranked order, best first, because RRF consumes rank positions.
+    Reports are re-read per claim, about 5 s in total across all 700.
+    """
+    retrievals = {}
+    for claim in load_claims():
+        report = read_report(claim.report)
+        retrievals[claim.example_id] = [e["id"] for e in retrieve_fn(claim, report, k=k)]
+    return retrievals
+
+
 def union(*retrievals_list):
     """Merge several retrievers' outputs by taking the union per claim.
 
@@ -213,7 +227,9 @@ def main():
 
     upstream = {name: load_upstream(name, k) for name in KNOWN}
     scored = {name: aggregate(r, gold) for name, r in upstream.items()}
+    ours_bm25 = run_ours(bm25_retrieve, k)
     scored["ours, placeholder"] = aggregate(run_placeholder(k), gold)
+    scored["ours, bm25"] = aggregate(ours_bm25, gold)
 
     print_table(f"Recall at k={k}, all 700 testmini claims",
                 [(name, m["overall"]) for name, m in scored.items()])

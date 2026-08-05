@@ -11,6 +11,7 @@ import math
 
 K1 = 1.5   # term-frequency saturation aka how fast repetition stops helping
 B = 0.75   # length normalisation strength (long elements aren't always better since a 500-word paragraph will contain a certain word more often than a 50-word one purely by being longer)
+# elements with twice the average element length has their score divided down and vice versa for elements with lengths half the average
 
 def report_stats(report):
     """Everything the scorer needs about one report and computed once per report.
@@ -41,12 +42,13 @@ def report_stats(report):
         "n": n,
     }
 
-def score_element(query_tokens, index, stats):
+
+def score_element(claim_tokens, index, stats):
     """BM25 score for one context element against one claim.
     For each distinct claim token, it adds how rare the token is in this report,
     times a saturated and length-normalised count of it inside this context element.
     
-    query_tokens is a set since how often a word repeats inside the claim doesn't decide which tokens to return
+    claim_tokens is a set since how often a word repeats inside the claim doesn't decide which tokens to return
     """
     counts = stats["counts"][index]
     length = stats["lengths"][index]
@@ -54,7 +56,7 @@ def score_element(query_tokens, index, stats):
     avg_el = stats["avg_el"]
 
     score = 0.0
-    for token in query_tokens:
+    for token in claim_tokens:
         f = counts[token]
         if f == 0:
             continue  # Counter returns 0 for absent keys so skip
@@ -66,3 +68,20 @@ def score_element(query_tokens, index, stats):
         score += idf * saturated
 
     return score
+
+
+TOP_K = 10  # returns the top 10 elements
+
+def retrieve(claim, report, k=TOP_K):
+    """returns the top 10 elements of one filing ranked by best score first."""
+
+    stats = report_stats(report)
+    claim_tokens = set(tokenize(claim.statement))
+
+    scored = [(score_element(claim_tokens, index, stats), index)
+              for index in range(stats["n"])]
+
+    # ranekd by highest score first then lowest id so ties cannot vary between runs
+    scored.sort(key=lambda row: (-row[0], row[1]))
+
+    return [report["context"][index] for _, index in scored[:k]]
