@@ -830,6 +830,8 @@ Second, §12.3 was revised the following day, 31 July, and explicitly overturns 
 
 Both halves of the clause are now void anyway. Full-700 is affordable on the GPU. And the argument against the leaderboard is structural rather than about compute: **a leaderboard ranks accuracy only, our contribution is cost-accuracy, and a 3B edge model plus routing will not top a board of frontier models.** Chasing it means competing on the axis where we are weakest while the axis where we win goes unmeasured. FINDVER does have a leaderboard, and the test split ships with labels so scoring can also be done locally.
 
+**[CORRECTED later the same session. "FINDVER does have a leaderboard" is wrong.]** The web research done at the end of this session established there is none: the paper promised an online platform, no URL exists in the paper or the repository, and the email submission route was retired in July 2026 once test labels went public. See the leaderboard findings later in this entry. The structural argument above still stands if a platform ever appears, but the question is moot rather than decided. The second half of the sentence is correct: the test split does ship with labels and can be scored locally.
+
 ### Caught in session: fabricated recall numbers in an explanation, and a gap they exposed
 
 While explaining the shape of the retrieval tables, illustrative recall figures were invented and not labelled as invented: "baseline 68%, +BM25 74%, +decomposition 79%." All three are fake. They also contradict the real measurements in §3.4, and in a misleading direction: **BM25 actually measures 65.16%, which is *below* the 68.01% baseline** on the reported macro-average, not above it. It does beat the embedding on element recall, 62.8% against 62.4%, which is the honest version of the "BM25 is competitive" point. Decomposition has not been built or measured at all, so that row had no basis whatsoever.
@@ -875,8 +877,94 @@ This preserves the 30 July meeting outcome. He asked that both ends be measured 
 
 **Machine choice is part of the freeze**, not a detail to settle later. Where conditions 1–4 run must be decided **before condition 1 starts**. The deadline is roughly 7 August under the revised timeline. If there is no server access by then, start on the MacBook and accept re-running.
 
+### Done at last: the leaderboard check, the citation sweep, and MACE's number
+
+Carried since week 1 and slipped three times. All three done in one session, by web research rather than by running anything.
+
+**MACE's FINDVER accuracy is 0.76**, from the Qwen-235B configuration in their Table 8. **Verified by eye the same evening against the paper.** Full table in §6.1. MACE's own rows: Mt-7B 0.64/0.65, Ll-8B 0.68/0.71, Qw-72B 0.75/0.74, Qw-235B 0.76/0.76.
+
+**Three things surfaced only when the real table was read, none of which the fetch reported:**
+
+1. **MACE's Claude-3.5-Sonnet baseline is 0.73 TM, which matches neither of FINDVER's own figures** (77.2 long-context, 75.0 RAG). **They did not re-run these**, their caption says the baselines are sourced from Zhao et al. (2024b), so a copied number failing to match its source is the puzzle. The effect is that **their table demotes Claude below GPT-4o (0.73 vs 0.75) while FINDVER's table places Claude above GPT-4o (75.0 vs 73.7 under RAG)** — the ordering of the two strongest models is reversed. MACE's Claude (0.73) sits near FINDVER's GPT-4o RAG (73.7) and MACE's GPT-4o (0.75) near FINDVER's Claude RAG (75.0), which is what a row swap would look like. **Recorded as a discrepancy, not asserted as their error**, since two close numbers are not evidence of a mechanism and they may have sourced from an appendix, from `outputs/`, or from a later version. **Settleable for free** by recomputing accuracy for those two models from `outputs/` against `testmini.json` gold labels: a set comparison, no model calls, no quota.
+2. **Table 8 never states whether its baselines are long-context or RAG.** The two differ by about 2 points in FINDVER's table. Since this project is RAG-only, no MACE baseline can go in our tables until that is settled from their text.
+3. **MACE's baseline list is broader than FINDVER's printed Table 4** and includes DeepSeek-V2-Lite, Llama-3.1 70B, Qwen-2.5 72B, Mistral-Large 123B and Gemini-1.5-Pro. All five are in our `outputs/` directory. So the FINDVER *release* covers more models than the FINDVER *paper*, MACE sourced from the release, and **`outputs/` is the authoritative baseline set for us rather than the paper's table.**
+
+**The finding that reframes §6.1: FINDVER is a parity result for MACE, not a SOTA one.** Their own sentence is *"SOTA performance on two closed-domain datasets and on par with the best models on two others."* FINDVER and SciTab-OD are the two "on par" datasets. They matched the best single models on our benchmark; they did not beat them. §6.1 previously said "claims SOTA/parity" without saying which applied here.
+
+**The most useful single row is Llama-8B at 0.68.** A small model running the *full* multi-agent pipeline lands below FINDVER's own 2024 Claude-3.5-Sonnet RAG figure of 75.0%. Mistral-7B is worse at 0.64. That is simultaneously the opportunity for a 3B-plus-routing design and the warning about it.
+
+**Also found, and §6.1 was wrong by omission: MACE already reports efficiency.** Table 4 is memory, Table 5 is runtime for 300 claims. §6.1 listed four weaknesses with efficiency absent, implying the axis was unclaimed. It is not. Our operating point differs — their smallest is 7B on server GPUs, ours is 3B on a 2017 CPU laptop — but §5.3's "fraction of the cost" wording has to state what is cheaper than what with their numbers in view. Tables 4 and 5 have not been read.
+
+**The leaderboard does not exist as a submission target.** The paper promised one: *"we will develop and maintain an online evaluation platform where researchers can test their models and participate in a public leaderboard."* No URL in the paper or the repo, no evidence it launched. Email submission did exist and the README retired it in a July 2026 update, because the test ground truth is now public. This closes OQ4's leaderboard debate as moot rather than decided, and it explains §2.6's finding that test labels sit on disk despite the paper saying they were withheld.
+
+**Citation sweep: 23 citing papers via the Semantic Scholar graph for arXiv:2411.05764. MACE is the only published method found evaluated on FINDVER.** The rest cite it as related work or are competing benchmarks. **Limits stated deliberately:** abstract-level screening plus keyword search, not full-text. The supportable phrasing is "we found no other method evaluated on FINDVER," not "nobody has."
+
+### A second fabrication caught, this time by the user, and the mechanism is worth recording
+
+The web fetch reported FINDVER's best model as "GPT-4o 76.2%." That is **wrong**. Checked against `docs/FINDVER_benchmark.pdf` directly: §2.6 was correct all along, with Claude-3.5-Sonnet at 77.2% long-context and 75.0% RAG, GPT-4o at 75.7 / 73.7.
+
+The mechanism differs from the earlier invented recall numbers in this same session and the difference matters. Those had no source at all. This one had a real source, but `WebFetch` answers a prompt against the page using a small summarizer model, so a misread table produces a confident wrong number with a real URL attached. **A citation is not verification.** Every figure taken from a fetched page is unverified until read by eye, and the MACE Table 8 numbers above sit in exactly that category.
+
+No PDF text extraction is available on this machine: `pdftotext` is absent and no Python PDF library is installed. Installing `poppler` would let the plan's own PDFs be read directly instead of round-tripping through the web.
+
 ### Not done
 
-The FINDVER leaderboard check and the citation sweep. **Now slipped three times.** These block every "nobody has done X" sentence in §6.6, and they also block calling MACE the strongest published approach, which several arguments above lean on.
+~~The FINDVER leaderboard check and the citation sweep.~~ Both done, above.
+
+**Resolved the same evening:** MACE's Table 8 is confirmed by eye, and the numbers the fetch gave for it were correct. The Claude long-context digit is settled at **77.2%**, matching §2.6, from the FINDVER table itself.
+
+**Read the same evening: MACE Tables 2, 4 and 5.** Three findings, one of them a correction to a claim made earlier in this session.
+
+**Table 2 corroborates §2.6's split-size correction.** MACE lists FinDVer as Testmini 700 claims / 517 tables and Test 1,700 claims / 1,262 tables. They counted the released data rather than repeating the paper's 600/1,500. **Two independent counts now agree**, so the correction can be stated plainly instead of hedged as "our count differs from the paper."
+
+**Correction: Tables 4 and 5 do not cover FINDVER.** Earlier this session the claim was made that MACE's efficiency reporting narrows our novelty. That was an overcorrection. Table 4's caption restricts it to *"closed-domain datasets"*, meaning SciTab and SemTab. Table 5 covers SciTab, SciTab-OD and SemTab. **Neither reports memory or runtime on FINDVER.** Deployment cost on our benchmark is unreported by anyone.
+
+**Table 5 is the useful one, and it runs against them.** Minutes per 300 claims:
+
+    Mt-7B  w CoT       4        Mt-7B  MACE    110      27x slower
+    Qw-72B w CoT      23        Qw-72B MACE    123     5.3x slower
+    Qw-235B w CoT   55.07       Ll-8B  MACE  121.83    2.21x slower, 2.71x on SemTab
+
+**MACE's pipeline costs 2.2x to 27x more wall-clock than single-pass CoT.** Their efficiency claim is about memory, with runtime as the price paid for it. For a venue about latency under real-world constraints this is an opening, not a closed door: we have a fitted cost model at R² 0.995 and the strongest competing approach ships a large slowdown with no FINDVER timing at all.
+
+**Table 4 also gives their floor.** It reports *total* parameters across agents: Mt-7B with an independent verifier is 27B total at 11.5% of the 235B baseline's memory, Ll-8B is 28B at 11.9%. Their smallest configuration needs 27B of weights resident. Ours is 3B local plus a cloud API. §5.3's "fraction of the cost" should now specify **which** cost: memory is already claimed by them on other datasets; wall-clock and on-device feasibility on FINDVER are unclaimed by anyone.
+
+**Caught before it reached a document: the runtime comparison was nearly written backwards.** MACE's Ll-8B is 121.83 min for 300 claims, about 24 s per claim on server GPUs. Ours is 7.0 min per example, 420 s per claim, on a 2017 CPU. **We are roughly 17x slower**, comparing our single-pass baseline against their full pipeline, and ours will widen once the pipeline exists. Their 2.2x–27x figures are their pipeline against their own single-pass CoT on their own hardware and say nothing about us. Nothing in the paper may imply we are faster than MACE.
+
+**The comparable metric is overhead ratio, not seconds**, since hardware and documents both differ. Theirs: 2.21x, 2.71x, 5.3x, 27x. Ours: condition 1 against condition 4 on one machine, which §9.2 already schedules, so it costs no extra work.
+
+**Decided: no separate speed-optimisation workstream.** §12.1 already established prompt size as the only real lever, and tighter retrieval cuts runtime and raises recall at once, so Tier 2 *is* the speed work. A parallel effort would compete for the same nights and buy the same thing twice. Also recorded: deployment cost is a third supporting leg and does not replace §12.3's two carrying results.
+
+**Closed definitively: MACE runs RAG on FINDVER, with FINDVER's own configuration.** An intermediate note during this session inferred it from three indirect signals and then claimed they never describe the setup. **The second half was wrong.** They describe it fully, in a Retrieval Mechanism paragraph separate from the results:
+
+> *"Retrieval Mechanism. Since retrieval is not our primary focus, we adopt existing strategies. For FinDVer, Zhao et al. (2024b) compared three retrievers: BM25, Contriever, and OpenAI's text-embedding-3 across retrieval sizes k = 3, 5, 10, finding text-embedding-3 with k = 10 optimal. We adopt this configuration, achieving 67.91% and 69.53% recall for evidence retrieval on Testmini and Test sets."*
+
+Three consequences, all favourable. **Their setup is identical to FINDVER's and to our Tier 0 baseline**, `text-embedding-3` at *k* = 10, so their accuracy numbers compare to ours with no setting caveat. **Weakness 2's quote is verbatim rather than a paraphrase** — the leading approach on this benchmark states in writing that it declined to work on retrieval, which is the strongest available support for §6.6's gap statement. And **their reported recall of 67.91% agrees with §3.4's record and with our own recomputed 68.01% to within rounding**, so three sources now agree on the ceiling.
+
+They never use the term "RAG" anywhere; they describe the mechanism without the acronym, which is why a keyword search for it finds only `TableRAG` in their related work.
+
+**One citation gap found in their related work: `TableRAG` (Chen et al., 2024)**, retrieval-augmented generation for large-table context limits. Not in §6.5, and retrieval-plus-tables is our core. Added to the reference list with `TableGPT2` and `TAT`, both training-based and out of our lane but worth positioning against.
+
+**Also found in §4.4.2: their body text overstates their own numbers, and their abstract does not.** The sentence reads *"Mace achieves SOTA performance on both TM and T splits with Qw-235B reaching 0.76 accuracy, matching the best baseline results."* The two clauses conflict and the numbers side with the second: on TM 0.76 ties Qwen-2.5 72B, and on T 0.76 ties both Mistral-Large 123B and GPT-4o. Ties on both splits. **When citing their FINDVER result, use the abstract's "on par with the best models," not §4.4.2's "SOTA."** State the tie plainly and do not editorialise about the gap between their two descriptions, for the same reason the Claude discrepancy is left uncharacterised.
+
+### Read by eye: FINDVER Table 4, and a better motivation for Tier 1
+
+A screenshot of FINDVER's Table 4 was taken and read directly, kept at `docs/findver_baseline_accuracy.png`. §2.6's averages are confirmed exactly: Claude-3.5-Sonnet 77.2 long-context / 75.0 RAG, GPT-4o 75.7 / 73.7, human expert 93.3, non-expert 86.7, random 50.0. The **per-subset breakdown was not previously in any of our documents** and is now transcribed into §2.6.
+
+**The finding worth having: FDV-MATH is where the best model collapses.**
+
+    Claude-3.5-Sonnet, RAG    FDV-IE 80.5    FDV-KNOW 75.5    FDV-MATH 69.0
+
+An 11.5-point spread between the strongest model's easiest and hardest subset, and the hardest one is exactly what Tier 1's code execution attacks. Tier 1 previously rested on the benchmark's error taxonomy and on our own trial-run arithmetic failure. This is a third motivation and the hardest to argue with, because it is a published number showing the gap is widest precisely where we intervene.
+
+**Decided how to write up the MACE discrepancy: state the mismatch and its effect, say nothing about the cause.** Two facts, both checkable from the two published tables. MACE's Claude-3.5-Sonnet is 0.73 and matches neither FINDVER figure (77.2 long-context, 75.0 RAG). And their table places Claude below GPT-4o where FINDVER places it above, reversing the two strongest baselines.
+
+Considered and rejected: writing it as a row swap, and writing it as a deliberate demotion. The first is an unverifiable mechanism. The second is a claim about intent, and the argument for it was that it would make us look better, which is not a reason to characterise evidence. Only two models overlap between the tables, review is double-blind, and a MACE author is a plausible reviewer. An unsupported claim about a competitor's conduct would put every other number in our paper under suspicion. The bare factual version is also the more forceful one, since it costs a reviewer nothing to verify.
+
+**Which figure we use: FINDVER's, 75.0% RAG.** We evaluate on their benchmark, so their published number is the reference. MACE's baseline column is not a source for any model FINDVER already published.
+
+**One inference kept: MACE's baselines track FINDVER's RAG column, not long-context**, which partly answers the setting question their Table 8 leaves open.
+
+**A note on which fetches failed.** Two pages were fetched. The MACE numbers came back **correct** and survived verification. The FINDVER numbers came back **wrong** twice over: it reported GPT-4o at 76.2% when the real figures are 75.7 long-context and 73.7 RAG, and it called the results table "Table 3" when it is Table 4. The failure was not uniform, which is the point: there is no way to tell a good fetch from a bad one without checking, so every fetched figure stays unverified until read. These block every "nobody has done X" sentence in §6.6, and they also block calling MACE the strongest published approach, which several arguments above lean on.
 
 Nothing was measured this session. No code changed. The Ollama overflow alarm has still never fired on real data, and the professor calling the eviction finding "valuable" does not change that.
