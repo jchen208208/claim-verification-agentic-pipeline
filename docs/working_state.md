@@ -97,10 +97,52 @@ Retrieval works worst on KNOW — the Tier 2 argument.
 **Decided: the design.** BM25 plus a local Ollama embedding arm, fused by RRF, pool 10 per
 arm, `c = 60`, k = 10 out. **Chunking does not change**, one `context` element is one chunk,
 and §7.3's "keep tables whole" is already satisfied because a table is one element.
-Build order: our own BM25 validated at exactly 65.16, then the index with the dense arm scored
-alone, then the fusion. **Open risk: `nomic-embed-text` is weaker than `text-embedding-3-large`
-and BM25's arm is fixed, so a weak dense arm shrinks the gain.** Target is beating 68.01% with
-a fully local retriever.
+
+## Our BM25 is built, and it beats the paid embedding
+
+`src/bm25_retriever.py`, over all 700 claims at k=10:
+
+    ours, bm25                        74.60%   70.5%   50.4%   free, no model
+    text-embedding-3-large            68.01%   62.4%   42.6%   paid API
+    upstream bm25                     65.16%   62.8%   38.6%
+    RRF of the two published ones     74.06%   69.0%   48.7%   paid API
+    ours, placeholder                 57.54%   53.2%   31.6%
+
+**A free local retriever with no model in it beats the paid embedding by 6.59 points** and
+edges past the fusion of both published retrievers. For an on-device paper this is the
+strongest result the project has produced, and it cost nothing to run.
+
+**Two things written here yesterday are now wrong.** ~~Validate our BM25 by reproducing 65.16
+exactly~~ is unreachable, because upstream's BM25 is a different algorithm; chasing it would
+be debugging a non-bug. ~~Target: beat 68.01% with a fully local retriever~~ is already met,
+the same day, before any dense arm exists.
+
+**Why it is not a fluke.** Exactly 10 distinct in-range ids for all 700 claims. No gold
+leakage: the retrieval path reads only `claim.statement` and `report["context"]`. The scorer
+is unchanged and still reproduces all twelve upstream figures. Upstream's chunking and corpus
+scope were read from their code and are identical to ours. And the difference reconstructs in
+both directions: applying their three implementation choices to our code gives 66.72% against
+their published 65.16%, the residual being our approximation of NLTK and Porter.
+
+**The three causes, and two dead hypotheses.** Lucene IDF instead of classic-plus-epsilon is
+worth about 2.5 points, dropping punctuation about 2.0, stemming nothing. They compound to 7.9
+rather than summing to 4.5. **Stemming makes no difference and neither does stripping inner
+commas from numbers** — the second had been the leading explanation for our advantage and it
+is wrong.
+
+**The finding for the paper: upstream's tokenizer penalises tables.** Punctuation inflates
+measured element length 1.81x for tables against 1.13x for paragraphs, because pipe-delimited
+table text is dense in `|`, `$`, `(`, `)`. Length normalisation then divides table scores down
+and pushes them out of the top 10. Tables are 18% of elements and carry much of the evidence.
+Provenance, stated accurately: the tokenizer is `evidence_asserter.tokenize`, written 2 August
+for the asserter. Dropping punctuation was inherited, not chosen for retrieval. What is new is
+the measurement and the mechanism. Write it as a finding, not a designed insight.
+
+**The dense arm survives but its case is thinner.** RRF(ours bm25, `text-embedding-3`) is
+77.14%, so the paid embedding still adds +2.54 on top of us, down from +6.05 over the
+published baseline. Union ceiling is 82.85%. `nomic-embed-text` now has to preserve a
+2.5-point gain rather than a 6-point one. Score it alone first. **The target is no longer
+68.01%, it is whether a fully local hybrid clears our own 74.60%.**
 
 ## The hardware rule, decided 3 August
 

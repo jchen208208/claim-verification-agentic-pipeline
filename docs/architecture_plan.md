@@ -277,7 +277,65 @@ Then real reciprocal rank fusion, returning exactly 10 elements so it is compara
 
 **[DECIDED 4 Aug 2026] The retriever design, settled by the measurements above.** Two arms fused by RRF: BM25 over `context` elements, pure Python and no model; and dense retrieval with a local embedding model through Ollama, cosine similarity over a cached index. Pool of 10 per arm, `c = 60`, 10 elements out. **Chunking does not change: one `context` element is one chunk.** §7.3's requirement that tables be kept whole is already satisfied, because a table *is* a single element carrying `type: "table"` (§2.3), and keeping the mapping one-to-one is also what lets gold indices score the output directly.
 
-Build order, each step gated on the last: our own BM25, validated by reproducing 65.16 exactly; then the embedding index, with the dense arm scored alone; then the fusion. **The open risk is the dense arm.** `nomic-embed-text` is weaker than `text-embedding-3-large`, and BM25's arm is fixed at 65.16, so a weak dense arm shrinks the fusion gain. Scoring the dense arm alone before fusing is the go/no-go, and it costs nothing once the index exists. **The paper's target is beating 68.01% with a fully local, free retriever. 74.06% is the paid-API reference point, not the goal.**
+Build order, each step gated on the last: our own BM25, then the embedding index with the dense arm scored alone, then the fusion.
+
+~~validated by reproducing 65.16 exactly~~ **Wrong, corrected the same day.** Upstream's BM25 is not the same algorithm as ours and an exact match is unreachable; chasing one would mean debugging a non-bug. See the next section, which supersedes it with the achieved numbers.
+
+~~The paper's target is beating 68.01% with a fully local, free retriever.~~ **Already met the same day, before any dense arm exists.**
+
+### 3.4.1 **[MEASURED 4 Aug 2026] Our BM25 reaches 74.60% macro, and the gap to upstream's BM25 is fully explained**
+
+`src/bm25_retriever.py`, scored by `test_scripts/measure_recall.py` over all 700 testmini claims at k=10:
+
+| at k=10 | macro | element | all-gold | needs |
+|---|---|---|---|---|
+| **ours, bm25** | **74.60%** | **70.5%** | **50.4%** | nothing, pure Python |
+| `text-embedding-3-large` | 68.01% | 62.4% | 42.6% | paid OpenAI API |
+| upstream `bm25` | 65.16% | 62.8% | 38.6% | nothing |
+| RRF of the two published retrievers | 74.06% | 69.0% | 48.7% | paid OpenAI API |
+| ours, placeholder | 57.54% | 53.2% | 31.6% | nothing |
+
+**A free, local, model-free retriever beats the paid embedding by 6.59 macro points**, and edges past the fusion of both published retrievers. For a paper about on-device constraints this is the strongest single result the project has produced, and it cost no compute at all.
+
+**Why this is not a fluke, recorded in full because a 9-point jump over a published baseline is normally a bug.**
+
+*Output shape.* Exactly 10 ids returned for all 700 claims, no duplicates within a claim, no id out of range for its report.
+
+*No gold leakage.* `retrieve` reads `claim.statement` and `report["context"]` only. `relevant_context` is never touched on the retrieval path; it enters only inside the scorer, after retrieval has returned.
+
+*The instrument is unchanged.* The same `aggregate` scores every row, and the three upstream rows still reproduce their 2 August figures exactly, with the script's own self-assertion passing. A scorer biased toward our retriever would have moved them.
+
+*The setups match.* Read from `FinDVer/retriever/retriever.py`: upstream calls `prepare_context_list`, which is `[i["context"] for i in report["context"]]`, then `BM25Okapi` per report. One `context` element per chunk, corpus scoped to one report. Identical to ours, so the difference cannot be chunking or corpus scope.
+
+*The difference is reproducible in both directions.* Applying all three of upstream's implementation choices to our own code lands at **66.72% macro against their published 65.16%**. The 1.6-point residual is the approximation of NLTK's `word_tokenize` and Porter stemming, neither of which is installed on this machine. Being able to reconstruct their number from our code is what turns "ours is better" into "ours differs for these three reasons."
+
+**The three reasons, ablated individually.**
+
+| variant | macro | element | all-gold |
+|---|---|---|---|
+| ours as written | 74.60% | 70.5% | 50.4% |
+| classic IDF, no `+1`, can go negative | 72.09% | 67.5% | 47.7% |
+| `rank_bm25`'s exact IDF, negatives floored at `0.25 x mean` | 73.33% | 69.4% | 48.4% |
+| punctuation kept as tokens, NLTK-like | 72.58% | 68.6% | 47.3% |
+| suffix stemming applied | 74.67% | 70.3% | 50.0% |
+| tokenizer without inner-comma stripping | 74.78% | 70.6% | 50.9% |
+| **all three upstream choices combined** | **66.72%** | **64.2%** | **40.0%** |
+
+Two of these overturned a prediction, which is why they are recorded rather than summarised. **Stemming makes no difference** (74.67 vs 74.60), and **stripping inner commas from numbers makes no difference either** (74.78 vs 74.60) — the latter had been the leading hypothesis for our advantage and it is wrong. The effects also compound rather than sum: individually they are worth about 4.5 points, together 7.9.
+
+**The finding worth carrying into the paper: upstream's tokenizer penalises tables.** Keeping punctuation as tokens inflates measured element length by **1.81x for tables against 1.13x for paragraphs**, because pipe-delimited table text is dense in `|`, `$`, `(`, `)` and `,`. BM25's length normalisation (`B = 0.75`) then divides table scores down disproportionately, pushing tables out of the top 10. Tables are about 18% of elements (§2.3) and carry a large share of financial evidence, so a tokenizer choice made for general text quietly suppresses exactly the evidence type this benchmark is about.
+
+Provenance, stated accurately because it is a candidate paper sentence. The tokenizer is `src/evidence_asserter.tokenize`, written 2 August for the asserter, where the inner-comma handling was a deliberate choice for numeric tokens. Dropping punctuation was **not** chosen for retrieval reasons by anyone; it was inherited by reusing that tokenizer in BM25. What is new on 4 August is the measurement showing it matters and the mechanism explaining why. Write it as a finding, never as a designed insight.
+
+**[REVISED 4 Aug 2026] The dense arm's case is now thinner, but it survives.**
+
+| at k=10 | macro | element | all-gold |
+|---|---|---|---|
+| ours bm25 alone | 74.60% | 70.5% | 50.4% |
+| RRF(ours bm25, `text-embedding-3`) | **77.14%** | 72.1% | 54.3% |
+| union of the two, ceiling | 82.85% | 78.9% | 62.9% |
+
+Adding the paid embedding to our BM25 is worth **+2.54 macro**, down from the +6.05 that fusion bought over the published baseline. So the go/no-go tightened: `nomic-embed-text` is weaker than `text-embedding-3-large` and now has to preserve a 2.5-point gain rather than a 6-point one. Score the local dense arm alone first; if it lands far below 68% the fusion gain may not survive at all, and BM25 alone is already a publishable retrieval result. **The target is no longer 68.01%. It is whether a fully local hybrid can clear our own 74.60%.**
 
 ### 3.5 How retrieval mechanically works — and which model does it
 Retrieval is **not** done by the generation model. It uses a separate, much smaller **embedding model** whose only job is converting text into a vector. The pipeline:
@@ -1170,7 +1228,7 @@ Edge-only on the 102-example slice, 3B and 7B. Two new cloud models on the same 
 **Phase 3 · 11 – 20 Aug · Ablations, cheap-measurement work first.**
 Two strands run in parallel, because they compete for different resources.
 
-*Daytime, no model runs.* **Tier 2 retrieval recall**: claim decomposition, BM25 plus dense fusion, table-aware chunk metadata, *k* sweep, all scored against gold indices (§7.3, §9). This is the project's core question (§3.3) and it costs minutes. Target: meaningfully above the 68–70% recall ceiling. **[REVISED 2 Aug]** The starting point is better understood than it was: BM25 alone already reaches 65.16% on their metric (§3.4), so the fusion has to beat 68.01% rather than 68% being far away, and every recall number must be reported on all three metrics because the published one is a macro-average that reads as something else.
+*Daytime, no model runs.* **Tier 2 retrieval recall**: claim decomposition, BM25 plus dense fusion, table-aware chunk metadata, *k* sweep, all scored against gold indices (§7.3, §9). This is the project's core question (§3.3) and it costs minutes. Target: meaningfully above the 68–70% recall ceiling. **[REVISED 2 Aug]** The starting point is better understood than it was: BM25 alone already reaches 65.16% on their metric (§3.4), so the fusion has to beat 68.01% rather than 68% being far away, and every recall number must be reported on all three metrics because the published one is a macro-average that reads as something else. **[REVISED AGAIN 4 Aug]** The 68.01% target is met and superseded. Our own BM25 reaches **74.60%** with no model and no API (§3.4.1), so the open question is now whether a fully local hybrid can clear 74.60%, not whether anything can clear 68.01%.
 
 *Overnight, one configuration per night.* **Tier 1 code execution and tables-as-DataFrames**, the highest-certainty accuracy gain, validated against gold `execution_result` (§2.5) before touching end-to-end runs. Then the end-to-end delta from whichever retrieval variant won on recall, if nights remain.
 

@@ -1086,3 +1086,112 @@ the pinned commit `e8bb237`; the embedding index is derived data at about 178 MB
 compute that cannot be regenerated.
 
 Nothing was run on a model today. No cloud quota used.
+
+## 4 August 2026, later — our BM25, and a 9-point gap that had to be explained
+
+`src/bm25_retriever.py` is written and scored. Three blocks: `report_stats` computes per-element
+token counters, lengths, the report's mean element length and document frequencies;
+`score_element` applies the BM25 formula for one element; `retrieve` scores all elements, sorts
+best-first and returns the top 10. It returns **ranked order, not document order**, because RRF
+consumes rank positions. The prompt builder re-sorts.
+
+Three decisions taken before writing. IDF is computed per report, not across all 600 filings,
+because rare-inside-this-filing is the useful notion and it matches what the asserter already
+does. The tokenizer is reused from `src/evidence_asserter.py`. And the return is ranked rather
+than document order, which is a change from the placeholder's convention.
+
+### The result
+
+    ours, bm25                        74.60%   70.5%   50.4%    free, no model
+    text-embedding-3-large            68.01%   62.4%   42.6%    paid API
+    upstream bm25                     65.16%   62.8%   38.6%
+    RRF of the two published ones     74.06%   69.0%   48.7%    paid API
+    ours, placeholder                 57.54%   53.2%   31.6%
+
+A free, local, model-free retriever beats the paid embedding by 6.59 macro points and edges
+past the fusion of both published retrievers measured earlier the same day.
+
+### Two things asserted earlier the same day and now withdrawn
+
+**"Validate by reproducing 65.16 exactly."** Unreachable. Upstream's BM25 is a different
+algorithm, and chasing an exact match would have meant debugging a non-bug. Caught before the
+validation ran, by reading `FinDVer/retriever/retriever.py` and `utils/bm25_utils.py` rather
+than assuming the two implementations agreed. It had already been written into three documents
+and is struck in all three.
+
+**"Target: beat 68.01% with a fully local retriever."** Met the same day, before any dense arm
+exists.
+
+### Why it is not a fluke, in full, because a 9-point jump over a published baseline is a bug
+
+*Output shape.* Exactly 10 ids for all 700 claims, no duplicates within a claim, no id out of
+range for its report.
+
+*No gold leakage.* The retrieval path reads `claim.statement` and `report["context"]` only.
+`relevant_context` is never touched until the scorer, after retrieval has returned.
+
+*The instrument did not move.* The same `aggregate` scores every row, the three upstream rows
+still reproduce their 2 August figures, and the script's self-assertion passes. A scorer biased
+toward our retriever would have shifted them.
+
+*The setups match.* `prepare_context_list` in their retriever is
+`[i["context"] for i in report["context"]]`, then `BM25Okapi` per report. One `context` element
+per chunk, corpus scoped to one report. Identical to ours, so the difference is not chunking,
+not corpus scope, and not the candidate set.
+
+*It reconstructs in both directions.* Applying all three upstream choices to our own code gives
+**66.72% against their published 65.16%.** The 1.6-point residual is the approximation of NLTK
+`word_tokenize` and Porter stemming, neither installed here. Reconstructing their number from
+our code is what turns "ours is better" into "ours differs for these three reasons," and it is
+the check that mattered most.
+
+### The ablations, including two that killed the leading hypothesis
+
+    ours as written                                  74.60%   70.5%   50.4%
+    classic IDF, no +1, can go negative              72.09%   67.5%   47.7%
+    rank_bm25's exact IDF, negatives floored         73.33%   69.4%   48.4%
+    punctuation kept as tokens, NLTK-like            72.58%   68.6%   47.3%
+    suffix stemming applied                          74.67%   70.3%   50.0%
+    tokenizer without inner-comma stripping          74.78%   70.6%   50.9%
+    all three upstream choices combined              66.72%   64.2%   40.0%
+
+**Two predictions were wrong and are recorded as such.** Stemming makes no difference, 74.67
+against 74.60. And stripping inner commas from numbers makes no difference either, 74.78
+against 74.60 — that had been the stated leading hypothesis for our advantage, on the reasoning
+that financial claims quote exact figures. It is wrong. The advantage is elsewhere.
+
+The three real effects also compound rather than sum: about 4.5 points individually, 7.9
+together.
+
+### The finding worth carrying into the paper: upstream's tokenizer penalises tables
+
+Keeping punctuation as tokens inflates measured element length by **1.81x for tables against
+1.13x for paragraphs**, because pipe-delimited table text is dense in `|`, `$`, `(`, `)` and
+`,`. BM25's length normalisation at `B = 0.75` then divides table scores down disproportionately
+and pushes tables out of the top 10. Tables are about 18% of elements and carry a large share of
+the evidence this benchmark asks about. A tokenizer choice made for general prose quietly
+suppresses the evidence type the benchmark is built on.
+
+**Provenance, stated accurately because this is a candidate paper sentence.** The tokenizer is
+`src/evidence_asserter.tokenize`, written 2 August for the asserter, where the inner-comma
+handling was a deliberate choice for numeric tokens. **Dropping punctuation was not chosen for
+retrieval reasons by anyone.** It was inherited by reusing that tokenizer in BM25, a reuse
+proposed as one of the three pre-writing decisions. What is new on 4 August is the measurement
+that it matters and the mechanism explaining why. It must be written as a finding, never as a
+designed insight. Note also that the inner-comma handling, which *was* deliberate, turns out to
+contribute nothing, while the incidental property contributes two points.
+
+### The dense arm survives, with a thinner margin
+
+    ours bm25 alone                          74.60%   70.5%   50.4%
+    RRF(ours bm25, text-embedding-3)         77.14%   72.1%   54.3%
+    union of the two, ceiling                82.85%   78.9%   62.9%
+
+The paid embedding still adds **+2.54 macro** on top of our BM25, down from the +6.05 that
+fusion bought over the published baseline. So `nomic-embed-text`, which is weaker than
+`text-embedding-3-large`, now has to preserve a 2.5-point gain rather than a 6-point one.
+**Score the local dense arm alone before fusing.** If it lands far below 68% the fusion gain may
+not survive, and BM25 alone is already a publishable retrieval result. The target is no longer
+68.01%; it is whether a fully local hybrid clears our own 74.60%.
+
+No model was run today and no cloud quota was used.
