@@ -6,8 +6,8 @@ rank fusion uses rank positions. Then the prompt builder will re-sort.
 """
 
 from collections import Counter
-
 from src.evidence_asserter import tokenize
+import math
 
 K1 = 1.5   # term-frequency saturation aka how fast repetition stops helping
 B = 0.75   # length normalisation strength (long elements aren't always better since a 500-word paragraph will contain a certain word more often than a 50-word one purely by being longer)
@@ -17,7 +17,7 @@ def report_stats(report):
 
         counts = Counter of token: occurrences per element
         lengths = token count per element
-        avgdl = average element length
+        avg_el = average element length
         doc_freq = how many elements contain a specific token it at least once
         n = number of elements
     """
@@ -32,10 +32,37 @@ def report_stats(report):
         doc_freq.update(set(tokens)) # cast tokens as a set first since doc_freq counts elements containing the token, not total occurrences of it.
 
     n = len(counts)
+
     return {
         "counts": counts,
         "lengths": lengths,
-        "avgdl": sum(lengths) / n,
+        "avg_el": sum(lengths) / n,
         "doc_freq": doc_freq,
         "n": n,
     }
+
+def score_element(query_tokens, index, stats):
+    """BM25 score for one context element against one claim.
+    For each distinct claim token, it adds how rare the token is in this report,
+    times a saturated and length-normalised count of it inside this context element.
+    
+    query_tokens is a set since how often a word repeats inside the claim doesn't decide which tokens to return
+    """
+    counts = stats["counts"][index]
+    length = stats["lengths"][index]
+    n = stats["n"]
+    avg_el = stats["avg_el"]
+
+    score = 0.0
+    for token in query_tokens:
+        f = counts[token]
+        if f == 0:
+            continue  # Counter returns 0 for absent keys so skip
+
+        df = stats["doc_freq"][token]
+        idf = math.log((n - df + 0.5) / (df + 0.5) + 1)
+
+        saturated = f * (K1 + 1) / (f + K1 * (1 - B + B * length / avg_el))
+        score += idf * saturated
+
+    return score
