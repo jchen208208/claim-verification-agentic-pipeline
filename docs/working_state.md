@@ -144,35 +144,57 @@ published baseline. Union ceiling is 82.85%. `nomic-embed-text` now has to prese
 2.5-point gain rather than a 6-point one. Score it alone first. **The target is no longer
 68.01%, it is whether a fully local hybrid clears our own 74.60%.**
 
-## Where to pick up on 5 August
+## Where things stand, 5 August
 
-**Read this first.** Everything below in this section is the state at the end of 4 August.
+**The embedding index built cleanly overnight.** 89 reports, 20,718 elements, 137 minutes,
+0 failures, against a 2.5 h estimate. Cached in `embeddings/`, gitignored. numpy is now
+installed, via `pip3 install --break-system-packages numpy`, because this machine runs
+Homebrew Python 3.14 marked `EXTERNALLY-MANAGED`. The raw float32 files read straight back
+with `np.fromfile(path, dtype="float32").reshape(-1, 768)`.
 
-**Running overnight, if it was launched:** `test_scripts/build_embedding_index.py 17`, which
-embeds the 20,718 context elements behind the 89 reports of the 102-claim slice, about 2.5 h.
-Output is one raw float32 file per report in `embeddings/`, gitignored, plus a
-`manifest.json`. Resume is by report and tested on byte length, so re-running skips whatever
-finished and retries the rest. Check `logs/embedding_index.txt` and the manifest's `failures`
-list first thing.
+**The dense arm go/no-go ran and came back ambiguous, for a reason that is our fault.**
+All rows on the 102-claim slice, k=10:
 
-**The first job of the morning is the dense arm go/no-go.** Score `nomic-embed-text` **alone**
-on those 102 claims, cosine similarity against the cached vectors, and compare it to our BM25
-on the same 102. The decision rule was set on 4 August by the contriever result:
+    ours, bm25                          76.18%   71.0%   53.9%
+    nomic-embed-text alone              62.86%   55.5%   35.3%
+    RRF(bm25, nomic) equal votes        75.57%   70.0%   49.0%
+    control: RRF(bm25, text-embed-3)    76.08%   71.0%   53.9%
+    union, ceiling                      83.27%   78.6%   61.8%
 
-    nomic lands near 68%      fuse; expect roughly +2 points over BM25 alone
-    nomic lands near 33%      do not fuse. Contriever at 33.48% cost us 5.1 points.
-                              Delete embeddings/ and ship BM25 alone.
-    nomic lands in between    try weighted RRF, BM25 two votes to dense one, before
-                              deciding
+**nomic is good**, 62.86%, five points below the paid embedding and nearly double contriever.
+A free local embedder landing that close is worth a paper row on its own.
 
-There is no numpy on this machine, so the vectors are stored as raw float32 via
-`array.array` and cosine similarity has to be pure Python or numpy installed first. At 102
-claims that is seconds either way.
+**The fusion rows are not interpretable.** The control fuses our BM25 with the *paid*
+embedding, which is known to gain +2.54 on all 700, and it gains nothing here. A null result
+on a fusion known to work at full scale measures the instrument, not the method. The noise
+floor proves it: our BM25 is 74.60% on all 700 and 76.18% on this slice, a 1.58-point swing
+from sampling alone, against a 2.5-point effect under test.
 
-**Then claim decomposition**, which is independent of all of the above and does not need the
-GPU. §4.4 assigns it to the edge 3B and §8 puts it in Tier 2. Roughly 15-20 s per claim, so
-3-4 h for all 700, paid once because the sub-claims cache to disk. It improves BM25 as well as
-any dense arm, so it is worth doing whatever the go/no-go says.
+**Recorded as a design error.** The slice was sized to separate 33% from 68%, which it does
+cleanly, then used to ask whether fusion adds 2 points, which it cannot answer. Two questions,
+two required sample sizes, one run.
+
+**Also learned: weighted RRF has almost no useful range.** At k=10 and c=60, any weight ratio
+above about 1.16 makes the heavy list's worst element outrank the light list's best, so the
+fusion returns the heavy list unchanged. Weights of 1.25, 1.5, 2 and 3 all return our BM25
+exactly. Only about 1.1 blends anything.
+
+## What happens next, in order
+
+1. **Build claim decomposition.** §4.4 assigns it to the edge 3B, §8 puts it in Tier 2. About
+   15-20 s per claim, so 3-4 h for all 700, paid once because sub-claims cache to disk.
+2. **Score BM25 plus decomposition on all 700.** Free, no index needed, no model calls beyond
+   the cached sub-claims. May be a large win by itself.
+3. **Only then, if the dense arm still looks worth it**, finish the index, about 4.8 h for the
+   remaining 166 reports, and settle fusion at n=700 where 2.5 points is resolvable.
+
+**Keep `embeddings/`.** Deleting was the contriever contingency and nomic is not contriever.
+Decomposition changes the queries for both arms anyway, so any fusion settled now would be
+invalidated by step 1.
+
+**No `src/dense_retriever.py` exists and none should yet.** `embed()` and `load_index()` live
+in `test_scripts/measure_dense_recall.py` deliberately, so that no pipeline code is written for
+a component that may still be dropped.
 
 **Still unanswered by the professor:** the GPU. The machine decision has a deadline of about
 7 August, because condition 1 cannot be split across two machines.

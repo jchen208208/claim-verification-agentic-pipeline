@@ -344,6 +344,34 @@ Macro recall, all 700 claims, k=10. The best cell is `k1 = 1.2, b = 0.75` at 74.
 
 One qualifier on that reading. At `b = 0`, with length normalisation entirely off and the table mechanism therefore inert, we still score 69.56% against upstream's 65.16%. So the table-length effect is a large part of our advantage but not all of it, and the IDF variant carries the remainder.
 
+### 3.4.2 **[MEASURED 5 Aug 2026] The local dense arm: nomic is good, the fusion question is unresolved, and the slice cannot resolve it**
+
+The 102-claim embedding index was built overnight with `test_scripts/build_embedding_index.py`: 89 reports, 20,718 elements, **137 minutes, 0 failed reports**, against a 2.5 h estimate. Vectors cached in `embeddings/`, gitignored.
+
+Scored with `test_scripts/measure_dense_recall.py`, all rows on the same 102-claim slice at k=10:
+
+| | macro | element | all-gold |
+|---|---|---|---|
+| ours, bm25 | **76.18%** | 71.0% | 53.9% |
+| `nomic-embed-text` alone | 62.86% | 55.5% | 35.3% |
+| RRF(bm25, nomic), equal votes | 75.57% | 70.0% | 49.0% |
+| RRF(bm25 x1.1, nomic) | 76.26% | 71.0% | 52.0% |
+| RRF(bm25 x1.25 and above, nomic) | 76.18% | 71.0% | 53.9% |
+| **control:** RRF(bm25, `text-embedding-3`) | 76.08% | 71.0% | 53.9% |
+| union, ceiling on any fusion | 83.27% | 78.6% | 61.8% |
+
+**`nomic-embed-text` reaches 62.86%, five points below `text-embedding-3-large` and nearly twice contriever.** A free local embedding model landing that close to the paid one is a result worth a row in the paper independently of whether it is fused.
+
+**The fusion result is not interpretable, and the control row is why.** On all 700 claims, RRF of our BM25 with `text-embedding-3` gains +2.54 macro (§3.4.1). On this 102-claim slice the same fusion gains nothing, 76.08 against 76.18. Since that fusion is known to help at full scale, a null result here measures the instrument rather than the method.
+
+**The noise floor is the same size as the effect.** Our BM25 scores 74.60% on all 700 and 76.18% on this slice, a 1.58-point swing from sampling alone. The fusion effect under test is about 2.5 points. §9's own statement that 102 examples "cannot rank two prompts that differ by 3 points" applies exactly here.
+
+**Recorded as a design error rather than a finding.** The slice was sized to separate 33% from 68%, a 35-point gap, which it does cleanly and which is what the contriever result made urgent. It was then used to ask whether fusion adds 2 points, a question it structurally cannot answer. The two questions needed different sample sizes and were run at one.
+
+**A mechanical property of weighted RRF, worth knowing before tuning it.** With two lists of length k and constant `c`, a weight ratio above roughly `(c+k)/(c+1)` makes the heavier list's worst element outscore the lighter list's best, so the fusion returns the heavy list unchanged. At k=10 and c=60 that threshold is about 1.16: at weight 1.25 and above the output is our BM25 exactly, which is why those rows are identical rather than similar. Only a narrow band near 1.1 blends anything at all. Weighted RRF has a far smaller useful range than it appears to.
+
+**Decision: keep `embeddings/`, park the dense arm, do decomposition first.** Deleting the vectors was the contriever contingency and nomic is not contriever. Finishing the index costs about 4.8 h for the remaining 166 reports, against an expected payoff of at most +2.5 points. More decisively, claim decomposition (§3.6) changes the queries for **both** arms, so any fusion settled now is invalidated by it. The order is therefore: decomposition, then BM25-plus-decomposition scored on all 700 which costs nothing, and only then the remaining index if the dense arm still looks worth it.
+
 **[REVISED 4 Aug 2026] The dense arm's case is now thinner, but it survives.**
 
 | at k=10 | macro | element | all-gold |

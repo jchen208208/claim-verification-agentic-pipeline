@@ -1327,3 +1327,91 @@ still allows the display to sleep. It cannot override a closed lid.
 **nomic-embed-text returns L2-normalised vectors, norm exactly 1.000**, so cosine similarity is
 a plain dot product. That removes the normalisation step from tomorrow's scoring code and makes
 pure Python fast enough at n=102 without installing numpy.
+
+---
+
+## 5 August 2026 — the embedding index, and a go/no-go that answered the wrong question
+
+### The index built cleanly
+
+`test_scripts/build_embedding_index.py 17`, run overnight under `caffeinate -ims`.
+
+    89 reports, 20,718 elements, 137.0 minutes, 0 failed reports
+
+Against a 2.5 h estimate from the 0.432 s/element measurement, so the extrapolation held.
+Resume-by-report was exercised twice, on the four reports left by the previous evening's smoke
+test, and skipped them correctly.
+
+numpy was installed during the evening: `pip3 install --break-system-packages numpy`. The flag
+is required because this machine runs Homebrew Python 3.14 with no venv, marked
+`EXTERNALLY-MANAGED`, so plain `pip3 install` refuses. A venv was considered and rejected:
+every documented command in the docs is a bare `python3 ...`, and forgetting to activate before
+an overnight job would cost a night. Verified that the raw float32 files written without numpy
+read straight back with `np.fromfile(path, dtype="float32").reshape(-1, 768)`.
+
+### The dense arm, measured
+
+All rows on the same 102-claim slice, k=10, via `test_scripts/measure_dense_recall.py`:
+
+    ours, bm25                             76.18%   71.0%   53.9%
+    nomic-embed-text alone                 62.86%   55.5%   35.3%
+    RRF(bm25, nomic) equal votes           75.57%   70.0%   49.0%
+    RRF(bm25 x1.10, nomic)                 76.26%   71.0%   52.0%
+    RRF(bm25 x1.25 and above, nomic)       76.18%   71.0%   53.9%
+    control: RRF(bm25, text-embedding-3)   76.08%   71.0%   53.9%
+    union, ceiling on any fusion           83.27%   78.6%   61.8%
+
+**nomic-embed-text reaches 62.86%**, five points below `text-embedding-3-large`'s 68.01% and
+nearly double contriever's 33.48%. A free local embedding model landing that close to the paid
+one is worth reporting on its own, whatever happens to the fusion.
+
+### The go/no-go could not answer the question it was built for, and that is our error
+
+The control row is the one that matters. It fuses our BM25 with the **paid** embedding, a
+combination measured at **+2.54 macro on all 700 claims** on 4 August. On this slice it gains
+nothing, 76.08 against 76.18. A fusion known to work at full scale returning null here is a
+statement about the instrument, not the method.
+
+**The noise floor is the same size as the signal.** Our BM25 scores 74.60% on all 700 and
+76.18% on this 102-claim slice, a 1.58-point swing from sampling alone, against a 2.5-point
+effect under test. §9 already said 102 examples cannot rank two configurations three points
+apart. That sentence was written about prompts and applies here unchanged.
+
+**Recorded as a design error rather than a finding.** The slice was sized to separate 33% from
+68%, a 35-point gap made urgent by the contriever result, and it does that cleanly: nomic's
+62.86% is solidly measured. It was then used to ask whether fusion adds 2 points, which needs a
+different sample size. Two questions were asked of one run and only the first was answerable.
+
+The user caught a related slip in the reporting: 74.60% and 76.18% were compared as though
+interchangeable when they are the full 700 and the 102 slice respectively. Both were re-run
+side by side from the same code to confirm. The table header did say "102-claim slice", but the
+denominator changed mid-discussion without being flagged.
+
+### Weighted RRF has almost no useful range
+
+The rows at weights 1.25, 1.5, 1.75, 2 and 3 are byte-identical to BM25 alone. Not a bug. With
+two lists of length k and constant c, once the weight ratio exceeds roughly `(c+k)/(c+1)`, the
+heavy list's worst element outscores the light list's best, and the fusion returns the heavy
+list unchanged. At k=10 and c=60 that threshold is about **1.16**. Only a narrow band near 1.1
+blends anything at all, and 1.1 was the single row that moved.
+
+Worth knowing before anyone tries to tune fusion weights: the knob is nearly binary at these
+list lengths.
+
+### Decided: keep the vectors, decomposition next
+
+**Keep `embeddings/`.** Deletion was the contriever contingency and nomic is not contriever.
+
+**Do not finish the index yet.** The remaining 166 reports cost about 4.8 h for an expected
+payoff of at most +2.5 points. More decisively, **claim decomposition changes the queries for
+both arms**, so any fusion settled now is invalidated by it. Paying 4.8 h for a number that
+decomposition will overwrite is paying twice.
+
+**Order from here.** Build decomposition, 3-4 h of model time, cached to disk. Then score BM25
+plus decomposition on all 700, which costs nothing and needs no index. Then, only if the dense
+arm still looks worth it, finish the index and settle fusion at n=700 where 2.5 points is
+resolvable.
+
+**No `src/dense_retriever.py` was written and none should be yet.** `embed()` and
+`load_index()` live in the test script deliberately, so that no pipeline code exists for a
+component that may still be dropped.
