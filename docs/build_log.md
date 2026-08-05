@@ -968,3 +968,121 @@ Considered and rejected: writing it as a row swap, and writing it as a deliberat
 **A note on which fetches failed.** Two pages were fetched. The MACE numbers came back **correct** and survived verification. The FINDVER numbers came back **wrong** twice over: it reported GPT-4o at 76.2% when the real figures are 75.7 long-context and 73.7 RAG, and it called the results table "Table 3" when it is Table 4. The failure was not uniform, which is the point: there is no way to tell a good fetch from a bad one without checking, so every fetched figure stays unverified until read. These block every "nobody has done X" sentence in §6.6, and they also block calling MACE the strongest published approach, which several arguments above lean on.
 
 Nothing was measured this session. No code changed. The Ollama overflow alarm has still never fired on real data, and the professor calling the eviction finding "valuable" does not change that.
+
+---
+
+## 4 August 2026 — the recall scorer, and fusion measured for free
+
+The professor has not answered on the GPU. That blocks nothing today: the retriever is
+chosen on recall alone, with no model calls, so it is daytime work and machine-independent.
+§12.2's revised timeline puts 4–7 August exactly here.
+
+### `test_scripts/measure_recall.py`, built and validated
+
+The scorer takes one dict, `example_id -> list of element ids`, and nothing else. That single
+decision is what makes it reusable: upstream's shipped rankings, our own BM25, a fusion and a
+reranker all reduce to that shape, so the instrument is written once for the whole project.
+
+It reports all three metrics from §3.4 — macro, element, all-gold — overall and per subset.
+The distinction is where a recall script silently produces plausible wrong numbers, so it is
+worth restating. Macro averages per-claim fractions, one vote per claim. Element divides the
+totals, one vote per gold element. All-gold counts claims that received everything, all or
+nothing. Two claims, A needing 1 element and getting it, B needing 5 and getting 1, give
+60%, 33% and 50% on the same retrieval.
+
+**Validated by reproducing all twelve figures §3.4 recorded on 2 August**, for
+`text-embedding-3-large`, `bm25`, `contriever-msmarco` and our placeholder. The script
+asserts them itself and prints `SCORER IS WRONG, do not use` on mismatch. This mattered more
+than usual: every retrieval decision this week rests on this one instrument, and a wrong
+scorer is indistinguishable from a bad retriever from the outside.
+
+**One discrepancy chased rather than ignored.** It counts 1,959 gold elements against §11
+item 9's 1,964. Five claims repeat an index: `numeric-val-36` is `(24, 24)`, `ie-val-193` is
+`(7, 8, 7)`, plus `numeric-val-41`, `numeric-val-139` and `knowledge-val-20`. Deduplicating
+is correct for recall and upstream does the same at `recall_evaluation.py` line 15. Both
+counts stand, for different jobs.
+
+### The union diagnostic: fusion is worth building
+
+Take each retriever's top 10, union the ids, score the result. A merge rule can only reorder
+what at least one retriever already found, so the union bounds any possible fusion.
+
+    bm25 alone                65.16%   62.8%   38.6%
+    text-embedding-3 alone    68.01%   62.4%   42.6%
+    union of both             80.86%   77.0%   58.9%
+
+Element recall rises 14 points. `ie-val-23` is the clean instance: gold `[2, 3, 49]`, BM25
+returns 3 and 49, the embedding returns 2 and 3, neither alone gets the claim.
+
+**Why this cost nothing, since the question was asked and is worth recording.** Recall
+scoring needs only element ids, never text and never a model. FINDVER ran both retrievers and
+shipped the full rankings in `retriever_output/all/`. So any operation combining ids they
+already produced is arithmetic over existing files. The same is true of RRF, which uses only
+rank positions. What is *not* free is retrieving differently — a new embedding model or new
+chunking means actually running a retriever over 60,871 elements.
+
+### RRF measured: +6.05 macro points over the published number
+
+    pool = top 10 of each     74.06%   69.0%   48.7%
+    pool = top 25 of each     68.81%   65.1%   42.3%
+    pool = full ranking       69.21%   65.6%   43.1%
+
+74.06% against the 68.01% FINDVER published and MACE adopted unchanged, from two retrievers
+already in their own repository, with no model call. That is about half the headroom the
+union identified.
+
+**A shallow candidate pool beats a deep one.** RRF rewards agreement, so on a deep pool an
+element ranked 15th by both lists outscores an element ranked 1st by one. Truncating at 10
+excludes the consistently-mediocre and lets a strong single-list pick survive. The cheapest
+configuration is also the best one.
+
+**This cannot ship.** It uses `text-embedding-3`, a paid API we hold no key for, and an
+on-device paper cannot depend on one anyway. Its job was to decide whether the local
+embedding index is worth its one-time CPU cost. It decides yes.
+
+**On novelty, deliberately.** Hybrid BM25-plus-dense with RRF is standard IR with years of
+literature. We are not inventing it. What is unattempted is applying it *on this benchmark*,
+and that is not oversight: FINDVER compared three retrievers to pick a default, and MACE
+states in writing that retrieval is not their focus. Phrasing stays "we found no other
+method."
+
+### Per subset, and it maps onto the two tiers
+
+    FDV-IE       63.57%   58.2%   33.2%
+    FDV-MATH     79.17%   79.0%   66.8%
+    FDV-KNOW     59.61%   56.1%   24.0%
+
+Against FINDVER Table 4's Claude-3.5-Sonnet RAG figures, 69.0 on MATH and 75.5 on KNOW: MATH
+is where retrieval works best and the best model still scores worst, so its difficulty is
+arithmetic, which is the Tier 1 argument. KNOW is where retrieval works worst, so the Tier 2
+argument lands there. All-gold structurally flatters MATH, since numeric claims need 1.87
+elements against knowledge's 3.66; the gap survives on element recall, which has no such bias.
+
+### Decided: the retriever design
+
+Two arms fused by RRF. BM25 over `context` elements, pure Python. Dense retrieval with a
+local Ollama embedding model over a cached index. Pool 10 per arm, `c = 60`, k = 10 out.
+
+**Chunking does not change.** One `context` element is one chunk. §7.3's "keep tables whole"
+is already satisfied, because a table *is* one element carrying `type: "table"`, and the
+one-to-one mapping is what lets gold indices score the output directly. This also means the
+embedding index will not need rebuilding for a chunking change.
+
+Build order, each step gating the next: our own BM25 validated at exactly 65.16, then the
+index with the dense arm scored alone, then the fusion. **The open risk is the dense arm** —
+`nomic-embed-text` is weaker than `text-embedding-3-large` and BM25's arm is fixed, so a weak
+dense arm shrinks the gain. Scoring it alone before fusing is the go/no-go and costs nothing
+once the index exists.
+
+**Target: beat 68.01% with a fully local, free retriever. 74.06% is a reference point, not
+the goal.**
+
+### Also recorded
+
+§11 gained item 11, on what can be deleted when the project ends. `FinDVer/` is re-clonable at
+the pinned commit `e8bb237`; the embedding index is derived data at about 178 MB as a numpy
+`.npy` at 768 dims, or roughly 0.9 GB if stored as JSON, which is the mistake to avoid.
+`results/` and `logs/` are the exception, because each experiment directory is about 12 h of
+compute that cannot be regenerated.
+
+Nothing was run on a model today. No cloud quota used.

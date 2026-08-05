@@ -232,6 +232,53 @@ The number has stayed at ~68% across the literature because **nobody changed the
 
 **Two further findings from the same recomputation.** First, **BM25 reaches 65.16% against the paid embedding's 68.01%, and beats it on element recall (62.8% vs 62.4%)**. A free, local, dependency-light retriever is within three points of `text-embedding-3-large` on the metric the paper reports. For an on-device paper that is a result in itself, and it means the hybrid of §7.3 starts from a strong free baseline rather than needing an embedding API. Second, k dominates: `text-embedding-3-large` drops from 68.01% at k=10 to 54.53% at k=5 and 43.60% at k=3, so the k sweep is not a formality.
 
+**[BUILT 4 Aug 2026] `test_scripts/measure_recall.py` is the instrument for everything in this section.** It takes one dict, `example_id -> list of element ids`, and reports all three metrics overall and per subset, so upstream's shipped rankings, our own BM25, a fusion and a reranker are all scored by identical code. No model calls; the whole script runs in seconds. It asserts the three figures above at k=10 and prints `SCORER IS WRONG, do not use` on any mismatch, so it cannot drift silently and corrupt every retrieval decision downstream. All figures below were produced by it.
+
+One bookkeeping note. It counts **1,959 gold elements where §11 item 9 counts 1,964**. Five claims repeat an index in `relevant_context` (`numeric-val-36` is `(24, 24)`, `ie-val-193` is `(7, 8, 7)`). Deduplicating is correct for recall, since retrieving element 24 once satisfies that claim and counting it as "needed 2, matched 1" would cap the claim at 50% unreachably. Upstream deduplicates identically, at `recall_evaluation.py` line 15. Both counts are right for their own job: 1,964 raw for the asserter, which walks gold elements including repeats, and 1,959 deduplicated for recall.
+
+**[MEASURED 4 Aug 2026] Per subset, `text-embedding-3-large` at k=10. Retrieval is strongest where the models are weakest.**
+
+| subset | macro | element | all-gold |
+|---|---|---|---|
+| FDV-IE | 63.57% | 58.2% | 33.2% |
+| FDV-MATH (`numeric`) | 79.17% | 79.0% | 66.8% |
+| FDV-KNOW (`knowledge`) | 59.61% | 56.1% | 24.0% |
+
+Set against FINDVER's Table 4, where Claude-3.5-Sonnet under RAG scores 69.0 on FDV-MATH and 75.5 on FDV-KNOW, this separates the two failure modes cleanly and maps them onto the two tiers. **FDV-MATH is the subset where retrieval works best (79.0% element) and the best model still scores worst**, so its difficulty is arithmetic rather than evidence supply, which is the Tier 1 argument. **FDV-KNOW is the subset where retrieval works worst (56.1% element, 24.0% all-gold)**, so a quarter of those claims could possibly be answered for the right reason, which is the Tier 2 argument. Caveat on the all-gold column: numeric claims need 1.87 elements on average against knowledge's 3.66, so all-gold structurally flatters numeric. The gap survives on element recall, which does not have that bias.
+
+**[MEASURED 4 Aug 2026] BM25 and `text-embedding-3` are strongly complementary, and fusion captures about half of it.**
+
+The diagnostic first, because it bounds what any fusion could achieve. Take each retriever's top 10, union the two id sets, and score the result. A merge rule can only reorder what at least one retriever already found, so the union is the ceiling.
+
+| at k=10 | macro | element | all-gold |
+|---|---|---|---|
+| bm25 alone | 65.16% | 62.8% | 38.6% |
+| `text-embedding-3-large` alone | 68.01% | 62.4% | 42.6% |
+| **union of both (up to 20 elements)** | **80.86%** | **77.0%** | **58.9%** |
+
+Element recall rises 14 points over either retriever alone. The two are finding substantially different evidence, which is what the lexical-versus-semantic argument predicts but had not been measured on this data. `ie-val-23` is the clean instance: gold is `[2, 3, 49]`, BM25 returns 3 and 49, the embedding returns 2 and 3, and neither alone gets the claim. Read the union as a ceiling and not a forecast, since it scores 20 candidates against 10.
+
+Then real reciprocal rank fusion, returning exactly 10 elements so it is comparable to the single retrievers rather than to the ceiling. Each element scores `1/(60 + rank)` in each list and the scores are summed; only positions are used, because BM25 returns values near 70 and cosine similarity returns values under 1, so the two scores cannot be added. `c = 60` is the standard constant, not tuned here.
+
+| RRF, bm25 + `text-embedding-3`, k=10 out | macro | element | all-gold |
+|---|---|---|---|
+| candidate pool = top 10 of each | **74.06%** | **69.0%** | **48.7%** |
+| candidate pool = top 25 of each | 68.81% | 65.1% | 42.3% |
+| candidate pool = top 50 of each | 69.07% | 65.4% | 42.7% |
+| candidate pool = full ranking | 69.21% | 65.6% | 43.1% |
+
+**6.05 macro points over the published 68.01%**, from two retrievers already shipped in FINDVER's own repository, with no model call and no new retrieval. That is roughly half the 12.85 points of headroom the union identified.
+
+**A shallow candidate pool beats a deep one, which is not the obvious direction.** RRF rewards agreement between lists, so on a deep pool an element ranked 15th by both outscores an element ranked 1st by one. Truncating each list at 10 excludes the consistently-mediocre elements and lets a single retriever's strong pick survive. Convenient as well as interesting: the cheapest configuration is also the best one.
+
+**What this does and does not license.** Hybrid BM25-plus-dense with RRF is a standard information retrieval technique with years of literature behind it; we would not be inventing it. What is unattempted is applying it **on this benchmark**, and the reason is not oversight: FINDVER's authors compared three retrievers to pick a default, which is benchmark construction, and MACE states in writing that retrieval is not their focus (§6.1). Per the citation sweep's own limits, the supportable phrasing stays "we found no other method," never "nobody has."
+
+**This result cannot ship as our retriever.** It uses `text-embedding-3`, a paid OpenAI API for which we hold no key, and an on-device paper cannot depend on one regardless. Its job was to decide whether to pay the one-time CPU cost of a local embedding index (§11 item 11), and it decides yes.
+
+**[DECIDED 4 Aug 2026] The retriever design, settled by the measurements above.** Two arms fused by RRF: BM25 over `context` elements, pure Python and no model; and dense retrieval with a local embedding model through Ollama, cosine similarity over a cached index. Pool of 10 per arm, `c = 60`, 10 elements out. **Chunking does not change: one `context` element is one chunk.** §7.3's requirement that tables be kept whole is already satisfied, because a table *is* a single element carrying `type: "table"` (§2.3), and keeping the mapping one-to-one is also what lets gold indices score the output directly.
+
+Build order, each step gated on the last: our own BM25, validated by reproducing 65.16 exactly; then the embedding index, with the dense arm scored alone; then the fusion. **The open risk is the dense arm.** `nomic-embed-text` is weaker than `text-embedding-3-large`, and BM25's arm is fixed at 65.16, so a weak dense arm shrinks the fusion gain. Scoring the dense arm alone before fusing is the go/no-go, and it costs nothing once the index exists. **The paper's target is beating 68.01% with a fully local, free retriever. 74.06% is the paid-API reference point, not the goal.**
+
 ### 3.5 How retrieval mechanically works — and which model does it
 Retrieval is **not** done by the generation model. It uses a separate, much smaller **embedding model** whose only job is converting text into a vector. The pipeline:
 1. **Chunking** — decided by our script. FINDVER's natural units: each `context` element is one chunk.

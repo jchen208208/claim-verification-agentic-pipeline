@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 3 August 2026.
+Last updated: 4 August 2026.
 
 ---
 
@@ -61,6 +61,46 @@ He replied to the progress email with three things. He has a server with an **"N
 **Decided, pending his objection:** the second edge model is **Qwen2.5-Coder-7B**. Neither Coder variant appears in the published list, so both satisfy open question 8.
 
 **Note that "RTX 4090 Ti" is not a product that shipped.** There is a 4090 at 24 GB and a 5090 at 32 GB. Confirm the real card, the VRAM, the access method, and whether jobs can run for days before planning against it.
+
+## What happened on 4 August: the retriever is designed, and fusion is measured
+
+He has not answered on the GPU. Nothing today was blocked by it, because the retriever is
+chosen on recall alone and that is machine-independent daytime work.
+
+**`test_scripts/measure_recall.py` is built and validated.** It takes one dict,
+`example_id -> list of element ids`, so every retriever we will ever try is scored by the same
+code. It reproduces all twelve figures from 2 August and self-asserts them at k=10. Full
+detail in §3.4 of the plan and the build log entry for 4 August.
+
+**Fusion beats the published number by 6 points, and it cost nothing.**
+
+    bm25 alone                65.16%   62.8%   38.6%
+    text-embedding-3 alone    68.01%   62.4%   42.6%
+    RRF of both, pool 10      74.06%   69.0%   48.7%
+    union ceiling             80.86%   77.0%   58.9%
+
+FINDVER shipped both retrievers' full rankings, and recall scoring needs only element ids, so
+combining what they already produced is arithmetic over files on disk. **74.06% against the
+68.01% FINDVER published and MACE adopted unchanged.** A shallow candidate pool of 10 per arm
+beats deeper pools, because RRF rewards agreement and a deep pool promotes consistently
+mediocre elements over one retriever's strong pick.
+
+**This is a measurement, not our retriever.** It uses `text-embedding-3`, a paid API we have
+no key for. Its job was deciding whether a local embedding index is worth its one-time CPU
+cost, and it says yes.
+
+**Per subset, and it maps onto the two tiers.** `text-embedding-3-large` element recall is
+79.0% on FDV-MATH, 58.2% on FDV-IE, 56.1% on FDV-KNOW. Retrieval works best on MATH, which is
+where the best model scores worst, so MATH's difficulty is arithmetic — the Tier 1 argument.
+Retrieval works worst on KNOW — the Tier 2 argument.
+
+**Decided: the design.** BM25 plus a local Ollama embedding arm, fused by RRF, pool 10 per
+arm, `c = 60`, k = 10 out. **Chunking does not change**, one `context` element is one chunk,
+and §7.3's "keep tables whole" is already satisfied because a table is one element.
+Build order: our own BM25 validated at exactly 65.16, then the index with the dense arm scored
+alone, then the fusion. **Open risk: `nomic-embed-text` is weaker than `text-embedding-3-large`
+and BM25's arm is fixed, so a weak dense arm shrinks the gain.** Target is beating 68.01% with
+a fully local retriever.
 
 ## The hardware rule, decided 3 August
 
