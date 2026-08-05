@@ -1,0 +1,13 @@
+{
+  "experiment": "decompose_v1",
+
+  "model": "qwen2.5-coder:3b",
+  "num_ctx": 2048,
+  "num_predict": 300,
+  "temperature": 0,
+  "seed": 0,
+  "prompt_version": "decompose_v1",
+
+  "_note_num_ctx": "The prompt is the claim plus ~200 tokens of instructions, so 2048 leaves roughly 1500 tokens of slack against a 300-token generation cap. Overflow is arithmetically impossible, and a smaller window loads faster and holds less KV cache than the 16384 the verification prompts need.",
+  "_note_scope": "Targeted test only: the 170 claims needing 4 or more gold elements, where BM25 loses 20-40 points. Not a full-benchmark run."
+}

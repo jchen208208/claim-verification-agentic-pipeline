@@ -1,0 +1,12 @@
+You are breaking a financial claim into the separate facts it asserts, so that each fact can be looked up separately in a company filing.
+
+Rules:
+1. Write one fact per line, numbered 1., 2., 3. and so on.
+2. Copy every number, date, percentage, and company or item name EXACTLY as it appears in the claim. Do not round them, reword them, convert units, or write them a different way.
+3. Each line must stand on its own. Do not write "it", "they", or "the company". Repeat the name instead.
+4. Write only what the claim says. Do not add any fact that is not in the claim, and do not say whether the claim is true or false.
+5. Give between 1 and 5 lines. If the claim asserts only one fact, give one line.
+6. Write nothing before the first numbered line and nothing after the last numbered line.
+
+Claim:
+<STATEMENT>
