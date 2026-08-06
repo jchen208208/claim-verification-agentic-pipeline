@@ -105,7 +105,40 @@ Set against FINDVER Table 4, where Claude-3.5-Sonnet under RAG scores 69.0 on FD
 
 **Weighted RRF has almost no useful range.** With two lists of length k and constant c, a weight ratio above roughly `(c+k)/(c+1)` makes the heavy list's worst element outrank the light list's best, so the fusion returns the heavy list unchanged. At k=10, c=60 that threshold is about 1.16.
 
-### 1.6 Local dense arm, n=102 slice
+### 1.6 Local dense arm and fusion, n=700 — **the retriever freeze decision**
+
+Full index complete: 255 reports, 60,871 elements, 179 MB, **362.7 minutes, 0 failures**. Scored by `test_scripts/decide_fusion.py`.
+
+| | k=10 | k=15 | k=20 |
+|---|---|---|---|
+| **ours BM25 alone** | **74.60%** | **81.12%** | **84.56%** |
+| `nomic-embed-text` alone | 58.66% | 66.04% | 70.59% |
+| RRF(BM25, nomic), equal weights | 75.00% | 80.71% | 84.55% |
+| RRF(BM25 x1.1, nomic) | 75.20% | 81.75% | 85.76% |
+| union of the two, ceiling | 81.28% | 86.42% | 89.13% |
+
+**Decision: the dense arm is dropped. The frozen retriever is BM25 alone.**
+
+**Reason 1, and the deciding one: untuned fusion gains nothing.** Equal-weight RRF moves +0.40, −0.41, −0.01. The +0.6 to +1.2 appears only at weight 1.1, which was chosen by reading these results. §1.2 rejected the `k1`/`b` sweep's +0.37 on exactly this ground, and there is no held-out set to validate a weight against — testmini is all we have. Applying the standard consistently rejects this too.
+
+**Reason 2: it is dominated by a parameter change.** BM25 alone at k=11 scores **76.29%**, beating fused retrieval at k=10 (75.20%), for 398 extra prompt tokens and no second model.
+
+| BM25 alone | macro | extra prompt tokens vs k=10 |
+|---|---|---|
+| k=10 | 74.60% | 0 |
+| k=11 | 76.29% | +398 |
+| k=12 | 77.84% | +819 |
+| k=15 | 81.12% | +2,043 |
+
+**Reason 3: the deployment story.** A second resident model plus a 178 MB index, and in any real deployment ~100 s of indexing per new filing, for about one point.
+
+**Stated honestly, the k=20 case is closer than the k=10 case.** There, fusion's +1.20 is worth roughly three k steps or ~1,260 prompt tokens, so on wall-clock grounds it is nearly a wash. **The tuning objection decides it, not the cost.**
+
+**What remains citable from this work.** `nomic-embed-text` alone reaches **58.66% / 66.04% / 70.59%** at k=10/15/20 — a free local embedding model measured against the paid `text-embedding-3-large`'s 68.01% at k=10. We found no other work reporting a local embedder on FINDVER.
+
+**A methodological note worth reporting.** RRF weights every list equally, so a weak arm actively damages a strong one: contriever at 33.48% drags our BM25 down 5.1 points. And weighted RRF has almost no usable range — with two lists of length k and constant c, a weight ratio above roughly `(c+k)/(c+1)` returns the heavy list unchanged, which is about 1.16 at k=10, c=60.
+
+### 1.6.1 Local dense arm, n=102 slice — superseded, kept for the sampling lesson
 
 | | macro | element | all-gold |
 |---|---|---|---|
@@ -114,9 +147,18 @@ Set against FINDVER Table 4, where Claude-3.5-Sonnet under RAG scores 69.0 on FD
 | RRF(BM25, nomic), equal votes | 75.57% | 70.0% | 49.0% |
 | **control:** RRF(BM25, `text-embedding-3`) | 76.08% | 71.0% | 53.9% |
 
-**`nomic-embed-text` at 62.86% is citable** — a free local embedder five points below the paid one.
+**Superseded by §1.6, which measured the same thing at n=700.** Kept because the sampling lesson is worth reporting in its own right.
 
-**The fusion rows on this slice are NOT citable.** The control fuses with the paid embedding, which gains +2.54 at n=700, and gains nothing here. A null result on a fusion known to work at full scale measures the instrument. **Noise floor: our BM25 is 74.60% at n=700 and 76.18% on this slice, a 1.58-point swing from sampling alone, against a 2.5-point effect under test.** Unresolved pending the full index.
+**The 102-claim slice could not resolve the question it was built for.** The control row fuses with the paid embedding, a combination that gains +2.54 at n=700, and it gains nothing on this slice. A null result on a fusion known to work at full scale measures the instrument, not the method.
+
+**The noise floor, measured twice:**
+
+- our BM25 scores 74.60% at n=700 and 76.18% on this slice, a **1.58-point** swing from sampling alone
+- `nomic-embed-text` scores 58.66% at n=700 and 62.86% on this slice, a **4.20-point** swing
+
+Both exceed the ~1 to 2.5-point effect under test. §9's statement that 102 examples "cannot rank two configurations three points apart" is confirmed on retrieval as well as on prompts.
+
+**The design error, stated for the write-up if sample sizing is discussed.** The slice was sized to separate 33% from 68%, a 35-point gap, which it does cleanly. It was then used to ask whether fusion adds 2 points, which needs a different sample size. Two questions were asked of one run and only the first was answerable.
 
 ### 1.7 Claim decomposition, n=174 (claims needing 4+ gold elements)
 
@@ -251,6 +293,33 @@ Hardware: 2017 Intel MacBook Pro, 16 GB RAM, macOS 13, CPU-only, Ollama pinned a
 
 ---
 
+## 4.5 What we tried and did not use — the negative results
+
+**These belong in the paper.** Three things were built, measured and rejected, each for a stated reason, and each rejection is a result. FINDVER's literature has one method paper on it (MACE), which declined to work on retrieval at all, so "we tried the obvious retrieval upgrades and here is what they were actually worth" is a contribution rather than an admission.
+
+The honest framing throughout: **each was expected to help, and the measurement said otherwise.**
+
+| what | expected | measured | why rejected |
+|---|---|---|---|
+| **Claim decomposition** | large gain on multi-fact claims | best variant 57.53% vs 57.88% bar, n=174 | no merge of six beat the whole claim; at matched candidate budget it loses to plain BM25 by 3.2 points |
+| **Dense fusion (`nomic` + BM25)** | +2 to +6 macro | +0.00 untuned, +0.6 to +1.2 tuned, n=700 | untuned gain is zero; tuned gain requires a weight chosen on the test set; beaten by k=11 |
+| **`k1`/`b` tuning** | a free point or two | best 74.97% vs default 74.60%, n=700 | inside noise, and selecting the winner is selecting on the test set |
+
+**Two further negatives worth a sentence each.**
+
+**A weak retriever in a fusion is harmful, not neutral.** Contriever at 33.48% dragged our BM25 down 5.1 points, because RRF gives every list an equal vote. Fusion is commonly assumed to be a safe operation and it is not.
+
+**Weighted RRF has almost no usable range.** Above a weight ratio of roughly `(c+k)/(c+1)`, about 1.16 at k=10 and c=60, the fusion returns the heavier list unchanged. Weights of 1.25, 1.5, 2 and 3 all produced byte-identical output to BM25 alone.
+
+**Two methodological findings that generalise beyond this project**, and which are arguably the most transferable things here:
+
+1. **Any multi-query retriever must be compared against a single-query one at matched candidate count.** The decomposition union scored 76.14% against 57.88% and looked like a large win. It held 30.3 candidates against 10. At matched budget the single query wins. Union and fusion diagnostics inherently enlarge the pool, so reading a gain off one without the matched-k control manufactures a positive result.
+2. **A sample sized to detect a large effect cannot be reused to detect a small one.** Measured noise floors at n=102 were 1.58 and 4.20 points against effects of 1 to 2.5 points.
+
+**What we did not reject:** the local embedding model itself. `nomic-embed-text` at 58.66% / 66.04% / 70.59% is reported as a measurement, not used in the pipeline.
+
+---
+
 ## 5. Claims that are NOT yet supported
 
 Listed so they are not written by accident.
@@ -260,5 +329,5 @@ Listed so they are not written by accident.
 - **"Higher k improves accuracy."** Recall rises 13.9 points from k=10 to k=30. Whether the model uses the extra evidence, or is confused by the extra distractors, is unmeasured. This is what condition 1 at two k values will answer.
 - **Any unparseable rate for our configuration.** 0 of 12 is not a rate.
 - **Any 7B number.** Not re-measured since week 1.
-- **Any fusion gain for the local dense arm.** Unresolved at the sample size run so far.
+- ~~**Any fusion gain for the local dense arm.**~~ **Resolved 5 August at n=700: there is none worth taking.** See §1.6. Untuned fusion is +0.00; the tuned gain is rejected on the same test-set-selection ground as the `k1`/`b` sweep.
 - **Any pipeline latency.** The 7.0 min figure is `baseline_v1` with the placeholder retriever, no code execution, no table parsing, no cloud round trip.

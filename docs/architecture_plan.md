@@ -491,6 +491,34 @@ The circularity resolves because the two questions need different evidence:
 
 **Corrected order.** Finish the embedding index for the remaining 166 reports, about 4.8 h. Score BM25 against BM25-plus-nomic fusion at k = 10, 15 and 20, all free. Freeze the retriever. Build prompt trimming, which is required at any k. Then run condition 1 at two k values, where the winner becomes the official condition 1 and the loser is a k-ablation row for the paper.
 
+### 3.4.7 **[DECIDED 5 Aug 2026] The retriever is frozen: BM25 alone. The dense arm is dropped.**
+
+The full index completed: 255 reports, 60,871 elements, 179 MB, 362.7 minutes, 0 failures. Fusion was then decided on recall at n=700, which is the right basis because fusion changes *which* k chunks reach the prompt rather than how many, so it carries no gold-versus-distractor tradeoff and needs no end-to-end run.
+
+| | k=10 | k=15 | k=20 |
+|---|---|---|---|
+| **ours BM25 alone** | **74.60%** | **81.12%** | **84.56%** |
+| `nomic-embed-text` alone | 58.66% | 66.04% | 70.59% |
+| RRF(BM25, nomic), equal weights | 75.00% | 80.71% | 84.55% |
+| RRF(BM25 x1.1, nomic) | 75.20% | 81.75% | 85.76% |
+| union of the two, ceiling | 81.28% | 86.42% | 89.13% |
+
+**No interaction with the k decision.** Whatever fusion does, it does at all three k, so the freeze order in §3.4.6 holds and the two choices stay independent.
+
+**Reason 1, the deciding one: untuned fusion gains nothing.** Equal-weight RRF moves +0.40, -0.41, -0.01. The +0.6 to +1.2 appears only at weight 1.1, chosen by reading these results. §3.4.1 rejected the `k1`/`b` sweep's +0.37 on exactly that ground, and there is no held-out set to validate a weight against. Consistency requires rejecting this too.
+
+**Reason 2: dominated by a parameter change.** BM25 alone at k=11 scores **76.29%**, beating fused retrieval at k=10's 75.20%, for 398 extra prompt tokens and no second model.
+
+**Reason 3: the deployment story.** A second resident model, a 178 MB index, and roughly 100 s of indexing per new filing in any real deployment, for about one point, in a paper whose contribution is on-device feasibility.
+
+**The k=20 case is closer than the k=10 case, and should be stated that way.** There, fusion's +1.20 is worth about three k steps or ~1,260 prompt tokens, so on wall-clock grounds it is nearly a wash. The tuning objection decides it, not the cost.
+
+**The frozen retriever: `src/bm25_retriever.py`, `k1 = 1.5`, `b = 0.75`, one `context` element per chunk, Lucene IDF, punctuation dropped, no stemming, per-report corpus. k is not yet frozen and is decided by condition 1.**
+
+**What survives as reportable.** `nomic-embed-text` alone at 58.66% / 66.04% / 70.59% is a free local embedder measured against the paid `text-embedding-3-large`'s 68.01%. We found no other work reporting a local embedding model on FINDVER. And two methodological negatives: a weak arm in an RRF actively harms a strong one, and weighted RRF has almost no usable range above a ratio of about `(c+k)/(c+1)`.
+
+**Keep `embeddings/` until after submission.** It is derived data and deletable in principle (§11 item 11), but rebuilding costs 6 hours and it occupies 179 MB against a 1.3 GB clone already on disk. Delete it once the paper is in.
+
 **[REVISED 4 Aug 2026] The dense arm's case is now thinner, but it survives.**
 
 | at k=10 | macro | element | all-gold |

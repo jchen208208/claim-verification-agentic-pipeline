@@ -276,22 +276,52 @@ no fusion is a retriever choice decided on recall, which is free**, since fusion
 chunks are retrieved rather than how many, so the distractor argument does not apply. **k is
 decided on recall and accuracy**, since k is exactly the knob trading gold against distractors.
 
+## THE RETRIEVER IS FROZEN: BM25 alone, no dense arm
+
+Full index built, 255 reports, 60,871 elements, 179 MB, 362.7 minutes, 0 failures. Fusion then
+decided on recall at n=700 by `test_scripts/decide_fusion.py`.
+
+                                   k=10     k=15     k=20
+    ours BM25 alone               74.60%   81.12%   84.56%
+    nomic-embed-text alone        58.66%   66.04%   70.59%
+    RRF(BM25, nomic) equal        75.00%   80.71%   84.55%
+    RRF(BM25 x1.1, nomic)         75.20%   81.75%   85.76%
+    union of the two, ceiling     81.28%   86.42%   89.13%
+
+**Dropped, for three reasons.** Untuned fusion gains nothing: +0.40, -0.41, -0.01. The +0.6 to
++1.2 appears only at weight 1.1, chosen by reading these results, which is the same test-set
+selection we rejected for the `k1`/`b` sweep's +0.37. It is also dominated by a parameter:
+**BM25 alone at k=11 scores 76.29%, beating fused retrieval at k=10's 75.20%**, for 398 extra
+prompt tokens and no second model. And it costs a second resident model plus a 179 MB index for
+about one point in a paper about on-device feasibility.
+
+**Honest caveat:** at k=20 fusion's +1.20 is worth roughly three k steps, so on wall clock it is
+nearly a wash there. The tuning objection decides it, not the cost.
+
+**The frozen retriever.** `src/bm25_retriever.py`, `k1 = 1.5`, `b = 0.75`, one `context` element
+per chunk, Lucene IDF, punctuation dropped, no stemming, per-report corpus. **k is not frozen
+and is decided by condition 1.**
+
+**Keep `embeddings/` until after submission.** Derived data and deletable in principle, but
+rebuilding costs 6 hours and it is 179 MB against a 1.3 GB clone already on disk.
+
 ### What happens next, in order
 
-1. **Finish the embedding index**, remaining 166 reports, about 4.8 h, one evening under
-   `caffeinate`. Re-running `build_embedding_index.py` with a larger `per_cell` skips everything
-   already done.
-2. **Decide fusion on recall**, BM25 against BM25-plus-nomic at k = 10, 15, 20. Free, minutes.
-3. **Freeze the retriever.**
-4. **Build prompt trimming.** Required at any k, counts tokens, and it is on the critical path
-   ahead of condition 1 because of the overflow defect above.
-5. **Condition 1 at two k values**, 10 and 20. The winner becomes the official condition 1, the
-   loser is a k-ablation row for the paper. **Machine must be decided before this starts**, and
-   whichever machine is chosen carries the whole results table.
+1. **Build prompt trimming.** Now the only thing between us and condition 1. Required at any k
+   because of the overflow defect above, and it counts tokens, not characters.
+2. **Condition 1 at two k values**, 10 and 20. The winner becomes the official condition 1, the
+   loser is a k-ablation row. **Machine must be decided before this starts**, and whichever
+   machine is chosen carries the whole results table.
 
-Steps 1 to 4 need no GPU and are not blocked on the professor.
+Step 1 needs no GPU. Step 2 is the one blocked on the machine question.
 
-**Keep `embeddings/`.** Deleting was the contriever contingency and nomic is not contriever.
+### Three things tried and rejected, all of which belong in the paper
+
+    claim decomposition   57.53% best vs 57.88% bar, n=174    no merge beat the whole claim
+    dense fusion          +0.00 untuned, n=700                beaten by k=11
+    k1/b tuning           74.97% vs 74.60%, n=700             inside noise, tuned on test
+
+Each was expected to help. Full detail and framing in §4.5 of `paper_numbers.md`.
 
 ### New document: `docs/paper_numbers.md`
 

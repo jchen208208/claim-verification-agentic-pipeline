@@ -1662,3 +1662,104 @@ what lets a number be traced to its evidence. The new file answers a different q
 given number, what does it measure, on what n, produced by what script, and **what may it
 legitimately sit beside**. It also carries a closing section listing claims that are *not* yet
 supported, so they are not written by accident.
+
+## 5 August 2026, evening — the retriever is frozen: BM25 alone
+
+### The full embedding index
+
+`build_embedding_index.py all`, run detached with `nohup caffeinate -ims` so it survived both
+the terminal and the session. **255 reports, 60,871 elements, 179 MB, 362.7 minutes, 0 failed
+reports.** The 178 MB prediction from the 768-dim calculation was right.
+
+Two operational notes. The script gained an `all` mode, because `stratified_sample` tops out at
+`per_cell` 100 (the smallest subset-by-label cell) and yields 600 claims, not the 700 whose
+reports the fusion decision needed. And the user reported the machine on a black screen while
+away: expected, since `-ims` blocks idle, disk and system sleep but not display sleep. Confirmed
+it never suspended by comparing process wall time (85.7 min) against work time inside the log
+(84.3 min) — a sleep would have opened a gap.
+
+### The fusion decision, n=700
+
+`test_scripts/decide_fusion.py`. Decided on recall, which is the right basis: fusion changes
+*which* k chunks reach the prompt rather than how many, so it carries no gold-versus-distractor
+tradeoff and needs no overnight run. Run at three k values so the fusion and k decisions could
+be checked for interaction.
+
+                                   k=10     k=15     k=20
+    ours BM25 alone               74.60%   81.12%   84.56%
+    nomic-embed-text alone        58.66%   66.04%   70.59%
+    RRF(BM25, nomic) equal        75.00%   80.71%   84.55%
+    RRF(BM25 x1.1, nomic)         75.20%   81.75%   85.76%
+    union of the two, ceiling     81.28%   86.42%   89.13%
+
+**No interaction.** Whatever fusion does, it does at all three k, so the freeze order holds.
+
+**Decided: dropped. The frozen retriever is BM25 alone.**
+
+**Reason 1, deciding.** Untuned fusion gains nothing: +0.40, -0.41, -0.01. The +0.6 to +1.2
+appears only at weight 1.1, and 1.1 was chosen by reading these results. The `k1`/`b` sweep's
++0.37 was rejected on exactly that ground on 4 August, and there is no held-out set to validate
+a weight against. Consistency requires rejecting this too.
+
+**Reason 2.** Dominated by a parameter. Measured directly rather than argued:
+
+    BM25 alone, k=10   74.60%    +0 tokens
+    BM25 alone, k=11   76.29%    +398 tokens
+    BM25 alone, k=12   77.84%    +819 tokens
+    RRF(BM25 x1.1, nomic) at k=10   75.20%   + a second model + 179 MB index
+
+One extra retrieved chunk beats the entire dense arm.
+
+**Reason 3.** A second resident model, a 179 MB index, and about 100 s of indexing per new
+filing in a real deployment, for roughly one point, in a paper whose contribution is on-device
+feasibility.
+
+**Recorded honestly: the k=20 case is closer than the k=10 case.** There fusion's +1.20 is worth
+about three k steps or ~1,260 prompt tokens, so on wall clock it is nearly a wash. The tuning
+objection decides it, not the cost. Writing it as a clean cost win would overstate the evidence.
+
+**The frozen retriever.** `src/bm25_retriever.py`, `k1 = 1.5`, `b = 0.75`, one `context` element
+per chunk, Lucene IDF, punctuation dropped, no stemming, per-report corpus. **k is not frozen**
+and is decided by condition 1.
+
+**What survives as reportable.** `nomic-embed-text` alone at 58.66% / 66.04% / 70.59%, a free
+local embedder measured against the paid `text-embedding-3-large`'s 68.01%. We found no other
+work reporting a local embedding model on FINDVER.
+
+**Keep `embeddings/` until after submission**, then delete. Derived data, but rebuilding costs 6
+hours and it is 179 MB against a 1.3 GB clone already present.
+
+### A mistake of mine, corrected by the failure
+
+`decide_fusion.py` imported `measure_dense_recall`, which does not exist: the user renamed that
+file to `measure_embedding_recall.py`. Earlier in the session they referred to it by its real
+name and **I "corrected" them back to my own name for it**, which was wrong. The import error
+was the thing that revealed it.
+
+### Sampling noise, now measured twice
+
+The 102-claim slice was used on 5 August morning for the dense go/no-go and could not resolve
+the question. The n=700 numbers quantify why:
+
+    ours BM25          74.60% at n=700 vs 76.18% on the slice    1.58 points
+    nomic-embed-text   58.66% at n=700 vs 62.86% on the slice    4.20 points
+
+Both exceed the 1 to 2.5-point effect that was under test. §9's rule that 102 examples cannot
+rank configurations three points apart is now confirmed on retrieval as well as on prompts.
+
+### Negative results, and the decision to report them
+
+Three things were built, measured and rejected today and yesterday: claim decomposition, dense
+fusion, and `k1`/`b` tuning. **All three go in the paper.** FINDVER's literature contains one
+method paper, MACE, which declined to work on retrieval at all, so "we tried the obvious
+retrieval upgrades and here is what they were actually worth" is a contribution rather than an
+admission. Each was expected to help; the measurement said otherwise, and that is the honest
+framing.
+
+Two methodological findings are arguably the most transferable things produced so far, and both
+came from catching an error rather than from a success. **Any multi-query retriever must be
+compared against a single-query one at matched candidate count**, or the enlarged pool
+manufactures a positive result. **A sample sized to detect a large effect cannot be reused to
+detect a small one.**
+
+Recorded in `docs/paper_numbers.md` §4.5 with the numbers and the framing.
