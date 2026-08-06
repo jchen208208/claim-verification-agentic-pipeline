@@ -322,10 +322,27 @@ evidence on 104 claims at k=20 rather than 6.
 because it records what actually produced the 2 August trial results and must not be edited.
 Re-measure the RAM figure before assuming it holds for the 7B, whose KV cache is larger.
 
+### Prompt trimming is built and verified
+
+`src/prompt_trimmer.py` exists, `build_prompt` and `Record` are updated, and all checks pass.
+
+    test harness                              26/26
+    k=10, 40 random claims                    kept == 10, prompt byte-identical to untrimmed
+    k=20, the six predicted trim cases        6/6 exact
+    k=20, all 700                             exactly 6 trimmed, 0 raised
+    k=20, recall through the trimmer          84.56% / 81.7% / 66.6%, unchanged
+
+**Trimming costs no recall at k=20.** 15 chunks dropped across 6 claims and none held gold,
+because trimming drops from the bottom of the BM25 ranking and gold sits high. Scope that to
+this configuration: 6 claims and 15 chunks is an observed result, not a guarantee, and it needs
+re-checking at a higher k or a tighter budget.
+
+**The module may never run.** At `num_ctx` 32768 and k=10 it fires on 0 of 700. If condition 1
+picks k=10 it is dormant insurance, by design and not dead code.
+
 ### What happens next, in order
 
-1. **Build prompt trimming.** Now the only thing between us and condition 1. Required at any k
-   because of the overflow defect above, and it counts tokens, not characters.
+1. ~~**Build prompt trimming.**~~ **Done 5 August, see above.**
 2. **Condition 1 at two k values**, 10 and 20. The winner becomes the official condition 1, the
    loser is a k-ablation row. **Machine must be decided before this starts**, and whichever
    machine is chosen carries the whole results table.

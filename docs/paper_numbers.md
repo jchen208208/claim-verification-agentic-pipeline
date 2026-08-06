@@ -81,6 +81,13 @@ FINDVER report 67.91% and MACE repeat it; our 68.01% reproduces it to within rou
 
 **13.9 macro points from k=10 to k=30.** k=30 is not deployable, see §3.2 below. **k is not yet frozen.**
 
+**[VERIFIED 5 Aug 2026] The k=20 row is what the model actually receives, not what retrieval returned.** At `num_ctx` 32768, six of 700 claims exceed the prompt budget and are trimmed by `src/prompt_trimmer.py`, losing 1 to 4 chunks each, 15 in total. **None of the 15 contained gold evidence**, so recall measured on the trimmed prompts is identical to the untrimmed figure on all three metrics:
+
+    k=20, retrieval output       84.56%   81.7%   66.6%
+    k=20, as the model sees it   84.56%   81.7%   66.6%
+
+Trimming drops from the bottom of the BM25 ranking, and the dropped chunks were ranks 17-20; gold sits high, which is what an 84.56% recall means. **Scope this claim carefully: it is 6 claims and 15 chunks, an observed result rather than a guarantee.** At a higher k or a tighter budget more would drop and gold could be lost, so it must be re-checked if either changes.
+
 ### 1.4 Per subset, `text-embedding-3-large`, k=10, n=700
 
 | subset | macro | element | all-gold |

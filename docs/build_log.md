@@ -1821,3 +1821,117 @@ string. The DataFrame stays in our process; the prompt carries the schema; the m
 `.loc` expressions; the sandbox executes them. One parse serves both consumers, not two.
 Prompt trimming is unaffected by any of this and is needed now regardless, though it should not
 be *tuned* against today's token distribution since schemas will change it.
+
+## 5 August 2026, late — prompt trimming built, and the retriever work is finished
+
+### Why this got built now rather than later
+
+It was specified on 2 August to prevent overflow, downgraded the same day when the 12-example
+trial run showed no overflow, reframed as a wall-clock optimisation, and parked behind the
+retriever. The token calibration turned it back into a correctness requirement, this time with
+a measurement: **about 15 of 700 claims already overflow at the current k=10 with `num_ctx`
+16384**, and Ollama 0.12.3 evicts silently while reporting `done_reason: "stop"`.
+
+Raising `num_ctx` to 32768 takes that to 0 at k=10 and 6 at k=20, so this module is the last 6,
+not the main defence. **If condition 1 picks k=10 it never fires.** That is dormant insurance
+by design, and the module docstring says so, because someone reading the file in three weeks
+would otherwise take it for dead code.
+
+### `src/prompt_trimmer.py`
+
+Three parts. `estimate_tokens` divides characters by **3.31**, the *minimum* measured
+chars-per-token ratio rather than the mean. That is the whole safety argument: on prose it
+overshoots by about 29%, which costs nothing because those prompts sit nowhere near the budget,
+and on the table-heavy prompts that actually approach the limit it lands within 0.1%. Using the
+mean 4.36 instead would have estimated `numeric-val-30` at 9,485 tokens against an actual
+12,480, a 3,000-token undershoot in exactly the direction that causes eviction.
+
+`_total_tokens` counts one separator per chunk rather than one between each pair, overshooting
+by a few characters, which is the safe direction.
+
+`trim_to_budget` drops the lowest-ranked chunk until the prompt fits, never returns an empty
+list, and **raises rather than truncating** if a single chunk cannot fit. That branch is
+measured to be unreachable: the largest of all 60,871 context elements is 39,845 characters,
+about 12,038 tokens, against a 30,768-token budget at `num_ctx` 32768. It raises because if the
+assumption ever breaks, silently handing the model half a table is precisely the failure class
+this module exists to prevent.
+
+**A design decision worth recording: no truncation path at all.** The original design had one,
+for the single-oversized-chunk case. Measuring the largest element first showed the case cannot
+occur, so the branch was deleted rather than written. Measure before building the error handler.
+
+**A simplification prompted by the user.** `trim_to_budget` originally returned
+`(kept, dropped)` and the caller discarded `dropped` with `_`. Returning a value nobody uses is
+speculative code; it now returns `kept` alone and the call site computes the counts, which is
+where both numbers are in scope anyway.
+
+### Changes to the run loop and the logger
+
+`build_prompt` gains a `config` argument and returns a third value:
+
+    build_prompt(claim, chunks, template, config) -> (prompt, evidence_block, kept)
+
+It computes `overhead_chars` as template length minus both placeholders plus the claim, since
+`<REPORT>` and `<STATEMENT>` are replaced and their characters do not survive. Budget is
+`config["num_ctx"] - config["num_predict"]`, indexed rather than `.get()` so a missing key
+raises instead of producing a wrong budget silently, matching the reasoning already applied in
+`ollama_client`.
+
+**Trim in rank order, then re-sort into document order.** The retriever returns best-first,
+which is what says which chunk is least worth losing. The prompt wants document order so tables
+sit near their captions. Both cannot happen in one pass, so the trimmer's only job is which
+chunks survive and `build_prompt` handles ordering.
+
+`SEPARATOR` is imported from the trimmer rather than written out again in `build_prompt`. If
+the two ever disagreed the estimate would be wrong by two characters per chunk and nothing would
+raise: the same duplicated-logic hazard recorded on 1 August for `_result_path()`.
+
+`Record` gains `chunks_requested` and `chunks_kept`. **Not a third field for the drop count**,
+which is derivable from those two; storing it invites the three disagreeing after a later edit.
+`chunks_requested` also cross-checks the config: it should always equal `top_k`, so a run
+logging 15 under a `top_k` of 20 means the retriever returned short.
+
+### Verification
+
+    test harness                          26/26 passed
+    k=10, 40 random claims                kept == 10, prompt BYTE-IDENTICAL to untrimmed
+    k=20, the six predicted trim cases    6/6 exact, kept 16/17/18/18/16/19
+    k=20, all 700 claims                  exactly 6 trimmed, 0 raised
+
+The byte-identical check is the important one: it proves the module is invisible on the 694
+claims where it should do nothing, so nothing about the existing pipeline changed.
+
+### The check the user asked for, and it was the right question
+
+Our reported 84.56% at k=20 assumes all 20 chunks reach the model. On six claims they do not.
+If trimming dropped gold, the paper would report a recall the pipeline does not deliver.
+
+    claim              gold  got@20  after trim  gold lost
+    ie-val-169            3       2           2      -
+    numeric-val-128       1       1           1      -
+    numeric-val-141       3       3           3      -
+    numeric-val-195       2       2           2      -
+    numeric-val-224       2       2           2      -
+    knowledge-val-67      2       1           1      -
+
+    k=20, retrieval output       84.56%   81.7%   66.6%
+    k=20, as the model sees it   84.56%   81.7%   66.6%
+
+**Zero gold lost across 15 dropped chunks.** Trimming drops from the bottom of the ranking and
+the dropped chunks were ranks 17-20; gold sits high, which is what an 84.56% recall means. This
+validates the drop-lowest-ranked decision over the alternatives considered.
+
+**Scope it honestly in the paper: 6 claims and 15 chunks is an observed result, not a
+guarantee.** At a higher k or a tighter budget more would drop and gold could be lost. Recorded
+in `paper_numbers.md` §1.3 as a footnote to the k=20 row, because it is what makes that number
+citable as delivered recall rather than retrieved recall.
+
+### Open, carried to tomorrow
+
+The harness's `context_overflow` checks still use 16384. They are stubs testing the asserter's
+arithmetic rather than the real config, so they are not wrong, but when the condition 1 config
+is written at 32768 a harness check at the new window should be added so the two cannot drift.
+
+**The machine decision.** It is 5 August and the deadline is about the 7th. Everything before
+condition 1 is now done: the retriever is frozen, trimming is built and verified. Condition 1
+is the only remaining blocked item and it is blocked on someone else's inbox.
