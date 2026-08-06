@@ -26,7 +26,7 @@ def _total_tokens(chunks, overhead_chars):
 
 
 def trim_to_budget(chunks, overhead_chars, budget_tokens):
-    """Drop the lowest-ranked chunks until the prompt fits. Returns (kept, num_dropped).
+    """Drop the lowest-ranked chunks until the prompt fits. Returns the kept list.
     Makes sure to never return an empty list since a prompt can't have no evidence at all"""
     # budget_tokens = num_ctx - num_predict = 32768 - 2000 = 30,768
 
@@ -40,4 +40,4 @@ def trim_to_budget(chunks, overhead_chars, budget_tokens):
     if _total_tokens(kept, overhead_chars) > budget_tokens:
         # this block only runs if len(kept) == 1 or there's only one context element left in the list
         raise ValueError(f"single chunk of {len(kept[0]['context'])} chars exceeds the {budget_tokens:.0f} token budget; chunking or num_ctx changed")
-    return kept, len(chunks) - len(kept)
+    return kept

@@ -15,6 +15,7 @@ from src.evidence_asserter import assert_evidence, check_overflow
 from src.label_extractor import extract_label_with_source
 from src.logger import Record, write_result, has_result
 from src.loader import Claim
+from src.prompt_trimmer import trim_to_budget, SEPARATOR
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PROMPT_DIR = REPO_ROOT / "prompts"
@@ -30,13 +31,24 @@ def read_report(filename):
     with open(REPORT_DIR / filename) as f:
         return json.load(f)
 
-def build_prompt(claim, chunks, template):
-    """Returns (prompt, evidence_block).
+def build_prompt(claim, chunks, template, config):
+    """Returns (prompt, evidence_block, kept_chunks).
     The evidence block is the retrieved text and is returned
-    separately because the evidence asserter has to check it in isolation."""
+    separately because the evidence asserter has to check it in isolation.
+    kept_chunks is what survived trimming, so the record can log how much was dropped."""
 
-    # chunks are the retrieved context element dicts
-    evidence_block = "\n\n".join(chunk["context"] for chunk in chunks)
+    # the length of everything in the prompt that is not a retrieved chunk.
+    overhead_chars = (len(template) - len("<REPORT>") - len("<STATEMENT>") + len(claim.statement))
+
+    budget_tokens = config["num_ctx"] - config["num_predict"]
+
+    # chunks are the retrieved context element dicts sorted best-score-first from the retriever.
+    kept = trim_to_budget(chunks, overhead_chars, budget_tokens)
+
+    # then sort back into document order so tables stay near their captions and the model reads the report the way it was written
+    ordered = sorted(kept, key=lambda chunk: chunk["id"])
+
+    evidence_block = SEPARATOR.join(chunk["context"] for chunk in ordered)
 
     # builds the prompt
     prompt = (template.replace("<REPORT>", evidence_block).replace("<STATEMENT>", claim.statement))
@@ -44,7 +56,7 @@ def build_prompt(claim, chunks, template):
     # the template could lose its placeholder in a later version and we need to prevent the prompt going to the model with no evidence in it at all
     assert evidence_block in prompt
 
-    return prompt, evidence_block
+    return prompt, evidence_block, kept
 
 
 LABEL_TO_BOOL = {"entailed": True, "refuted": False}
@@ -71,8 +83,10 @@ def run_one_claim(claim: Claim, config: dict, template: str, call_model: Callabl
     try:
         report = read_report(claim.report)
         chunks = retrieve(claim, report)
-        prompt, evidence_block = build_prompt(claim, chunks, template)
+        prompt, evidence_block, kept = build_prompt(claim, chunks, template, config)
         record.prompt = prompt
+        record.chunks_requested = len(chunks)
+        record.chunks_kept = len(kept)
 
         record.evidence_present, record.evidences_found = assert_evidence(evidence_block, claim, report)
 
@@ -92,6 +106,7 @@ def run_one_claim(claim: Claim, config: dict, template: str, call_model: Callabl
         label, source = extract_label_with_source(record.response)
         record.extracted_label = LABEL_TO_BOOL.get(label) # from "entailed"/"refuted" to True/False
         record.extraction_source = source
+
 
     except Exception:
         """A bad table or a Ollama bug becomes status="failed" plus a traceback on
