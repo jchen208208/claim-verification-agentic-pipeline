@@ -1763,3 +1763,61 @@ manufactures a positive result. **A sample sized to detect a large effect cannot
 detect a small one.**
 
 Recorded in `docs/paper_numbers.md` §4.5 with the numbers and the framing.
+
+### Decided: `num_ctx` 32768 in every config from here
+
+`num_ctx` 16384 is no longer safe given the overflow measurement.
+
+    num_ctx    k=10 over    k=20 over    RAM
+    16384        15/700       104/700    3.2 GB
+    32768         0/700         6/700    4.4 GB
+
+An unused window costs RAM and not time, and 4.4 GB against 16 GB on a machine peaking at 2.5 GB
+is affordable. Without it, prompt trimming would be discarding real evidence on 104 claims at
+k=20 instead of 6, which is the difference between a safety net and a lossy compression step.
+
+`configs/trial_run_3b.json` keeps 16384 deliberately: it records what produced the 2 August
+results and must not be edited. Re-measure RAM before assuming this holds for the 7B.
+
+### Measured: the `type: "table"` flag overstates the table workload by a quarter
+
+Counted across all 255 reports behind testmini, 60,871 elements.
+
+    type == "table"                              10,991   18.1% of elements
+      numeric cells < 10%                         1,843   16.8% of tables
+      numeric cells < 25%                         2,967   27.0% of tables
+      contains a bullet glyph                       820    7.5% of tables
+    looks like a real data table                  8,023   73.0% of tables
+      (>=2 rows, >=2 cols, >=25% numeric cells)            13.2% of all elements
+
+Found while answering a question about passing DataFrames to the model. The first
+`type: "table"` element inspected turned out to be a bulleted list laid out as an HTML table.
+Filings use tables for formatting constantly. **Tier 1's table payoff should be stated against
+13.2% of elements, not 18.1%.** The numeric-cell fraction has p10 0.00, so at least a tenth of
+flagged tables hold no numbers at all.
+
+### Recorded before it becomes a bug: read_html can succeed and still be wrong
+
+The question asked was whether a successful parse guarantees a correct parse. It does not.
+`pandas.read_html` returns DataFrames with headers in the wrong row, merged cells duplicated or
+dropped, footnote rows as data, and spacer columns as all-NaN, raising nothing. Same silent
+class as the week-1 loader bug and the Ollama eviction, so **the fallback trigger cannot be "did
+it throw."**
+
+The validation to use exploits the redundancy already in the data: each table exists as HTML in
+`html_tables` and as pipe-delimited text in `context`. If the parsed DataFrame is missing
+numeric tokens that appear in the text version, the parse dropped data and the element falls
+back to raw text. Structural checks alongside it: at least 2x2, column names not all
+`Unnamed: n`, non-null density above a threshold.
+
+Two separate risks, both free to measure and both to be measured before Tier 1 is built:
+**mapping** a `context` element to the right `html_tables` entry (gold indices point into
+`context`, data trap 6), and **parsing** that entry correctly.
+
+`pandas`, `lxml`, `bs4` and `html5lib` are all absent from this machine.
+
+Also clarified in passing: **a DataFrame cannot be passed to the model.** An LLM call takes a
+string. The DataFrame stays in our process; the prompt carries the schema; the model writes
+`.loc` expressions; the sandbox executes them. One parse serves both consumers, not two.
+Prompt trimming is unaffected by any of this and is needed now regardless, though it should not
+be *tuned* against today's token distribution since schemas will change it.

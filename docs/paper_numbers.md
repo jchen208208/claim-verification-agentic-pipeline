@@ -284,7 +284,11 @@ Hardware: 2017 Intel MacBook Pro, 16 GB RAM, macOS 13, CPU-only, Ollama pinned a
 | gold elements, testmini, deduplicated | 1,959 | 5 claims repeat an index; upstream dedups identically |
 | gold elements, raw | 1,964 | the asserter's count, includes repeats |
 | mean gold elements per claim | 2.8 (ie 3.04, knowledge 3.66, numeric 1.87) | — |
-| elements that are tables | ~18% | `type` field |
+| elements flagged `type: "table"` | 10,991 = **18.1%** | counted 5 Aug over all 255 reports |
+| of those, actually data tables | 8,023 = **73.0%** of tables, **13.2%** of all elements | >=2 rows, >=2 cols, >=25% numeric cells |
+| of those, numeric cells under 10% | 1,843 = 16.8% of tables | layout tables, bulleted lists |
+
+**The `type: "table"` flag overstates the real table workload by about a quarter.** Filings use HTML tables for formatting. **Any statement of Tier 1's table payoff must use 13.2% of elements, not 18.1%.**
 | subset x label cells | 125/125/125/125/100/100 | counted 31 Jul |
 
 **Two independent counts now agree on the split sizes**, so the correction to the paper's stated 600/1,500 can be written plainly rather than hedged.

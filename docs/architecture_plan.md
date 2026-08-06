@@ -1037,6 +1037,36 @@ def clean_cell(val):
 
 **Schedule effect:** this module's estimate drops materially. Time freed should go to Tier 2 (retrieval), which is the harder and more novel pillar.
 
+**[MEASURED 5 Aug 2026] The `type: "table"` flag overstates the real table workload by about a quarter.** Counted across all 255 reports referenced by testmini, 60,871 elements:
+
+| | count | share |
+|---|---|---|
+| `type == "table"` | 10,991 | 18.1% of elements |
+| of those, numeric cells < 10% | 1,843 | 16.8% of tables |
+| of those, numeric cells < 25% | 2,967 | 27.0% of tables |
+| of those, containing a bullet glyph | 820 | 7.5% of tables |
+| **looks like a real data table** (>=2 rows, >=2 cols, >=25% numeric cells) | **8,023** | **73.0% of tables, 13.2% of all elements** |
+
+Filings use HTML tables for layout constantly. A representative non-table "table":
+
+    | ● | Existing Hotel Property Design. Our Gaylord Hotels properties focus on
+    the large group meetings and regional leisure transient markets...
+
+That is a bulleted list, and a DataFrame buys nothing for it. **State the Tier 1 table payoff against 13.2% of elements, not 18.1%.** The numeric-cell fraction has p10 0.00, so at least a tenth of flagged tables contain no numbers at all.
+
+**[NOTED 5 Aug 2026] Parsing successfully is not the same as parsing correctly, and the fallback trigger cannot be "did it throw."** `pandas.read_html` returns a DataFrame with headers in the wrong row, merged cells silently duplicated or dropped, footnote rows as data, and spacer columns as all-NaN, and it raises nothing. That is the same silent-failure class as the week-1 loader bug and the Ollama eviction.
+
+**The validation to use, because the data is redundant by construction.** Each table exists twice: as HTML in `html_tables` and as pipe-delimited text in `context`. Extract every numeric token from the text version and every numeric value from the parsed DataFrame; if the DataFrame is missing numbers present in the text, the parse dropped data and the element falls back to raw text. Plus cheap structural checks: at least 2x2, column names not all `Unnamed: n`, non-null density above a threshold. This mirrors the evidence asserter's rare-token approach and `tokenize` already exists.
+
+**Two separate risks, both measurable offline with no model calls**, and both should be measured before this tier is built:
+
+1. **Mapping.** Can a `context` element be matched to the right `html_tables` entry? Gold indices point into `context`, not `html_tables` (data trap 6), so the mapping has to be built explicitly.
+2. **Parsing.** Does that entry survive `read_html` with correct headers, judged by the numeric round-trip above?
+
+**Nothing needed for this is installed.** `pandas`, `lxml`, `bs4` and `html5lib` are all absent; `read_html` needs pandas plus at least one parser backend.
+
+**One thing a schema cannot carry.** Row and column labels do not encode magnitude. A nearby "(in thousands)" changes the true value by 10^3 and produces no error (data trap 7), so units and period must be captured as table metadata alongside the schema, which is what §7.3's "header/unit/period metadata" means.
+
 ### 7.2 Code Sandbox
 Extract fenced Python from model output; execute with whitelisted builtins (pandas/math only), no filesystem/network, ~10 s timeout; return stdout **or the traceback** to the model; retry on exceptions (feeding the error back lets the model self-correct). ~30 lines. Never execute model code unrestricted.
 

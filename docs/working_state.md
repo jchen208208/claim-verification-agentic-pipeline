@@ -305,6 +305,23 @@ and is decided by condition 1.**
 **Keep `embeddings/` until after submission.** Derived data and deletable in principle, but
 rebuilding costs 6 hours and it is 179 MB against a 1.3 GB clone already on disk.
 
+### DECIDED 5 Aug: `num_ctx` goes to 32768 in every config from here
+
+`num_ctx` 16384 is no longer safe. At the current k=10 it already leaves ~15 of 700 claims
+overflowing, and at k=20 it leaves 104 of 700.
+
+    num_ctx    k=10 over    k=20 over    RAM (of 16 GB)
+    16384        15/700       104/700        3.2 GB
+    32768         0/700         6/700        4.4 GB
+
+**An unused window costs RAM, not time** (§4.3), so the only price is 1.2 GB against a machine
+where peak usage is 2.5 GB. Without this change prompt trimming would be discarding real
+evidence on 104 claims at k=20 rather than 6.
+
+**Every config file from here uses `num_ctx` 32768.** `configs/trial_run_3b.json` keeps 16384
+because it records what actually produced the 2 August trial results and must not be edited.
+Re-measure the RAM figure before assuming it holds for the 7B, whose KV cache is larger.
+
 ### What happens next, in order
 
 1. **Build prompt trimming.** Now the only thing between us and condition 1. Required at any k
