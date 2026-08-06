@@ -33,6 +33,10 @@ class Record:
     status: str = "ok" # if run loop catches an exception, status = "failed"
     traceback: str | None = None # then puts traceback error message string into here
 
+    # filled in by the prompt trimmer, before the model call
+    chunks_requested: int | None = None
+    chunks_kept: int | None = None
+
 def write_result(record, results_dir):
     # one JSON file per claim and written as soon as the example finishes
     results_dir = Path(results_dir)
