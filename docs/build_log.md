@@ -1935,3 +1935,145 @@ is written at 32768 a harness check at the new window should be added so the two
 **The machine decision.** It is 5 August and the deadline is about the 7th. Everything before
 condition 1 is now done: the retriever is frozen, trimming is built and verified. Condition 1
 is the only remaining blocked item and it is blocked on someone else's inbox.
+
+## 6 August 2026 — the condition 1 configs, and a config that would have lied for twelve hours
+
+Daytime work only. No model calls, no nights spent. Three things: the two condition 1 config
+files, a defect in `run.py` found while writing them, and the harness drift check that 5 August
+left open.
+
+### `run.py` read the `retriever` key only to print it
+
+Found before the configs were written, which is the only reason it cost nothing.
+
+`run.py` imported the placeholder retriever at module level and bound it directly:
+
+    from src.placeholder_retriever import retrieve
+    ...
+    retriever = functools.partial(retrieve, k=config["top_k"])
+
+The config's `"retriever"` value was read exactly once, to print it in the startup banner.
+Nothing selected on it. So a condition 1 config saying `"retriever": "bm25"` would have printed
+`bm25`, written `bm25` into all 102 result files, named a results directory after it, and run
+the 57.5% placeholder for twelve hours. Nothing would have errored.
+
+**This is the loader bug and the `num_ctx` truncation again**: a silent wrong answer rather than
+a loud failure. A config that lies is worse than a config that is missing, because the lie is
+copied into every result file by the logger and outlives the run.
+
+**Fixed with a registry.** `RETRIEVERS` maps the config string to the function, and `run.py`
+looks up `config["retriever"]`. An unknown name now raises `KeyError` at startup, before the
+sample is drawn and before the first model call.
+
+The two retrievers turned out to have identical signatures, `retrieve(claim, report, k=TOP_K)`
+returning a list of `context` element dicts, so the swap needed nothing else.
+
+**One ordering difference, already handled by existing code.** The placeholder returns chunks in
+document order; BM25 returns them in score order, best first. `run_loop.build_prompt` trims
+first and then re-sorts to document order, and `trim_to_budget` pops from the end of the list
+assuming that end is the worst chunk. That assumption is true for BM25 and was false for the
+placeholder. It never mattered, because trimming fires on 0 of 700 at k=10. After the swap it is
+correct by construction rather than by luck.
+
+### The registry key was renamed and then reverted, and the reason is worth keeping
+
+The registry key was briefly renamed from `placeholder_token_overlap` to `placeholder_retriever`,
+in `run.py` and in `configs/trial_run_3b.json` together, on the reasoning that renaming both
+copies made it safe.
+
+**There is a third copy and it cannot be renamed.** `logger.py` embeds the whole config into
+every per-claim result file at run time, so all 12 files in `results/trial_run_3b/` record
+`placeholder_token_overlap` as of 2 August. Editing the config afterwards does not reach them.
+The frozen config and its own results then disagreed about which retriever produced them, which
+is exactly what freezing `trial_run_3b.json` on 5 August was meant to prevent. `results/` is
+untracked, so the original string only survived in files git is not protecting.
+
+The proposed fix was to rewrite the retriever string in the 12 result files. **Rejected.** In
+substance it changes nothing, since the function is identical and only the label differs. As a
+precedent it is the wrong direction: result files are the record of what ran, and once they are
+editable after the fact every other freeze in the project stops meaning anything. The rename was
+reverted instead. One `git checkout` and one string, against rewriting 12 records.
+
+**Keep the placeholder in the registry.** Two dict lines buy reproducibility of the 2 August
+trial from its own committed config. The recall row at 57.54% and the 7.0 min latency figure in
+`paper_numbers.md` are already measured and need no code, so that part of the case is weak, but
+the frozen config is not.
+
+### The two condition 1 configs
+
+    configs/condition1_3b_k10.json      "experiment": "condition1_3b_k10"
+    configs/condition1_3b_k20.json      "experiment": "condition1_3b_k20"
+
+`qwen2.5-coder:3b`, `num_ctx` 32768 per the 5 August decision, `num_predict` 2000, temperature 0,
+seed 0, `baseline_v1`, `retriever` bm25, `per_cell` 17 for 102 examples across the 6 cells,
+`sample_seed` 0. The two files differ only in `top_k` and the experiment name.
+
+**The model belongs in the name, and the first draft got this wrong.** The `experiment` key was
+initially `condition1_k10`, without `_3b`. That is not cosmetic. `logger.py` resumes via
+`has_result`, which checks whether a per-claim result file already exists, so the 7B condition 1
+would have resolved to the same `results/condition1_k10/`, found 102 files already present,
+skipped every claim, and finished cleanly in about a second, leaving a directory of 3B results
+believed to be the 7B. Fixed before anything ran.
+
+When the 700 run comes, add a suffix there rather than putting `_102` on these files. The
+unmarked name means the 102 iteration size, which is what almost everything is.
+
+### The harness drift check, which 5 August left open
+
+The harness passed 26/26 while testing none of the day's work. It builds its own inline config at
+`num_ctx` 16384 and never opens `configs/`, and it injects retriever stubs directly, so
+`RETRIEVERS` was never resolved and 32768 had never been validated by anything.
+
+Added a block 0 at the top of `main()`, ahead of the run-loop fixtures, since these are file
+reads plus one function call and need none of them. **Twelve new checks, now 38/38.**
+
+- 3 registry checks. Any config carrying a `retriever` key must name a key in `RETRIEVERS`.
+  `decompose_v1.json` has none, because it drives a different script, and is skipped.
+- 8 overflow checks. Each config's boundary tested at its own `num_ctx` and `num_predict`.
+- 1 check that `configs/` is not empty, so an empty glob cannot make the other eleven vacuously
+  pass.
+
+**No numeric literal appears in the new block.** Everything is read off disk. Replacing a
+hardcoded 16384 with a hardcoded 32768 would have recreated the same drift one number later. As
+written, changing a config to 65536 makes the harness test 65536 automatically.
+
+**The new checks were verified to fail.** A temporary config with `"retriever": "bm5"` was
+dropped into `configs/`, and the harness reported
+
+    FAIL _tmp_drift_probe.json names a known retriever   'bm5' not in ['bm25', 'placeholder_token_overlap']
+
+and exited 1, which is what matters, because the `&&` in the run command means a failing harness
+blocks the overnight job before a single model call. Probe deleted.
+
+### Still open, carried to tomorrow
+
+**`evidence_asserter.py:83`.** The `check_overflow` docstring still says "we set num_ctx to
+16384", superseded on 5 August. Documentation, not behaviour.
+
+**BM25 has never run through `run.py`.** Every end-to-end run so far used the placeholder, and
+the harness exercises the registry lookup but injects stubs for the retrieval itself. The first
+time BM25 flows through the real entry point will be condition 1. The signatures match and the
+ordering interaction is understood, so the risk is low, but it is not zero and it is unmeasured.
+A 6-example smoke run at `per_cell` 1 costs about 40 minutes and would retire it before a
+12-hour night is committed.
+
+**The machine.** An Instagram message went to the professor asking for the exact GPU model and
+the access method, with the 7 August deadline stated. Email was the wrong channel for something
+needed within a day. A progress email covering the retriever freeze, the three rejected
+approaches, the second local model and the cloud quota is still owed separately, and should not
+be attached to a request for hardware.
+
+**The brother's machine is now a real option, with one thing to verify.** The card is an AMD
+Radeon RX 7800 XT, 16 GB of VRAM, and it is available any night. VRAM is not the constraint:
+the 3B at 4-bit is roughly 2 GB of weights and the whole process measured 4.4 GB at `num_ctx`
+32768 on the Mac, so a 7B fits too. **The constraint is AMD.** Ollama's AMD path is ROCm rather
+than CUDA, and if it does not engage, Ollama falls back to CPU without erroring. That produces a
+slow run, or worse a GPU-labelled number that came from a CPU, which is the same silent-wrong
+shape as everything else in this section. Before that machine is chosen: install Ollama, pull
+the 3B, confirm from the server log that it loaded onto the GPU rather than the CPU, and time 3
+to 5 real examples. **We have no measured throughput for that card**, and the 20-23 August 700
+run would be planned against it, so it has to be measured rather than estimated.
+
+The hardware rule from 3 August applies unchanged. The brother's desktop is a GPU. No number
+from it goes under a MacBook label, and one MacBook night is still owed at the end for real
+latency and peak RAM.

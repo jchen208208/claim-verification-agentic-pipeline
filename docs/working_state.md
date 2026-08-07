@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 4 August 2026.
+Last updated: 6 August 2026.
 
 ---
 
@@ -343,11 +343,62 @@ picks k=10 it is dormant insurance, by design and not dead code.
 ### What happens next, in order
 
 1. ~~**Build prompt trimming.**~~ **Done 5 August, see above.**
-2. **Condition 1 at two k values**, 10 and 20. The winner becomes the official condition 1, the
+2. ~~**Write the condition 1 configs and close the harness drift item.**~~ **Done 6 August**,
+   see the section below.
+3. **Condition 1 at two k values**, 10 and 20. The winner becomes the official condition 1, the
    loser is a k-ablation row. **Machine must be decided before this starts**, and whichever
    machine is chosen carries the whole results table.
 
-Step 1 needs no GPU. Step 2 is the one blocked on the machine question.
+Steps 1 and 2 need no GPU. Step 3 is the one blocked on the machine question.
+
+## Where things stand, 6 August
+
+Daytime work only, no nights spent. Full detail in the build log entry for 6 August.
+
+**Everything before condition 1 is now built and tested.** `configs/condition1_3b_k10.json` and
+`configs/condition1_3b_k20.json` exist, `run.py` selects its retriever from the config, and the
+harness is at 38/38 with the config files themselves now under test.
+
+**Two silent-failure bugs were caught before anything ran.** `run.py` read the `retriever` key
+only to print it, so a config saying bm25 would have run the placeholder for twelve hours with
+no error. And the `experiment` key was missing `_3b`, which would have made the 7B run resume
+into the 3B's results directory and skip all 102 claims in about a second. Both are the same
+shape as the loader bug and the `num_ctx` truncation: a wrong answer rather than a crash.
+
+**The order for condition 1, confirmed.** Run the 3B at k=10 and k=20. Pick k on accuracy, since
+recall is already measured and rises 13.9 points from k=10 to k=30 with distractors as the
+counterweight. **Freeze k there, and everything downstream inherits it**, including the 7B,
+conditions 2, 3 and 4, and the 700 run. §9.2 requires every condition to share the same
+retrieval, so k is not a per-condition knob.
+
+**Two caveats on that, neither of which changes the plan.** The frozen k is chosen on the 3B, and
+a larger model may tolerate more distractors, so k=20 could in principle suit the 7B better. It
+is still frozen at the 3B's answer, because a k that moves per model makes the comparison
+meaningless, and the 3B is the paper's primary model. Say this as a limitation rather than
+letting it pass unnoticed. Separately, if the two k values land within a point or two of each
+other, do not treat the winner as settled: temperature 0 does not guarantee identical tokens
+across CPU and CUDA, so a near-tie could flip on a different machine.
+
+**The 7B is still conditional**, not scheduled. It is a row and not a switch, per the 3 August
+hardware rule, and a 7B slice run costs two to three nights against the 3B's one.
+
+### Open going into 7 August
+
+- **The machine.** An Instagram message went to the professor asking the exact GPU model and the
+  access method, with the deadline stated. If there is no answer by the 7th, choose between the
+  MacBook and the brother's desktop and start.
+- **The brother's desktop needs a 30-minute smoke test before it can be chosen.** AMD Radeon
+  RX 7800 XT, 16 GB VRAM, available any night. VRAM is not the constraint. **AMD is**, because
+  Ollama uses ROCm rather than CUDA there and falls back to CPU silently if it does not engage.
+  Install Ollama, pull the 3B, confirm from the server log that it loaded onto the GPU, and time
+  3 to 5 real examples. We have no measured throughput for that card and the 700 run would be
+  planned against it.
+- **BM25 has never run through `run.py`.** Every end-to-end run so far used the placeholder, and
+  the harness injects retrieval stubs. A 6-example smoke run at `per_cell` 1 costs about 40
+  minutes and retires that risk before a 12-hour night is committed.
+- **A progress email is owed**, separate from the hardware request: the retriever freeze, the
+  three rejected approaches, the second local model, and the cloud quota.
+- **`evidence_asserter.py:83`**, the `check_overflow` docstring still says `num_ctx` 16384.
 
 ### Three things tried and rejected, all of which belong in the paper
 
