@@ -8,13 +8,19 @@ from pathlib import Path
 
 from src.loader import load_claims
 from src.ollama_client import call_ollama
-from src.placeholder_retriever import retrieve
+from src.bm25_retriever import retrieve as bm25_retrieve
+from src.placeholder_retriever import retrieve as placeholder_retrieve
 from src.run_loop import run_sample
 from src.sampler import stratified_sample
 
 REPO_ROOT = Path(__file__).resolve().parent
 RESULTS_ROOT = REPO_ROOT / "results"
 
+# the two different retrievers, we will only use bm25
+RETRIEVERS = {
+    "bm25": bm25_retrieve,
+    "placeholder_token_overlap": placeholder_retrieve,
+}
 
 def main():
     if len(sys.argv) != 2:
@@ -25,7 +31,8 @@ def main():
     with open(sys.argv[1]) as f:
         config = json.load(f)
 
-    retriever = functools.partial(retrieve, k=config["top_k"])
+    # uses the retriever specified in the config json file
+    retriever = functools.partial(RETRIEVERS[config["retriever"]], k=config["top_k"])
 
     sample = stratified_sample(load_claims(), config["per_cell"], seed=config["sample_seed"])
 
