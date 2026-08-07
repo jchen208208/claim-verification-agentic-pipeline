@@ -8,7 +8,7 @@
   "seed": 0,
   "prompt_version": "baseline_v1",
 
-  "retriever": "placeholder_retriever",
+  "retriever": "placeholder_token_overlap",
   "top_k": 10,
   "per_cell": 2,
   "sample_seed": 0

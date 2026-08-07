@@ -36,6 +36,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
+from run import RETRIEVERS
+from src.evidence_asserter import check_overflow
 from src.loader import load_claims
 from src.sampler import stratified_sample
 
@@ -130,6 +132,27 @@ def main():
         print("\nThis test defines the interface the run loop has to satisfy.")
         print("See the module docstring for the expected signature.")
         return 1
+
+    # --- 0. the config files themselves ---------------------------------
+    # Every value below is read off disk, never written here, so a config and
+    # this test cannot drift apart the way num_ctx did between 16384 and 32768.
+    configs = [(p, json.loads(p.read_text()))
+               for p in sorted((REPO_ROOT / "configs").glob("*.json"))]
+
+    check("configs/ is not empty", configs)
+
+    for path, cfg in configs:
+        # decompose_v1.json drives a different script and carries no retriever
+        if "retriever" in cfg:
+            check(f"{path.name} names a known retriever",
+                  cfg["retriever"] in RETRIEVERS,
+                  f"{cfg['retriever']!r} not in {sorted(RETRIEVERS)}")
+
+        ctx, predict = cfg["num_ctx"], cfg["num_predict"]
+        check(f"{path.name} overflow False just under num_ctx {ctx}",
+              check_overflow(ctx - predict - 1, predict, ctx) is False)
+        check(f"{path.name} overflow True at num_ctx {ctx}",
+              check_overflow(ctx - predict, predict, ctx) is True)
 
     sample = stratified_sample(load_claims(), 2)
     check("sample is 12 examples", len(sample) == 12, f"got {len(sample)}")
