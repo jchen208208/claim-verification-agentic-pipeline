@@ -249,6 +249,7 @@ Hardware: 2017 Intel MacBook Pro, 16 GB RAM, macOS 13, CPU-only, Ollama pinned a
 | ingestion, `num_predict=1` | **12.8–23.2 tok/s, mean ~16** | 6 calls | first clean ingestion measurement, 5 Aug |
 | total elapsed per prompt token | 0.0641 s, R² 0.995 | 11 examples | 2 Aug trial, absorbs generation |
 | per example, trial config | 419 s (7.0 min) | 12 | placeholder retriever, k=10, mean prompt 6,610 tokens |
+| per example, BM25 k=10, projected | 371 s (6.2 min) | 6 | fit `0.0808*prompt + 0.0317*gen`, R² 0.904, applied to BM25's 700-wide mean of 4,426 tokens. Not a measured mean over 700. |
 | peak RAM, 3B | 2.5 GB | — | RAM is not the constraint |
 | chars per token | **3.31 table-heavy to 4.44 prose** | 6 calls | **not a constant, do not use one** |
 

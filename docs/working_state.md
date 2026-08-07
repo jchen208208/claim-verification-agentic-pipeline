@@ -382,6 +382,45 @@ across CPU and CUDA, so a near-tie could flip on a different machine.
 **The 7B is still conditional**, not scheduled. It is a row and not a switch, per the 3 August
 hardware rule, and a 7B slice run costs two to three nights against the 3B's one.
 
+### The BM25 smoke run, 6 August evening
+
+Six examples, `configs/smoke_bm25.json`, BM25 at k=10, `num_ctx` 32768. **6 ok, 0 failed,
+23.2 minutes.** Full detail in the build log entry for 6 August, evening.
+
+**It validated the one path the harness cannot reach.** BM25 now runs through `run.py` end to
+end. Also 0 of 6 unparseable with all six caught by the extractor's strongest level, 0 of 6
+overflow, 10/10 chunks kept so the trimmer stayed dormant, and the resume logic confirmed live.
+
+**Runtime, measured on our own retriever:**
+
+    time = 0.0808 * prompt_tokens + 0.0317 * generated_tokens     R^2 0.904, n=6
+    ingestion 12.4 tok/s, generation 31.6 tok/s
+
+**Projected on BM25's 700-wide mean prompt of 4,426 tokens: 371 s per example, so about 10.5 h
+for 102 and 72 h for 700**, against 12 h and 82 h in the plan. About 12% better. **The schedule
+does not change.** Do not use the older 419 s per example figure for BM25 runs; it was the
+placeholder at `num_ctx` 16384.
+
+**Two errors made and corrected the same evening, both worth remembering.**
+
+1. **A claim that BM25 halved prompt size, 6,610 to 2,875 tokens. Wrong.** Those are a 12-example
+   sample and a 6-example sample of different retrievers. The population figures are 4,737 and
+   4,426 over all 700, a 7% difference. Small samples read low because the distribution is
+   right-skewed. **This is the same sample-versus-population error the 5 August entry already
+   recorded**, repeated one entry later.
+2. **A contaminated timing.** `ie-val-108` returned 33.6 s because the same command had been run
+   and killed 45 seconds earlier while debugging, leaving that prompt resident in Ollama. Re-run
+   cold it took 168.7 s. **Nothing in the result file marks a contaminated example**, so never
+   run the pipeline to debug it while a real run is pending on the same claims.
+
+**`num_ctx` 32768 was questioned and the 5 August decision stands.** The apparent slowdown came
+from comparing against a superseded 2 August figure. A clean measurement at 32768 already exists
+at 12.8-23.2 tok/s and today's 12.4 sits inside it. No A/B is being run, because 16384 trims 15
+of 700 claims at k=10 and 104 at k=20, so it cannot change a decision until k is frozen.
+
+**Recall on the six was macro 61.9% and all-gold 2/6.** Both are inside what n=6 produces by
+chance against the true 74.60% and 50.4%. Accuracy was 4 of 6, which supports no claim.
+
 ### Open going into 7 August
 
 - **The machine.** An Instagram message went to the professor asking the exact GPU model and the

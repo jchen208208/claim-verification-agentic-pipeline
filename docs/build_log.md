@@ -2077,3 +2077,126 @@ run would be planned against it, so it has to be measured rather than estimated.
 The hardware rule from 3 August applies unchanged. The brother's desktop is a GPU. No number
 from it goes under a MacBook label, and one MacBook night is still owed at the end for real
 latency and peak RAM.
+
+## 6 August 2026, evening — the BM25 smoke run, and a sample-versus-population error
+
+Six examples, `per_cell` 1, `configs/smoke_bm25.json`, BM25 at k=10, `num_ctx` 32768,
+`qwen2.5-coder:3b`. Results in `results/smoke_bm25/`. **6 ok, 0 failed.** Total 23.2 minutes.
+
+Purpose was never accuracy. It was the one path the harness structurally cannot reach: BM25
+flowing through `run.py` with a real model behind it. Every end-to-end run before this used the
+placeholder, and the harness injects retrieval stubs, so `bm25_retriever.retrieve` had never
+once been called by the real entry point.
+
+### What it validated
+
+    BM25 through run.py        works end to end
+    unparseable                0/6, extraction_source "anchored" on all six
+    context_overflow           0/6
+    chunks kept                10/10 on all six, trimmer stayed dormant as predicted
+    resume                     validated live: 5 skipped, 1 re-run, on the repair below
+
+The extractor result is worth noting against 2 August, where 4 of 12 responses did not put the
+verdict in the final sentence. Here all six were caught by the strongest extraction level. Six
+is not a rate, so this is not a claim, only an absence of the problem.
+
+### A measurement was contaminated, and the cause was our own debugging
+
+`ie-val-108` first came back at **33.6 s** against 168 to 342 s for the other five, on a prompt
+of ordinary size. Cause: while reproducing a `FileNotFoundError` earlier that day, the same
+command was run and killed after 45 seconds. Same seed, same sample order, so it had started on
+`ie-val-108` and left that prompt's work resident in Ollama. The real run 45 seconds later
+skipped most of it.
+
+    ie-val-108          1,907 tokens    33.6 s    56.8 tok/s   contaminated
+    knowledge-val-197   2,070 tokens   188.5 s    11.0 tok/s   clean
+
+56.8 tok/s is far outside anything measured on this machine, which is 10.7 to 23.2.
+
+**Repaired, not discarded.** `ollama stop qwen2.5-coder:3b`, delete the one result file, re-run.
+`has_result` skipped the other five and re-ran only that claim: **168.7 s, 11.3 tok/s**, in line
+with its token count. Same label, same evidence flags, because retrieval and generation at
+temperature 0 are deterministic and only the timing was ever wrong.
+
+**Operational rule from this: never run the pipeline to debug it while a real run is pending on
+the same claims.** Ollama's residency is invisible in the result file, `done_reason` still reads
+`stop`, and `prompt_eval_count` still reported the full 1,907 tokens. Nothing in the record marks
+the example as contaminated. It was caught only because the number was implausible.
+
+### The clean runtime model
+
+Fitted on all six after the repair, separating prompt reading from generation:
+
+    time = 0.0808 * prompt_tokens + 0.0317 * generated_tokens
+    ingestion 12.4 tok/s, generation 31.6 tok/s, R^2 = 0.904, n = 6
+
+Consistent with the `num_predict=1` ingestion measurement of 12.8-23.2 tok/s at the same
+`num_ctx`, which spanned content types varying 3.31 to 4.44 chars per token.
+
+**Projected on BM25's measured 700-wide mean prompt of 4,426 tokens at k=10**, with 411
+generated: **371 s per example, so about 10.5 h for 102 examples and 72 h for 700**, against the
+12 h and 82 h currently in the planning documents. A real improvement of roughly 12%, not the
+halving claimed earlier in the day. **The schedule does not change.**
+
+### The error that produced the halving claim, and it is one the log already warned about
+
+It was first reported that BM25 more than halved prompt size, 6,610 tokens to 2,875. **Wrong.**
+6,610 is the placeholder's mean over the 12-example trial sample; 2,875 was BM25's mean over six
+different examples. Different retrievers and different samples moved at once.
+
+The population figures are `build_log.md:1612`: placeholder 4,737 and BM25 4,426 tokens at k=10,
+both over all 700. **A 7% difference, not a halving.** Six samples read low because the
+distribution is right-skewed, p90 of 9,490 against a max of 19,466, so most draws sit under the
+mean.
+
+**This is the same error the 5 August entry explicitly recorded**, where 4,737 against 6,610 was
+first misdiagnosed as a broken character-to-token conversion before being identified as a
+sample-versus-population comparison. It was repeated one entry later. Any figure from a 6 or 12
+example sample must state which population it describes before it is compared to anything.
+
+### `num_ctx` 32768: examined, and the 5 August decision stands
+
+Today's fit gives 0.0808 s per prompt token against 2 August's 0.0641, which briefly looked like
+evidence that the larger window costs wall clock and therefore that the 5 August reasoning,
+*"an unused window costs RAM, not time"*, was wrong.
+
+**Withdrawn. There is no finding here.** Four reasons, in order of weight:
+
+1. **The 0.0641 baseline is superseded.** `build_log.md:1588` records that it came from total
+   elapsed time and absorbed generation cost. Comparing a two-variable fit against it is invalid.
+2. **A clean measurement at 32768 already exists** and today sits inside it: 12.8-23.2 tok/s
+   from the `num_predict=1` calls, against 12.4 tok/s today.
+3. **Content explains more than the window could.** Chars per token ranges 3.31 on table-heavy
+   claims to 4.44 on prose, a 34% spread, which moves ingestion speed more than an idle buffer.
+4. **The mechanism supports the original claim.** The KV cache is reserved up front, but
+   attention is computed over the tokens actually present, not the reserved space. An unused
+   window costs time only if the extra memory forces swapping, and 4.4 GB of 16 GB does not.
+
+**An A/B against `num_ctx` 16384 was proposed and is not being run.** It cannot change a decision
+yet: 16384 trims 15 of 700 claims at k=10 and 104 of 700 at k=20, so the smaller window is only
+ever an option if condition 1 picks k=10. Revisit then, using `num_predict=1` on 3 claims at both
+windows, about 10 minutes.
+
+### Recall on the six, and why 2/6 is not a warning sign
+
+    macro (mean per-claim fraction of gold found)   61.9%   vs 74.60% over 700
+    all-gold (every element present)                2/6     vs 50.4% over 700
+
+`evidence_present` is the **all-gold** column, the strictest of the three, not macro. Against a
+true rate of 50.4%, seeing 2 or fewer of 6 has probability about 0.34. It carries no information.
+
+The boolean also understates what arrived. `knowledge-val-197` received 4 of its 5 gold elements
+and still logs `False`. The `evidences_found` dict is the richer record.
+
+Accuracy was 4 of 6. **n=6 supports no claim** and it is not analysed here. For scale, the
+2 August trial was 8 of 12, the same 67%.
+
+### Housekeeping
+
+`configs/trial_bm25_3b.json` was renamed back to `configs/smoke_bm25.json` so the file name
+matches the `experiment` key, rather than renaming `results/smoke_bm25/` and desyncing the
+config embedded in each result file. Same reasoning as the `placeholder_token_overlap` revert
+earlier in the day.
+
+**`CLAUDE.md` gained a "How to answer me" section**, after a set of answers that buried the point
+under volume and follow-on tangents.

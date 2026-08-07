@@ -80,7 +80,7 @@ def assert_evidence(evidence_block, claim, report):
 def check_overflow(prompt_eval_count, eval_count, num_ctx):
     """Return True if generation may have evicted prompt tokens,
     None when either count is missing, False if generation went smoothly.
-    Theoretically, it should never fire since we set num_ctx to 16384 for ~4,500 prompt and ~2,000 generation,
+    Theoretically, it should never fire since we set num_ctx to 32768 for ~4,500 prompt and ~2,000 generation,
     leaving roughly 9,800 tokens available."""
 
     if prompt_eval_count is None or eval_count is None:
