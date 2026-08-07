@@ -1,5 +1,5 @@
 {
-  "experiment": "condition1_k20",
+  "experiment": "condition1_3b_k20",
 
   "model": "qwen2.5-coder:3b",
   "num_ctx": 32768,

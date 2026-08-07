@@ -19,7 +19,7 @@ RESULTS_ROOT = REPO_ROOT / "results"
 # the two different retrievers, we will only use bm25
 RETRIEVERS = {
     "bm25": bm25_retrieve,
-    "placeholder_token_overlap": placeholder_retrieve,
+    "placeholder_retriever": placeholder_retrieve,
 }
 
 def main():
