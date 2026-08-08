@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 6 August 2026.
+Last updated: 7 August 2026.
 
 ---
 
@@ -22,7 +22,7 @@ An earlier draft of the replan cut tiers 2 through 5 outright. That was wrong. I
 
 Read section 12.1 of the plan before scheduling anything that runs locally. The short version: between 3 and 23 August there are about 20 usable nights, one 3B slice run costs one night, one 7B slice run costs two to three, and a full 700 run would cost seven on this machine. Results have to freeze by 23 August so that writing can start on the 24th.
 
-If a faster machine materialises the night budget stops binding and Band B opens. **Updated 3 August: the professor has offered a GPU server.** Specs, access method and date are still unknown, so plan against this machine until the server is real, but Band B is now likely rather than hypothetical. See the 3 August section below and open question 11 in the plan.
+If a faster machine materialises the night budget stops binding and Band B opens. ~~**Updated 3 August: the professor has offered a GPU server.** Band B is now likely rather than hypothetical.~~ **Withdrawn 7 August. The professor's GPU server is unavailable and will not be available before the deadline.** He has several dozen RTX 4090 units, but they sit on a local network with no public IP address, and his students have not been able to obtain one. He expects it might be resolved after the semester starts in September, which is after 29 August. Plan against this machine. The only remaining path to Band B is the brother's desktop, which is untested. See the 7 August section below and open question 11 in the plan.
 
 ## Where the project stands
 
@@ -438,6 +438,126 @@ chance against the true 74.60% and 50.4%. Accuracy was 4 of 6, which supports no
 - **A progress email is owed**, separate from the hardware request: the retriever freeze, the
   three rejected approaches, the second local model, and the cloud quota.
 - **`evidence_asserter.py:83`**, the `check_overflow` docstring still says `num_ctx` 16384.
+
+## Where things stand, 7 August
+
+**No nights spent, nothing ran locally, and the two blocking items did not move.** The machine
+test and the local model decision are both still open at the end of the day. Full detail in the
+build log entry for 7 August.
+
+### The GPU server is gone
+
+Several dozen RTX 4090 units exist. They are on a local network with no public IP address, his
+students have not solved it, and he expects a fix only after the semester starts in September.
+That is after the deadline. **Treat it as unavailable, not delayed.**
+
+Two fallbacks he offered, neither scheduled: he will try to find a machine that can bridge access,
+and failing that he is **willing to pay for a rented third-party GPU server**. The brother's
+desktop stays first choice because it exists today and costs nothing.
+
+**Consequence.** The 700 run is ~72 h on this MacBook, 7 to 10 of the ~16 nights before the
+23 August freeze. It does not happen. n stays 102, the margin stays ±10 points, and "we match
+condition 3" stays unprovable. Band A carries the paper, as §12.3 already planned.
+
+### What the meeting settled, 7 August
+
+1. **The local model is our call.** His criteria: strongest but light, ideally around 3B for the
+   on-device framing, chosen to give the best chance of matching condition 3.
+2. **Cloud is `deepseek-v4-pro` and `deepseek-v4-flash`.** On Anthropic he said there is no reason
+   not to, but will not have me paying for a key myself, and he cannot pay for it because he is in
+   China and Anthropic does not serve China. **This is a payments constraint, not a scientific
+   objection.** It was previously recorded as though he preferred DeepSeek on merit.
+3. **Write the paper on Overleaf**, load the existing findings into a project, start writing, share
+   it with him.
+4. **Next week's meeting is about pipeline design**, closing the gap between condition 4 and
+   condition 3. Conditions 1 and 2 should be done by then.
+
+### The local model question, reopened by him and not yet answered
+
+He questioned whether a Coder model suits reading comprehension. **Checked: he named
+`Qwen2.5-Coder-3B` himself** in the early email recorded at §14 item 5. The 7B second model was
+ours.
+
+**His objection is right for condition 1**, which has no code in it anywhere and is the floor
+everything is measured against. It is defensible for Tier 1, where the model writes Python for the
+arithmetic. **The risk if it stays:** a model that reads badly but codes well makes the condition 4
+minus condition 1 delta look large for the wrong reason.
+
+**A contradiction, unresolved.** His criterion says pick the strongest model that still fits the
+on-device story. OQ8 says 3B stays primary because a bigger model eats the contribution, since the
+delta is largest where the base model is weakest. These optimise different things. Write it as a
+stated limitation.
+
+**A framing error corrected.** "Matching condition 3" does not require a local model that rivals
+DeepSeek. Condition 4 is the 3B *plus* DeepSeek on the judgment-heavy steps, so the local model
+only has to be good enough at the mechanical work that we do not escalate everything. Escalating
+everything would be condition 3 at condition 3's cost.
+
+**Candidates if it changes:** Qwen3-4B is the current recommendation, because the paper already
+tested `Qwen2_5-7B-Instruct`, so a newer and smaller Qwen beating an older and larger one is
+exactly the on-device story. Gemma 3 4B and Phi-4-mini are the alternatives. **Verify availability
+and tags on ollama.com before committing; none of these has been checked.** Switching is free
+today and costs a re-run once condition 1 starts.
+
+### DeepSeek works, and V4 Pro is a reasoning model
+
+One live `curl` against `https://api.deepseek.com/chat/completions`, OpenAI-compatible, model
+`deepseek-v4-pro`, `temperature` 0. It returned normally. **Condition 2's external blocker is
+closed.**
+
+**32 of 34 completion tokens were reasoning**, on the input "Say OK". The response carries a
+separate `reasoning_content` field and a `reasoning_tokens` count.
+
+    content              the final answer
+    reasoning_content    the model's reasoning, billed, returned separately
+    model                echoes what actually served the request
+    system_fingerprint   fp_9954b31ca7_prod0820_fp8_kvcache_20260402
+
+Three consequences. **The extractor must read `content` only**, never `content` plus
+`reasoning_content`, because `extract_label` takes the last match within a level and the reasoning
+may weigh the opposite verdict before the final answer. Log `reasoning_content` anyway, it is free
+evidence for the error taxonomy. **Every cloud cost estimate needs re-measuring** on one real
+4,426-token claim, because reasoning tokens are billed and no figure from a non-reasoning model
+transfers. And **`model` and `system_fingerprint` should be logged**, so a silent model roll shows
+up in the result files rather than as unexplained variance.
+
+**`deepseek-v4-flash` is a floating alias** routing to `DeepSeek-V4-Flash-0731`. Pin the dated
+string if the endpoint accepts it. Untested.
+
+**Which model goes where: pro for conditions 2 and 3.** Flash is a cheaper extra row and the
+natural escalation target inside condition 4. Putting flash in condition 3 would lower the bar we
+claim to match.
+
+**`Record` needs two new fields for this and they were deliberately not added.** `logger.py:19` is
+`response: str`, the text only, so `model` and `system_fingerprint` are not captured. Nothing in
+condition 1 touches DeepSeek, and the harness asserts all 18 `Record` fields are present, so adding
+fields means editing the logger and the harness on the day a ten-hour run starts. Deferred to the
+DeepSeek client work.
+
+### `docs/gpu_smoke_test.md` written
+
+One-off procedure for the brother's **desktop**: AMD RX 7800 XT, 16 GB VRAM, Windows, same Wi-Fi.
+Delete after the machine decision.
+
+**No code moves.** Ollama is already a client/server split over HTTP. The Mac runs the whole
+pipeline and the desktop runs only the model, at about 18 KB out and 2 KB back per example.
+`src/ollama_client.py:7` hardcodes the host and should become config-driven, so every result file
+records which machine produced it — the same gap that let the 6 August contaminated timing go
+unmarked.
+
+**The entire test is `ollama ps` reporting GPU rather than CPU**, because AMD on Windows falls back
+to CPU silently. Baseline is `configs/smoke_bm25.json` at 23.2 minutes for six claims on the Mac,
+same sample and seed. CPU or under ~3x means run on the Mac; 5x or better reopens Band B.
+
+### Open going into 8 August
+
+- **The GPU smoke test has not been run.** It decides the machine and how much latitude there is
+  on the model.
+- **The local model is not decided.** Free to change today, costs a re-run after condition 1.
+- **Condition 1 has not started.** Two runs, k=10 and k=20, ~10.5 h each on the Mac.
+- `deepseek-v4-flash` and the pinned `DeepSeek-V4-Flash-0731` string are untested.
+- No Overleaf project exists.
+- `evidence_asserter.py:83`, the `check_overflow` docstring, still says `num_ctx` 16384.
 
 ### Three things tried and rejected, all of which belong in the paper
 
@@ -1104,18 +1224,22 @@ exist before any run at a larger k, and it must count tokens rather than charact
 
 ### Also still open from 31 July
 
-The FINDVER leaderboard check and the citation sweep. Neither has been done, and both are
-needed before repeating any claim that nobody has attempted something.
+~~The FINDVER leaderboard check and the citation sweep. Neither has been done, and both are
+needed before repeating any claim that nobody has attempted something.~~ **Both done 3 August,
+see the section above and §6.6 of the plan.** There is no leaderboard to check, and email
+submission was retired in July 2026. The sweep covered 23 citing papers and **MACE is the only
+published method found evaluated on FINDVER.** It was abstract-level screening, so the supportable
+phrasing is **"we found no other method evaluated on FINDVER"**, never "nobody has."
 
 ## Outstanding, not yet done
 
-~~Decide the two cloud models and the two added edge models before 3 August.~~ **Partly done 3 August.** Cloud: DeepSeek is primary, decided by him. Still need the exact model string and endpoint, and an answer on whether an Anthropic key is available for the second slot. Edge: he did not answer, so Qwen2.5-Coder-3B and Qwen2.5-Coder-7B proceed as a decision unless he objects. Open questions 7 and 8 both remain formally open.
+~~Decide the two cloud models and the two added edge models before 3 August.~~ **Cloud closed 7 August.** Both cloud models are DeepSeek: `deepseek-v4-pro` and `deepseek-v4-flash`. The key is verified live. Anthropic is out because he cannot pay for it from China, not on merit. **Edge is still open**, reopened by him on 7 August over whether a Coder model suits reading comprehension. Open question 7 is closed; open question 8 is open.
 
-~~Answer open question 11: what faster machine is available, with what specs, and when.~~ **Partly done 3 August.** A GPU server exists and he has offered it. Still need the real card and VRAM, the access method, whether it is shared, and whether jobs can run for days. Note "RTX 4090 Ti" is not a product that shipped.
+~~Answer open question 11: what faster machine is available, with what specs, and when.~~ **Answered 7 August, and the answer is no.** Several dozen RTX 4090 units exist but are LAN-only with no public IP, and access will not happen before the deadline. The brother's desktop is the only remaining path to Band B and is untested.
 
-**Reply to him.** Confirm the server and ask the four questions above. State the two edge models as a decision rather than a question, since Phase 2 starts now and cannot wait on his inbox. Make the Anthropic case in one sentence. Raise the open question 8 contradiction below.
+~~**Reply to him.**~~ **Superseded by the 7 August meeting**, which answered the hardware, the cloud models and the Anthropic question, and handed the local model question back to us.
 
-**Raise the open question 8 contradiction with him.** OQ8 requires edge models FINDVER did not evaluate, which optimises for new table rows. But the paper's claim is that the pipeline improves a small model, and the cleanest evidence for that is the same model, published baseline against ours, with the pipeline as the only variable. `Llama-3_2-3B-Instruct` is published with 700 stored responses already on disk. OQ8 disqualifies it; a pipeline contribution framing makes it the best candidate. The confound is that upstream's RAG setup is not ours. Not resolved.
+~~**Raise the open question 8 contradiction with him.**~~ **Downgraded 7 August, not raised.** The Llama-3.2-3B comparison is not controlled: upstream ran temperature 1.0, a 1024-token cap, a retriever at 65.16% recall against our 74.60%, and `gpt-4o-mini` extraction with an unseeded coin flip. "Same model" holds one variable fixed while four move. **Condition 1 against condition 4 holds everything fixed** and is strictly better evidence, at n=102, without the 700 run. The published Llama number is free from disk as historical context either way. Not a live tension.
 
 **MACE's accuracy number is not written down anywhere.** Section 6.1 records its weaknesses and the 27 to 92B scaling remark, but not the headline figure. Section 5.3 states our contribution as matching the all big model design and section 9.2 builds condition 3 to compare against it, so the number we are trying to match is currently unknown. Pull it from arXiv 2604.17225. Related: since the project is RAG only, the comparable Claude-3.5-Sonnet figure is **75.0% RAG, not 77.2% long context**. MACE's recall of 67.91% is not a target, it is FINDVER's own setup copied unchanged.
 

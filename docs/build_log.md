@@ -2200,3 +2200,204 @@ earlier in the day.
 
 **`CLAUDE.md` gained a "How to answer me" section**, after a set of answers that buried the point
 under volume and follow-on tangents.
+
+## 7 August 2026 — the GPU is gone, the meeting, and a DeepSeek smoke test that ran at the wrong time
+
+No nights spent. Nothing ran locally. The day's two blocking items, the machine test and the
+local model decision, are **both still open at the end of it**, which is recorded below rather
+than glossed.
+
+### The professor's GPU server is unavailable, and probably permanently for this paper
+
+His email, received before the meeting. He has **several dozen RTX 4090 units on hand**. They sit
+on a local area network and he has been unable to obtain a public network IP address for them.
+Several of his students have worked on it without success. He cannot grant access now, and
+expects it "might get sorted out after the semester starts in September", which he himself calls
+"much too late."
+
+**Treat the server as unavailable, not delayed.** September is after the 29 August deadline.
+
+Two fallbacks he offered at the meeting: he will try to find a machine that can bridge access,
+and failing that he is **willing to pay for a rented third-party GPU server**. Neither is
+scheduled. The brother's desktop stays first choice because it exists today and costs nothing.
+
+**What this costs.** A 700-example run is about 72 h on this MacBook, roughly 7 to 10 of the ~16
+nights left before the 23 August freeze. It does not happen. n stays at 102, the margin stays at
+±10 points, and §5.3's "we match condition 3" stays unprovable. Band A carries the paper, exactly
+as §12.3 planned for.
+
+### The meeting, 7 August. Five outcomes.
+
+1. **The local model is our call.** His criteria: the strongest model that is still light, ideally
+   around 3B, to keep the on-device framing honest, chosen to give the best chance of matching
+   condition 3 through our pipeline.
+2. **Cloud models are `deepseek-v4-flash` and `deepseek-v4-pro`.** On Anthropic he said there is
+   no reason not to, but does not want me paying for an API key myself. He resides in China,
+   Anthropic does not serve China, so he cannot pay for it. He can pay for DeepSeek. **This is a
+   payments constraint, not a technical or scientific objection**, and it was not previously
+   understood as such.
+3. **GPU as above.**
+4. **Write the paper on Overleaf.** Create a project, load the existing findings and progress into
+   it, begin writing, and share it with him.
+5. **Next week's meeting** is about pipeline design: how to close the gap between condition 4 and
+   condition 3. Conditions 1 and 2 should be finished by then.
+
+### Who chose Qwen2.5-Coder-3B, checked rather than recalled
+
+He questioned whether a Coder model suits reading-comprehension work rather than coding. Before
+answering, §14 item 5 was re-read: **he named `Qwen2.5-Coder-3B` himself**, in the early email
+that also ruled out long context and fixed the project on RAG. The **7B second model was ours**,
+recorded in OQ8 as "proceeding as a decision unless he objects."
+
+**His objection is right for one job and wrong for the other.** Condition 1 is plain reading of
+retrieved evidence plus a verdict, with no code in it anywhere, and it is the floor everything
+else is measured against. But Tier 1 has the model write Python for the arithmetic, so a
+code-tuned model is defensible there.
+
+**The risk if it stays.** If the Coder model reads badly but codes well, the condition 4 minus
+condition 1 delta looks large for the wrong reason. Flattering, and an artifact.
+
+### A contradiction between his criterion and OQ8, unresolved
+
+- **His criterion:** pick the strongest model that still fits the on-device story, to maximise the
+  chance of matching condition 3.
+- **OQ8:** 3B stays primary, because *"a bigger model eats the contribution: the pipeline's delta
+  is largest where the base model is weakest."*
+
+These optimise different things. His maximises the headline claim; OQ8 maximises the measured
+value of the pipeline. **Not resolved. Write it as a stated limitation rather than letting it
+pass unnoticed.**
+
+### The framing error this exposed, corrected
+
+"Best chance of matching condition 3" was initially read as needing a local model that can rival
+DeepSeek. **It does not.** Condition 4 is the 3B model *plus* DeepSeek on the judgment-heavy
+steps. The local model only has to be good enough at the mechanical work that we do not escalate
+everything. If every step escalated, condition 4 would be condition 3 at condition 3's cost.
+
+So the model criterion is: strong enough at reading tables and holding the output format, small
+enough to be credible as on-device. Not "strongest available."
+
+### OQ8's Llama-3.2-3B contradiction is weaker than it was recorded as
+
+OQ8 flags that requiring models FINDVER did *not* evaluate may optimise for the wrong objective,
+since `Llama-3_2-3B-Instruct` is in the published 16 with 700 responses already on disk, and using
+it would let us compare published baseline against our pipeline with the model held fixed.
+
+**That comparison is not controlled, and the entry overstated it.** Upstream ran temperature 1.0,
+a 1024-token generation cap, a retriever at 65.16% recall against our 74.60%, and `gpt-4o-mini`
+extraction with an unseeded coin flip. "Same model" holds one variable fixed while four others
+move.
+
+**Condition 1 against condition 4 holds model, retriever, k, prompt version, `num_ctx`,
+temperature and extractor all fixed.** It is a strictly better measurement of the pipeline's
+value, and it does not depend on the 700 run: it exists at n=102 with a ±10 point margin.
+
+**And the published Llama number is free from disk regardless**, as historical context in the
+baseline table, labelled as upstream's setup. We never had to adopt the model to cite it.
+
+**Downgraded, not closed.** It is a weak argument rather than a live tension. Raise it with him
+only if the model question reopens.
+
+### The DeepSeek key works, and V4 Pro is a reasoning model
+
+One live call, `curl`, before writing any Python. The endpoint is OpenAI-compatible:
+
+    POST https://api.deepseek.com/chat/completions
+    Authorization: Bearer $DEEPSEEK_API_KEY
+    {"model": "deepseek-v4-pro", "messages": [...], "temperature": 0, "stream": false}
+
+It returned normally. `temperature: 0` was accepted without error. **Condition 2's only external
+blocker is closed.**
+
+**The response carries more than expected:**
+
+    "content"            "OK"
+    "reasoning_content"  "We are asked: \"Say OK\". This is a very simple instruction..."
+    "completion_tokens"  34
+    "reasoning_tokens"   32
+    "model"              "deepseek-v4-pro"
+    "system_fingerprint" "fp_9954b31ca7_prod0820_fp8_kvcache_20260402"
+    "prompt_cache_hit_tokens" / "prompt_cache_miss_tokens"   0 / 6
+
+**32 of 34 output tokens were reasoning, on the input "Say OK".** Three consequences.
+
+**One, the extractor must read `content` only.** Never `content` plus `reasoning_content`.
+`extract_label` takes the *last* match within a level, so if the reasoning weighs "this looks
+entailed" and the final answer concludes "refuted", concatenating them risks extracting the
+opposite verdict. `content` is the clean final answer, which should make extraction far more
+reliable here than on the 3B. **Log `reasoning_content` into the record anyway** — it is free
+evidence for the error taxonomy, showing the cloud model's actual reasoning and not only its
+verdict.
+
+**Two, every cloud cost estimate needs re-measuring.** Reasoning tokens are billed and counted in
+`completion_tokens`. Any per-example output figure taken from a non-reasoning model does not
+transfer. Measure `reasoning_tokens` on one real 4,426-token claim before committing to condition
+3, which puts the cloud model in every pipeline role and is the largest quota consumer.
+
+**Three, the response reports what actually served the request.** `model` and
+`system_fingerprint` should both be logged. The fingerprint carries what looks like a build date,
+so a silent model roll mid-August would be visible in the result files instead of appearing as
+unexplained variance.
+
+**`deepseek-v4-flash` is a floating alias** routing to `DeepSeek-V4-Flash-0731`. Pin the dated
+string in configs if the endpoint accepts it, for the same reason machines cannot be mixed inside
+one results table. **Untested as of this entry.**
+
+**Which model goes where.** Pro for conditions 2 and 3, so both the single-call cloud baseline and
+the all-cloud upper bound use the strong model. Flash is a cheaper extra row and the natural
+escalation target to test inside condition 4. **Do not put flash in condition 3**, or the bar we
+claim to match is lowered by our own choice.
+
+Prompt-caching fields exist and were not investigated. Instructions are a shared prefix across
+examples while retrieved chunks are not, so there may be something there. Not now.
+
+### `Record` needs two fields. Deliberately not added today.
+
+`logger.py:19` is `response: str | None` — the text only, not the response dict. So `model` and
+`system_fingerprint` are **not** captured by the current logger and would need new fields.
+
+**Not done, on purpose.** Nothing in condition 1 touches DeepSeek, and `test_harness.py` asserts
+`all 18 Record fields present`, so adding fields means editing the logger and the harness on the
+day a ten-hour run is meant to start. Deferred to the DeepSeek client work, after the edge runs.
+
+### Scope drift, recorded because the pattern is the point
+
+The DeepSeek smoke test was worth doing and took two minutes. What followed — analysing the
+reasoning-model consequences, the flash alias, the logging changes, and proposing the client
+module — happened on a day whose blocking items were the machine test and the model decision, and
+neither moved. Flagged by the user, correctly.
+
+**The rule this suggests:** a verification that unblocks future work is not the same as starting
+that work. Verify, write down what it changed, stop.
+
+### `docs/gpu_smoke_test.md` written
+
+One-off procedure for the brother's **desktop** (AMD RX 7800 XT, 16 GB VRAM, Windows, same Wi-Fi).
+Delete after the machine decision.
+
+**No code moves to that machine.** Ollama is already a client/server split over HTTP: the Mac runs
+loader, sampler, BM25, prompt building, trimming, extraction and all writes into `results/`, and
+the desktop runs only the model. About 18 KB out and 2 KB back per example against a call taking
+minutes.
+
+`src/ollama_client.py:7` hardcodes `http://localhost:11434/api/generate`. It should become
+config-driven rather than edited, because `Record` already stores the config and every result file
+would then record **which machine produced it** — the same failure shape as the 6 August
+contaminated timing, which nothing in the record marked.
+
+**The whole test is `ollama ps` reporting GPU rather than CPU.** AMD on Windows falls back to CPU
+silently. Speed is not the check; the process listing is. Baseline for comparison is
+`configs/smoke_bm25.json` at **23.2 minutes for six claims** on the Mac, same sample and seed, so
+the ratio is the answer. Threshold: CPU or under ~3x means use the Mac tonight; 5x or better means
+Band B reopens.
+
+### Still open going into 8 August
+
+- **The GPU smoke test has not been run.**
+- **The local model is not decided.** Switching is free only until condition 1 starts.
+- **Condition 1 has not started.** It is two runs, k=10 and k=20, ~10.5 h each on the Mac.
+- `deepseek-v4-flash` and the pinned `DeepSeek-V4-Flash-0731` string are untested.
+- No Overleaf project exists.
+- `evidence_asserter.py:83` still says `num_ctx` 16384 in the `check_overflow` docstring, carried
+  from 6 August.
