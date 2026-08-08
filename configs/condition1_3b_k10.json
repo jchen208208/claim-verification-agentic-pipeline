@@ -1,5 +1,5 @@
 {
-  "experiment": "condition1_3b_k10",
+  "experiment": "condition1_3b_k20",
 
   "model": "qwen2.5-coder:3b",
   "num_ctx": 32768,
@@ -11,5 +11,7 @@
   "retriever": "bm25",
   "top_k": 10,
   "per_cell": 17,
-  "sample_seed": 0
+  "sample_seed": 0,
+
+  "ollama_host": "10.0.0.26"
 }

@@ -11,5 +11,7 @@
   "retriever": "bm25",
   "top_k": 20,
   "per_cell": 17,
-  "sample_seed": 0
+  "sample_seed": 0,
+
+  "ollama_host": "10.0.0.26"
 }
