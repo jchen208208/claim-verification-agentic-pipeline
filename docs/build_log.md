@@ -2556,3 +2556,182 @@ that let the 6 August contaminated timing go unmarked.
 The Mac runs loader, sampler, BM25, prompt building, trimming, extraction and all writes; the
 desktop runs only the model. `test_harness.py` picked up the new config automatically and is now
 at **44/44**.
+
+## 7–8 August 2026, overnight — condition 1 measured, k frozen at 10, and a published 3B baseline scored
+
+Both condition 1 runs complete on the GPU. **102 ok, 0 failed, 0 skipped** on each.
+`results/condition1_3b_k10/` and `results/condition1_3b_k20/`.
+
+### A config bug fired, and it was the one caught in theory on 6 August
+
+`configs/condition1_3b_k10.json` carried `"experiment": "condition1_3b_k20"`. The run used
+`top_k` 10 correctly but wrote 102 result files into `results/condition1_3b_k20/`.
+
+**The banner printed the contradiction before it started** and it was not read:
+
+    experiment    condition1_3b_k20
+    retriever     bm25, k=10
+
+**What would have happened next.** Starting the real k=20 run, `has_result` would have found 102
+files with `status == "ok"` in `results/condition1_3b_k20/` and skipped every one. Output would
+have read `0 ok, 0 failed, 102 skipped` in about a second, and k=20 would have been recorded as
+done while holding k=10 data. **This is exactly the failure the 6 August entry predicted** for the
+missing `_3b` suffix, realised one day later in a different config.
+
+**Repaired by deleting and re-running rather than renaming the directory**, because the 102 result
+files each embed `"experiment": "condition1_3b_k20"` in their stored config, and renaming would
+desync that. Same reasoning as the 6 August `smoke_bm25` revert — except then a re-run cost 10.5 h
+and on the GPU it cost twelve minutes. **The GPU changed which repair is correct.**
+
+**Operational rule: read the three banner lines before walking away.** `experiment`, `retriever`
+and `results` must agree.
+
+### Condition 1, n=102, `qwen2.5-coder:3b`, BM25, `num_ctx` 32768, GPU
+
+                              k=10        k=20
+    strict accuracy          66.7%       62.7%
+    FINDVER-compatible       66.7%       64.7%
+    unparseable               0.0%        3.9%
+    evidence_present (all-gold) 54.9%    65.7%
+    prompt tokens, mean       3,651       6,843
+    prompt tokens, max       14,066      20,574
+    context_overflow            0/102       0/102
+    trimmer fired               0/102       1/102
+    wall clock              11.2 min    14.9 min
+    mean per example          6.6 s       8.7 s
+    predicted True           41/102      54/102     (gold 51/102)
+    extraction sources    102 anchored   93 anchored, 5 bare, 3 none, 1 hedged
+
+Per subset, n=34 each:
+
+                  k=10 acc   k=10 evid    k=20 acc   k=20 evid   k=20 unparseable
+    ie              64.7%      67.6%        64.7%      82.4%           3
+    knowledge       58.8%      26.5%        52.9%      32.4%           1
+    numeric         76.5%      70.6%        70.6%      82.4%           0
+
+Paired, same 102 claims:
+
+    label agreement           58/102 = 56.9%
+    disagreements                44, of which k=20 right 18, k=10 right 22
+    evidence_present          gained at k=20 on 11 claims, lost on 0
+
+### The finding: retrieval improved 10.8 points and accuracy did not follow
+
+`evidence_present` rose from 54.9% to 65.7%, **gained on 11 claims and lost on zero**. Retrieval is
+strictly better at k=20. Strict accuracy fell 4 points.
+
+This is §3.4.4's factor 3 — *"higher k adds distractors as well as gold, and a 3B model may not
+ignore them"* — moving from hypothesis to measurement on our own system.
+
+**It must not be written as "k=20 is worse."** At n=102 the margin is ±10 points, and the paired
+comparison is 22 against 18 on 44 disagreements, which is indistinguishable from chance. **The
+defensible claim is that a 10.8-point recall gain produced no measurable accuracy gain at 87% more
+prompt tokens.**
+
+### Decided: k = 10 is frozen
+
+Accuracy is a tie, so the tiebreakers decide, and all point the same way.
+
+1. **Format compliance collapses at k=20.** k=10 was `anchored` on **102 of 102**. k=20 fell to 93
+   anchored with 5 bare, 1 hedged and 3 none.
+2. **Zero unparseable against 3.9%.** At k=10 the strict and FINDVER-compatible scores are
+   **identical at 66.7%**, because there is nothing to impute. Given §11.8's whole argument is
+   about imputation contaminating small-model scores, being at zero is worth protecting.
+3. **Prompt size is the entire cost model.** 87% more tokens is 87% more MacBook latency, and the
+   MacBook is the device of record. §3.4.4's factor 4 warned that doubling per-example time
+   weakens the exact axis §6.1 attacks MACE on.
+
+**Everything downstream inherits k=10**: the 7B, conditions 2, 3 and 4, and the 700 run. **k=20 is
+kept as the retrieval-versus-accuracy ablation row**, not discarded.
+
+**Limitation to state in the paper:** k was chosen on the 3B, a larger model may tolerate more
+distractors, and at n=102 the two are statistically tied, so the choice rests on cost and format
+compliance rather than on accuracy.
+
+### Verdicts are unstable across retrieval changes
+
+**Only 58 of 102 claims received the same label at both k values.** Retrieval changed and more than
+40% of verdicts flipped. Together with the 5-of-6 machine divergence measured earlier the same
+evening, this is a consistent picture: **this model's verdicts are highly sensitive to conditions
+that should not change the answer.** Worth reporting as a small-model reliability observation.
+
+### FDV-KNOW is the weak subset, and it is a retrieval problem
+
+Knowledge sits at 26.5% all-gold recall against numeric's 70.6%, and has the lowest accuracy at
+both k values. This reproduces §3.4's per-subset pattern on our own retriever and is the Tier 2
+argument with our own numbers behind it.
+
+### Llama-3.2-3B scored from the published outputs, for a same-size reference point
+
+Read from `FinDVer/outputs/testmini_outputs/rag/processed_cot_outputs/Llama-3_2-3B-Instruct.json`.
+No compute, no quota. **The id mapping `{subset}-testmini-{n}` to `{subset}-val-{n}` was verified
+against statement text on all 700: 0 mismatches.**
+
+                                          all 700    our same 102
+    FINDVER-compatible (as published)       58.4%       62.7%
+    strict, our extractor                   38.3%       36.3%
+    unparseable under our extractor         34.7%       40.2%
+      of which: no verdict word anywhere    26.6%       30.4%
+      of which: we missed a verdict          8.1%        9.8%
+    ends without terminal punctuation       17.9%       15.7%
+
+**Internal consistency check passed.** 34.7% unparseable is 65.3% coverage, matching the 1 August
+extractor measurement on this exact model to the decimal.
+
+### An error I made and corrected the same session
+
+I first reported the 26.5-point gap between Llama's published and strict scores as imputation.
+**Wrong.** That assumed gpt-4o-mini failed on the same responses our extractor did. Their
+`extracted_label` is stored **after** the coin flip, so gpt-4o-mini's true failure rate is
+unmeasurable from these files — a caveat the 31 July entry already recorded and which I did not
+apply.
+
+**The correct decomposition** separates what any extractor could have done from what ours did.
+**26.6% of responses contain the strings "entail" and "refut" nowhere at all.** gpt-4o-mini had
+nothing to read on those, so they were coin-flipped no matter how good the extractor is. That
+gives a **defensible lower bound of ~13.3 points of imputation on all 700**, ~15.2 on our 102. The
+remaining ~8% is our regex being worse than gpt-4o-mini, which is our limitation, not theirs.
+
+**A large part of the no-verdict rate is their generation settings, not their model.** 17.9% of
+responses end mid-sentence at the 1024-token cap. The 1 August entry found 90 truncated responses
+landing in the `none` bucket.
+
+### The claim to write, and the ones not to
+
+**Write this**, because it depends on nothing but the raw response text:
+
+> Llama-3.2-3B stated no verdict at all on 26.6% of FINDVER's testmini. The official evaluation
+> assigns those a random label, contributing roughly 13 points to its published 58.4%. Nearly a
+> fifth of its responses terminate mid-sentence at the 1024-token generation cap.
+
+**Do not write "our 3B beats their 3B."** The confounds are large and known: temperature 1.0, a
+1024-token cap, and a retriever at 65.16% macro recall against our 74.60%. This is an
+**evaluation-reliability finding**, which is the workshop's topic 05, and it is both stronger and
+safer than a model-quality claim.
+
+### What 66.7% means
+
+    constant answer on a balanced sample        50.0%
+    ours, 3B, single call, no pipeline          66.7%
+    MACE's Mistral-7B with their full pipeline    64%
+    MACE's Llama-8B with their full pipeline      68%
+    FINDVER's best published RAG (claude-3.5)   75.0%
+
+A 3B making one call is roughly level with an 8B running MACE's entire multi-agent system. Treat
+that as context, not a claim: §6.1 records real problems with MACE's baseline column.
+
+**The consequence that matters is that the floor is high.** §5.3's contribution is condition 4
+minus condition 1. If condition 3 lands at 75–80%, the pipeline has 8–13 points to climb, and a
+delta that size sits right at the edge of the ±10 margin at n=102. **This is a second, independent
+reason the 700 run matters**, alongside the condition 3 comparison.
+
+### Two scripts owed
+
+Both of tonight's analyses were run as inline Python, which violates `paper_numbers.md` rule 1:
+a number enters only when a committed script can regenerate it. Owed:
+
+- `test_scripts/analyse_condition1.py` — the k=10 / k=20 table above
+- `test_scripts/score_published_baselines.py` — the Llama scoring, generalised over all 16 models
+
+The second is worth generalising: the same code gives strict-versus-published for every model in
+`outputs/`, which is §11.8's table across the full model-size range rather than one point.

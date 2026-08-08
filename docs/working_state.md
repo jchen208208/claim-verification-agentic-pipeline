@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 7 August 2026.
+Last updated: 8 August 2026.
 
 ---
 
@@ -652,18 +652,123 @@ Ethernet.
 `config.get("ollama_host", "localhost")`, so every existing config is untouched and every result
 file now records which machine produced it. Harness picked up the new config automatically: 44/44.
 
-### Open going into 8 August
+## CONDITION 1 IS MEASURED. k IS FROZEN AT 10.
 
-- **Condition 1 has not started.** Two runs, k=10 and k=20, ~20 min each on the GPU.
-- **Both condition 1 configs still need `"ollama_host": "10.0.0.26"` added**, or they run on the
-  MacBook and cost 21 hours instead of 40 minutes.
-- **The local model is still not decided**, but the GPU makes it an evidence question rather than
-  an argument: run candidates at 102 and compare.
-- `deepseek-v4-flash` and the pinned `DeepSeek-V4-Flash-0731` string are untested.
-- No Overleaf project exists.
+Both runs complete on the GPU, **102 ok / 0 failed** each. Full detail and the caveats in the build
+log entry for 7–8 August, overnight. Figures in `paper_numbers.md` §2.3.
+
+                              k=10        k=20
+    strict accuracy          66.7%       62.7%
+    FINDVER-compatible       66.7%       64.7%
+    unparseable               0.0%        3.9%
+    evidence_present         54.9%       65.7%
+    prompt tokens, mean       3,651       6,843
+    context overflow          0/102       0/102
+    wall clock              11.2 min    14.9 min
+
+**The finding: retrieval improved 10.8 points and accuracy did not follow.** `evidence_present`
+gained on 11 claims and lost on 0, and strict accuracy fell 4 points. That is §3.4.4's distractor
+hypothesis, measured.
+
+**It is not significant and must not be written as "k=20 is worse."** Paired on the same claims:
+44 disagreements, 18 to k=20, 22 to k=10. **Write "a 10.8-point recall gain produced no measurable
+accuracy gain at 87% more prompt tokens."**
+
+**k=10 wins on the tiebreakers, all of which point the same way.** Format compliance was
+`anchored` on 102 of 102 at k=10 against 93 at k=20; unparseable is 0.0% against 3.9%, so the
+strict and FINDVER-compatible scores **coincide exactly at 66.7%**; and 87% fewer prompt tokens is
+87% less MacBook latency on the device of record.
+
+**k=20 is kept as the retrieval-versus-accuracy ablation row**, not discarded.
+
+**Also measured: verdicts are unstable.** Only **58 of 102** claims got the same label at both k
+values. With the 5-of-6 machine divergence from earlier the same evening, the picture is
+consistent — this model's verdicts move under conditions that should not change the answer.
+
+**FDV-KNOW is the weak subset and it is a retrieval problem:** 26.5% all-gold recall against
+numeric's 70.6%, and the lowest accuracy at both k values.
+
+### What 66.7% means
+
+    constant answer                              50.0%
+    ours, 3B, single call, no pipeline           66.7%
+    MACE's Mistral-7B, their full pipeline         64%
+    MACE's Llama-8B, their full pipeline           68%
+    FINDVER's best published RAG (claude-3.5)    75.0%
+
+A good number. **And a high floor, which is the part that matters.** The contribution is condition
+4 minus condition 1. If condition 3 lands at 75–80%, the pipeline has 8–13 points to climb, and a
+delta that size sits at the edge of the ±10 margin at n=102. **A second independent reason the 700
+run matters.**
+
+### A published 3B baseline, scored both ways
+
+From `outputs/` with no compute. `paper_numbers.md` §2.4.
+
+                                            all 700   our 102
+    Llama-3.2-3B, FINDVER-compatible          58.4%     62.7%
+    Llama-3.2-3B, strict                      38.3%     36.3%
+    stated no verdict at all                  26.6%     30.4%
+    ends mid-sentence (1024-token cap)        17.9%     15.7%
+    ours, both scorings                          —      66.7%
+
+**The only defensible imputation figure is the no-verdict-word row**, ~13.3 points of their
+published 58.4%, because a response containing neither "entail" nor "refut" cannot be extracted by
+anything, `gpt-4o-mini` included. **An earlier framing attributing the whole 58.4→38.3 gap to
+imputation was wrong and was withdrawn**: their labels are stored after the coin flip, so
+`gpt-4o-mini`'s real failure rate is unmeasurable from these files.
+
+**Do not write "our 3B beats their 3B."** Temperature 1.0, a 1024-token cap, and a weaker retriever
+are all confounded in. **Write the evaluation-reliability claim**, which is the workshop's topic 05
+and much harder to argue with.
+
+**Band A now holds two results needing no further compute and no working pipeline:** retrieval
+recall, and this. If everything downstream failed tomorrow there is still a paper.
+
+---
+
+## What to do on 8 August, in order
+
+**Two tracks that do not conflict — one needs the GPU, one does not.**
+
+### Track 1, Mac, daytime, no GPU needed
+
+1. **Build `src/deepseek_client.py`.** Mirror `ollama_client.py`: `call_deepseek(prompt, config)`
+   returning the raw dict. `run.py:53` already injects `call_model` as a parameter, so no change
+   to the run loop — only a config key selecting which client to use.
+   **Read `content` only for extraction, never `content` plus `reasoning_content`** (§11 item 2).
+   Log `reasoning_content`, `model` and `system_fingerprint`, which means adding `Record` fields
+   **and updating `test_harness.py`'s 18-field assertion in the same change.**
+2. **Run condition 2** (DeepSeek `deepseek-v4-pro`, single call, no pipeline, k=10, same 102
+   claims). Cloud, so hours not nights. This is the second of the two ends the professor asked for
+   on 30 July, and next week's meeting expects it done.
+3. **Test whether `DeepSeek-V4-Flash-0731` is accepted** as a model string, so configs can pin a
+   snapshot rather than a floating alias.
+
+### Track 2, GPU session, about 40 minutes
+
+**Check the PC's IP first** — `ipconfig` on his machine. `10.0.0.26` is DHCP-assigned and may have
+changed. Every config hardcodes it.
+
+4. `ollama pull qwen3:4b` and `ollama pull qwen2.5:3b` on his PC.
+5. **Run condition 1 at k=10 on both**, ~15 min each. This settles the local model on evidence and
+   **answers the professor's Coder objection with data** — `qwen2.5:3b` against
+   `qwen2.5-coder:3b` holds size fixed and varies only code-tuning.
+
+### Track 3, whenever
+
+6. **Write the two owed scripts**, because `paper_numbers.md` rule 1 is currently violated by both
+   of last night's results: `test_scripts/analyse_condition1.py` and
+   `test_scripts/score_published_baselines.py`. Generalise the second over all 16 models in
+   `outputs/` — the same code gives §11.8's imputation table across the whole model-size range
+   instead of one point.
+7. **Create the Overleaf project and share it with him** (§14 item 13).
+
+### Still open, carried
+
 - `evidence_asserter.py:83`, the `check_overflow` docstring, still says `num_ctx` 16384.
-- ~~`docs/gpu_smoke_test.md` can be deleted once condition 1 is running.~~ **Deleted 7 August.** Its
-  content survives in the build log entry for 7 August, evening, and in the section above.
+- A DHCP reservation for the brother's PC would stop the IP moving. Ten minutes in the router.
+- ~~`docs/gpu_smoke_test.md`~~ **deleted 7 August**; content survives in the build log.
 
 ### Three things tried and rejected, all of which belong in the paper
 

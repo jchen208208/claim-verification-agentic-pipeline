@@ -197,7 +197,7 @@ Recall by claim complexity, ours, k=10, n=700, which is why this population was 
 
 ## 2. Accuracy
 
-**Nothing here is citable yet.** The only end-to-end run is the 2 August trial: 12 examples, placeholder retriever, 8/12 correct. n=12 with a superseded retriever supports no claim.
+~~**Nothing here is citable yet.**~~ **[UPDATED 8 Aug 2026.] Condition 1 is measured at n=102.** See §2.3. The 2 August trial (12 examples, placeholder retriever, 8/12) is superseded and supports no claim.
 
 **Two scorings are mandatory, and mixing them is the failure to avoid.** Strict, where unparseable is its own counted bucket scored wrong, with its rate reported beside it. FINDVER-compatible, where unparseable is coin-flipped with a fixed seed, used **only** when placing our number beside a published one. The published baselines were produced with `gpt-4o-mini` extraction and unseeded coin-flip imputation.
 
@@ -233,6 +233,62 @@ Level breakdown: anchored 81.7%, bare 5.8%, negated 0.3%, hedged 2.3%, none 9.9%
 **Caveat that must travel with these:** upstream's `extracted_label` is stored *after* the coin flip, so imputed labels are indistinguishable from real ones. Agreement is measured only where a clean verdict sentence exists, i.e. the easy subset.
 
 **Do not write "3B models fail the output format 45% of the time."** The upstream figures were produced at temperature 1.0 with `max_tokens` 1024, and 39% of Llama-3.2-3B's residual is the generation cap, not incapacity. Our runs use temperature 0 and set `num_predict` ourselves. Our own rate on 12 trial examples was **0 unparseable**, which is not a rate either.
+
+### 2.3 **[NEW 8 Aug 2026] Condition 1 — edge-only baseline, n=102**
+
+`qwen2.5-coder:3b`, BM25, `num_ctx` 32768, `num_predict` 2000, temperature 0, seed 0, `baseline_v1`, 17 per cell, sample seed 0. **Run on the GPU (brother's desktop, RX 7600 XT).** `results/condition1_3b_k10/`, `results/condition1_3b_k20/`.
+
+| | k=10 | k=20 |
+|---|---|---|
+| **strict accuracy** | **66.7%** | 62.7% |
+| FINDVER-compatible | **66.7%** | 64.7% |
+| unparseable | **0.0%** | 3.9% |
+| evidence_present (all-gold) | 54.9% | 65.7% |
+| prompt tokens, mean | 3,651 | 6,843 |
+| context overflow | 0/102 | 0/102 |
+| trimmer fired | 0/102 | 1/102 |
+| extraction sources | 102 anchored | 93 anchored, 5 bare, 1 hedged, 3 none |
+
+Per subset, n=34 each:
+
+| subset | k=10 acc | k=10 evid | k=20 acc | k=20 evid |
+|---|---|---|---|---|
+| FDV-IE | 64.7% | 67.6% | 64.7% | 82.4% |
+| FDV-KNOW | 58.8% | 26.5% | 52.9% | 32.4% |
+| FDV-MATH | 76.5% | 70.6% | 70.6% | 82.4% |
+
+**What this may sit beside.** The two scorings are **identical at k=10** because unparseable is 0, so 66.7% may be placed next to a published FINDVER figure *and* used as our strict number. This is the only accuracy figure in the project with that property. It may **not** sit beside any MacBook-run number (§9.2, and see §3.4 — verdicts were measured to diverge across machines).
+
+**The k=10 versus k=20 difference is not significant.** Paired on the same 102 claims: 44 disagreements, k=20 right on 18, k=10 right on 22. **Write "a 10.8-point recall gain produced no measurable accuracy gain at 87% more prompt tokens," never "k=20 is worse."**
+
+**k is frozen at 10** on cost and format compliance, not on accuracy. Limitation to state: chosen on the 3B; a larger model may tolerate more distractors.
+
+**Verdict instability, reportable:** only **58 of 102** claims received the same label at both k values.
+
+**Regenerating script: not yet written** (`test_scripts/analyse_condition1.py` owed). Violates rule 1 until it exists.
+
+### 2.4 **[NEW 8 Aug 2026] Published 3B baseline, scored both ways**
+
+`Llama-3_2-3B-Instruct.json` from `outputs/testmini_outputs/rag/processed_cot_outputs/`. No compute, no quota. Id mapping `{subset}-testmini-{n}` → `{subset}-val-{n}` verified against statement text, 0 mismatches on 700.
+
+| | all 700 | our same 102 |
+|---|---|---|
+| FINDVER-compatible (as published) | 58.4% | 62.7% |
+| strict, our extractor | 38.3% | 36.3% |
+| unparseable, our extractor | 34.7% | 40.2% |
+| — of which no verdict word anywhere | **26.6%** | 30.4% |
+| — of which our regex missed it | 8.1% | 9.8% |
+| ends without terminal punctuation | 17.9% | 15.7% |
+
+**The only defensible imputation number is the "no verdict word anywhere" row**, because a response containing neither "entail" nor "refut" cannot be extracted by *any* extractor, including `gpt-4o-mini`. Those went to the coin flip regardless. **Lower bound on imputation: ~13.3 points of the published 58.4%.**
+
+**Do not attribute the full 58.4→38.3 gap to imputation.** Upstream's `extracted_label` is stored after the coin flip, so `gpt-4o-mini`'s true failure rate is unmeasurable from these files. The residual ~8% is our regex being weaker than `gpt-4o-mini`, which is our limitation.
+
+**Do not write "our 3B beats their 3B."** Confounds: temperature 1.0, 1024-token cap, retriever at 65.16% macro against our 74.60%. **Write the evaluation-reliability claim instead** (topic 05):
+
+> Llama-3.2-3B stated no verdict at all on 26.6% of FINDVER's testmini. The official evaluation assigns those a random label, contributing roughly 13 points to its published 58.4%. Nearly a fifth of its responses terminate mid-sentence at the 1024-token generation cap.
+
+**Regenerating script: not yet written** (`test_scripts/score_published_baselines.py` owed, generalised over all 16 models).
 
 ---
 
@@ -338,8 +394,8 @@ Listed so they are not written by accident.
 
 - **"Nobody has done X."** The citation sweep found 23 papers citing FINDVER with MACE the only method evaluated on it, but that was abstract-level screening. **Supportable phrasing: "we found no other method evaluated on FINDVER."**
 - **"Better retrieval improves accuracy."** Assumed throughout, measured nowhere. The only evidence is the trial run's 4/4 with evidence present against 4/8 without, at n=4, which §9 says not to trust.
-- **"Higher k improves accuracy."** Recall rises 13.9 points from k=10 to k=30. Whether the model uses the extra evidence, or is confused by the extra distractors, is unmeasured. This is what condition 1 at two k values will answer.
-- **Any unparseable rate for our configuration.** 0 of 12 is not a rate.
+- ~~**"Higher k improves accuracy."**~~ **[ANSWERED 8 Aug 2026, and the answer is no.]** At n=102, k=10→k=20 raised all-gold recall 10.8 points (gained on 11 claims, lost on 0) and strict accuracy fell 4 points. Paired: 44 disagreements, 18 to k=20 and 22 to k=10 — statistically tied. **Supportable: "a 10.8-point recall gain produced no measurable accuracy gain at 87% more prompt tokens."** Not supportable: "k=20 is worse." See §2.3.
+- ~~**Any unparseable rate for our configuration.** 0 of 12 is not a rate.~~ **[MEASURED 8 Aug 2026 at n=102: 0.0% at k=10, 3.9% at k=20.]** 0 of 102 is a usable figure and is the basis for §2.3's claim that our strict and FINDVER-compatible scores coincide.
 - **Any 7B number.** Not re-measured since week 1.
 - ~~**Any fusion gain for the local dense arm.**~~ **Resolved 5 August at n=700: there is none worth taking.** See §1.6. Untuned fusion is +0.00; the tuned gain is rejected on the same test-set-selection ground as the `k1`/`b` sweep.
 - **Any pipeline latency.** The 7.0 min figure is `baseline_v1` with the placeholder retriever, no code execution, no table parsing, no cloud round trip.
