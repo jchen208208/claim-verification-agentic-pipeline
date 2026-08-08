@@ -28,7 +28,7 @@ def call_ollama(prompt, config):
         },
     }
 
-    url = OLLAMA_URL.format(host=config.get("ollama_host", "localhost"))
+    url = OLLAMA_URL.format(host=config.get("ollama_host", "localhost")) #checks if the config json has an ollama_host field and if it doesn't it defaults and returns localhost
     
     request = urllib.request.Request(
         url, # destination

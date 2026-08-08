@@ -1405,7 +1405,7 @@ So "Tier 2 is expensive" is false as stated. Its measurement half is one of the 
 
 **[OPEN] Faster hardware may become available.** If it does, the night budget stops binding and the conditional band opens: full-700 runs, end-to-end retrieval ablations, and 7B slice comparisons all become affordable. Specs and availability date are unknown as of 31 July (§13 item 11). Until they are known, plan against this machine and treat anything faster as upside rather than assumption.
 
-~~**[UPDATED 3 Aug 2026] The professor has offered a GPU server, so Band B is now likely rather than hypothetical.**~~ **[WITHDRAWN 7 Aug 2026. The server is unavailable and will not be available before the deadline.]** He has several dozen RTX 4090 units, but they sit on a local network with no public IP address and his students have not been able to obtain one. He expects a fix only after the semester starts in September, which is after 29 August. **The night budget above is now the binding constraint, not a placeholder.** Two fallbacks were offered and neither is scheduled: he will try to find a machine that can bridge access, and failing that he is willing to pay for a rented third-party GPU server. The only path to Band B that exists today is the brother's desktop (AMD RX 7800 XT), which is untested. Two things do *not* change when it arrives. The MacBook remains the device of record for all latency and memory figures (§4.2, §13 item 11). And prompt size remains the right lever on *this* machine, so the retrieval work keeps its efficiency motive for the deployment story even after wall-clock stops binding for experiments.
+~~**[UPDATED 3 Aug 2026] The professor has offered a GPU server, so Band B is now likely rather than hypothetical.**~~ **[WITHDRAWN 7 Aug 2026. The server is unavailable and will not be available before the deadline.]** He has several dozen RTX 4090 units, but they sit on a local network with no public IP address and his students have not been able to obtain one. He expects a fix only after the semester starts in September, which is after 29 August. **The night budget above is now the binding constraint, not a placeholder.** Two fallbacks were offered and neither is scheduled: he will try to find a machine that can bridge access, and failing that he is willing to pay for a rented third-party GPU server. **[RESOLVED the same evening. The brother's desktop works and Band B is open.]** AMD **RX 7600 XT** (gfx1102, 16 GB), Windows, Ollama over LAN. **36.8x measured** on the six-claim smoke sample: 23.2 min → 37.7 s. A 102-example run drops from 10.5 h to roughly 20 minutes and the full 700 run from 72 h to a few hours, so **the night budget above stops binding.** See §13 item 11 for the numbers and the caveats. Two things do *not* change. The MacBook remains the device of record for all latency and memory figures (§4.2, §13 item 11). And prompt size remains the right lever on *this* machine, so the retrieval work keeps its efficiency motive for the deployment story even after wall-clock stops binding for experiments.
 
 ### 12.2 The 30-day plan
 
@@ -1471,8 +1471,12 @@ Five pages. Intro, related work, method, results, analysis, limitations. Writing
 **Band A — committed. Fits on this machine, in these 30 days.**
 Harness. Tier 0 baselines, edge and cloud, on the 102-example slice. Tier 1 code execution. **Tier 2 retrieval recall**, standalone, measured against gold indices with no model runs. The extraction and imputation analysis (§11.8), already measured. Error taxonomy on ~25 hand-labelled failures per configuration.
 
-**Band B — conditional on faster hardware, or on Band A finishing early.**
-End-to-end accuracy delta from the winning retrieval variant. Full 700-example testmini run. 7B slice comparisons. Leaderboard submission. Each of these is a night or several on the current machine; on faster hardware they are cheap. **Do not design the paper to require them, and do not design it to preclude them.** Note the full-700 run has an independent motive beyond precision: the ±10-point margin at n=102 (§9) makes any close comparison unresolvable, so if compute appears, this is the first thing it buys.
+**Band B — ~~conditional on faster hardware, or on Band A finishing early~~. [OPEN as of 7 Aug 2026, evening.]**
+End-to-end accuracy delta from the winning retrieval variant. Full 700-example testmini run. 7B slice comparisons. Leaderboard submission. Each of these is a night or several on the current machine; on faster hardware they are cheap. ~~**Do not design the paper to require them, and do not design it to preclude them.**~~ Note the full-700 run has an independent motive beyond precision: the ±10-point margin at n=102 (§9) makes any close comparison unresolvable, so if compute appears, this is the first thing it buys.
+
+**The compute appeared.** The brother's desktop measured **36.8x** faster than the MacBook on 7 August (§13 item 11), taking a 102-example run to ~20 min and the full 700 run to ~2–3 h. **Band B is now affordable and the paper may be designed to include it** — with two conditions. First, **everything compared must run on the same machine**, since verdicts were measured to diverge across CPU and ROCm at 5 of 6. Second, the **leaderboard submission stays out** for the unrelated reason in §13 item 4: there is nothing to submit to.
+
+**Band A does not become less important.** Retrieval recall and the extraction/imputation analysis still carry the paper if the desktop becomes unavailable — it is a family machine, not a guaranteed resource.
 
 **Band C — stretch, only if Bands A and B land early.**
 Tier 3 glossary, Tier 4 faithfulness verifier, Tier 5 routing sweep. The faithfulness metric is the most novel piece in the plan and the natural centrepiece if accuracy saturates (§7.5), so it is the first thing to promote out of Band C if the schedule loosens.
@@ -1573,7 +1577,25 @@ Table parsing overruns, cut Tier 1's retry loop before cutting Tier 1. Cloud key
 
     Two fallbacks were offered at the 7 August meeting, neither scheduled: he will try to find a machine that can bridge access to the LAN, and failing that he is **willing to pay for a rented third-party GPU server**. If the rental materialises, everything in the hardware rule below still applies unchanged.
 
-    **The remaining path to Band B is the brother's desktop:** AMD Radeon RX 7800 XT, 16 GB VRAM, Windows, on the same Wi-Fi network. Untested as of 7 August. Procedure in `docs/gpu_smoke_test.md`. The decisive check is `ollama ps` reporting GPU rather than CPU, because Ollama's AMD path uses ROCm and **falls back to CPU silently** if it does not engage. No code moves to that machine: Ollama is already an HTTP client/server split, so the Mac runs the whole pipeline and the desktop runs only the model.
+    **[ANSWERED 7 Aug 2026, evening. The brother's desktop works. This is the machine.]**
+
+    The card is an **RX 7600 XT** (Navi 33 / **gfx1102**, 16 GB VRAM, driver 32.0.31035.1003), **not the RX 7800 XT** every earlier document said — roughly half the bandwidth and compute of the assumed card. It did not matter. `ollama ps` reports `100% GPU`, and the model digest `f72c60cabf62` is identical to the MacBook's, so weights and quantisation match and the comparison is valid.
+
+    **36.8x, measured on the same six claims, same sample, same seed:** 1389.4 s → 37.7 s, i.e. **23.2 min → 0.6 min**. Per-example ratios ranged 21.6x to 69.3x.
+
+    | run | MacBook | GPU |
+    |---|---|---|
+    | condition 1 at 102 | 10.5 h | **~20 min** |
+    | full 700 | 72 h | **~2–3 h** |
+    | 7B slice at 102 | 20–30 h | **under an hour** |
+
+    **Caveat on those projections:** the six smoke claims average 2,713 prompt tokens against the 700-wide mean of 4,426, so they are lighter than a representative draw and the real figures will land above the naive division.
+
+    **Band B is open.** The full 700 run is the one that matters: it takes the accuracy margin from ~±10 points to ~±4 and makes §5.3's "we match condition 3" measurable rather than unprovable.
+
+    **[MEASURED, not assumed: verdicts do not fully reproduce across machines. 5 of 6.]** `ie-val-174` came back `False` on the MacBook and `True` on the GPU. `prompt_eval_count` was identical on all six, so retrieval, sampling, trimming and prompt building are perfectly deterministic across machines — **the divergence is entirely in generation** (generated tokens moved 503→395, 644→485, 458→287, 246→519). Greedy decoding at temperature 0 still depends on floating-point arithmetic, and CPU and ROCm kernels do not produce bit-identical logits. This is exactly what the hardware rule below anticipated, so **the rule stands and now has evidence**: whichever machine runs condition 1 runs every condition, and the final MacBook night's portability check is a real measurement rather than a formality.
+
+    **No code moved to that machine.** `src/ollama_client.py` builds its URL from `config.get("ollama_host", "localhost")`, so the Mac runs loader, sampler, BM25, prompt building, trimming, extraction and all writes, while the desktop runs only the model. Every result file now records which machine produced it.
 
     **The concrete reason to accept.** §9 puts the margin at ±10 points at n=102, which makes "matches the all-big-model pipeline" (§5.3, and condition 3 in §9.2) **unprovable** at that sample size, since a tie and a 5-point loss are indistinguishable. The full-700 run is the only fix, and §12.3 already names it as the first thing compute buys. This is the single biggest threat to the contribution statement.
 
@@ -1643,7 +1665,9 @@ Table parsing overruns, cut Tier 1's retry loop before cutting Tier 1. Cloud key
 - [ ] **Decide the local model** (§13 item 8) — **reopened by him 7 Aug and still open.** Qwen2.5-Coder-3B was his own original choice; he now questions whether a Coder model suits reading comprehension. Free to change until condition 1 starts
 - [x] ~~Reply to him.~~ **Superseded by the 7 Aug meeting**, which answered the hardware, cloud-model and Anthropic questions and handed the local-model question back to us
 - [x] Smoke-test the DeepSeek key — **done 7 Aug.** `deepseek-v4-pro` verified live; it is a reasoning model. DashScope/Qwen is moot, no Qwen key was issued
-- [ ] **Run the GPU smoke test on the brother's desktop** (`docs/gpu_smoke_test.md`) — decides the machine, and how much latitude remains on the local model
+- [x] **Run the GPU smoke test on the brother's desktop** — **done 7 Aug, evening. 36.8x, it works.** That machine is now where every accuracy run happens (§13 item 11). The procedure file has been deleted; the setup traps are recorded in the build log entry for 7 August, evening
+- [ ] **Add `"ollama_host": "10.0.0.26"` to both condition 1 configs** before running them, or they execute on the MacBook at 10.5 h each instead of ~20 min
+- [ ] **Run condition 1 at k=10 and k=20**, then freeze k for every downstream condition (§9.2)
 - [ ] **Create the Overleaf project and share it with him** (§14 item 13)
 - [ ] Test whether `DeepSeek-V4-Flash-0731` is accepted as a model string, so the config can pin a snapshot rather than a floating alias
 - [ ] Add `model` and `system_fingerprint` fields to `Record`, **with the harness update**, when the DeepSeek client is built — not before

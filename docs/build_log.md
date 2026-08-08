@@ -2434,3 +2434,125 @@ the pipeline's delta more visible.
 each, ~3 h total, which answers his Coder objection **with data** — size held fixed, code-tuned
 against general instruct — rather than with an argument. Three nights on the MacBook, so it does
 not happen there.
+
+## 7 August 2026, evening — the GPU works: 36.8x, and verdicts do not fully reproduce across machines
+
+`configs/smoke_bm25_gpu.json`, six claims, `per_cell` 1, BM25 k=10, `num_ctx` 32768,
+`qwen2.5-coder:3b`, run from the MacBook against Ollama on the brother's desktop.
+**6 ok, 0 failed, 37.7 s total.** Results in `results/smoke_bm25_gpu/`.
+
+### The card is an RX 7600 XT, not the RX 7800 XT every document said
+
+    Get-CimInstance Win32_VideoController
+    AMD Radeon RX 7600 XT    driver 32.0.31035.1003
+
+**Navi 33 / gfx1102**, not Navi 32 / gfx1101. 16 GB VRAM. Roughly half the memory bandwidth and
+about half the compute units of the 7800 XT the plan assumed. Corrected in `working_state.md`,
+`architecture_plan.md` §13 item 11 and `docs/gpu_smoke_test.md`.
+
+**It did not matter.** ROCm engages on gfx1102 and the speedup is enormous anyway. Recorded so the
+next person does not read "7800 XT" and expect these numbers from that card.
+
+### The result
+
+    ollama ps    PROCESSOR  100% GPU
+    ollama list  ID f72c60cabf62, Q4_K_M, 3.1B, context_length 32768
+
+**Digest identical to the MacBook's**, so weights and quantisation are the same and the comparison
+is valid. Per-example, against the 6 August MacBook baseline on the same sample and seed:
+
+    example              mac_s   gpu_s   ratio    ptok    mac_gen  gpu_gen   mac_lbl  gpu_lbl  gold
+    ie-val-108           168.7     7.8   21.6x    same        298      296     False    False  False
+    ie-val-174           199.7     5.7   34.9x    same        503      395     False     True   True
+    knowledge-val-197    188.5     6.6   28.7x    same        644      485     False    False  False
+    knowledge-val-53     342.0     4.9   69.3x    same        458      287      True     True   True
+    numeric-val-158      271.9     5.4   50.4x    same        318      330      True     True   True
+    numeric-val-5        218.7     7.3   30.0x    same        246      519      True     True  False
+    TOTAL               1389.4    37.7   36.8x
+
+**23.2 minutes to 0.6 minutes.** `done_reason` was `stop` on all twelve records, so nothing
+truncated on either machine.
+
+### Verdicts do not fully reproduce across machines. 5 of 6.
+
+**`ie-val-174` diverged**: MacBook `False`, GPU `True`. Gold is `True`, so the GPU was right, which
+is luck at n=6 and carries no information.
+
+**`prompt_eval_count` is identical on all six**, so retrieval, stratified sampling, trimming and
+prompt construction are perfectly deterministic across machines. **The divergence is entirely in
+generation**, and the generated-token counts show how large it is: 503→395, 644→485, 458→287,
+246→519.
+
+**Mechanism.** Greedy decoding at temperature 0 still depends on floating-point arithmetic, and
+CPU and ROCm kernels do not produce bit-identical logits. A single reordering of two close logits
+early in a response sends the rest of it down a different path.
+
+**§4.2's hardware rule predicted this and it is now measured rather than assumed.** Two
+consequences.
+
+1. **Whichever machine runs condition 1 runs every condition.** Already the rule; it now has
+   evidence behind it rather than a caution.
+2. **The final MacBook night gains a second purpose that is no longer a formality.** It was
+   budgeted for per-example latency and peak RAM, with the accuracy-portability check as a bonus.
+   Portability is now a live question with a measured partial answer, and it belongs in the
+   limitations section either way.
+
+**Do not read the accuracy column.** MacBook 4/6, GPU 5/6, n=6. It supports nothing.
+
+### Projected cost, with the caveat stated
+
+Scaling 36.8x against the fitted model:
+
+    condition 1 at 102      10.5 h   ->   ~20 min
+    full 700 run              72 h   ->   ~2-3 h
+    7B slice at 102        20-30 h   ->   under an hour
+
+**Caveat.** These six average **2,713 prompt tokens against the 700-wide mean of 4,426**, so they
+are lighter than a representative draw. Expect the real figures higher than the naive division.
+This is the same sample-versus-population trap recorded on 5 and 6 August; stating it up front
+this time rather than after being caught by it.
+
+### Band B opens
+
+The full 700 run, the 7B row, the end-to-end retrieval ablation and a real model comparison are all
+affordable now. **The important one is n=700**, which takes the accuracy margin from about ±10
+points to about ±4 and makes "we match condition 3" (§5.3, §9.2) measurable rather than
+unprovable. That was the single largest threat to the contribution statement.
+
+**The MacBook remains the device of record for every latency, throughput and memory figure**
+(§4.2). Nothing about that changes. The GPU makes the experiments affordable, not the operating
+point cheap.
+
+### Setup findings, because two of them cost time tonight
+
+**Setting `OLLAMA_HOST` is not enough — Ollama must be restarted, and the tray's Quit is not
+reliable.** After `[Environment]::SetEnvironmentVariable("OLLAMA_HOST","0.0.0.0",...)` the server
+was still bound to localhost. The diagnostic that settles it in one line:
+
+    netstat -ano | findstr 11434
+    127.0.0.1:11434  ->  not restarted, unreachable from the network
+    0.0.0.0:11434    ->  correct
+
+The reliable restart is `Get-Process ollama* | Stop-Process -Force` then relaunch from the Start
+menu, rather than hunting the tray icon.
+
+**The Windows network profile was `Public`,** which blocks inbound traffic aggressively.
+`Set-NetConnectionProfile -InterfaceAlias "Wi-Fi" -NetworkCategory Private`, in an **admin** shell.
+
+**Windows blocks inbound ICMP by default, so `ping` from the Mac fails even when TCP works.** This
+looked alarming and is meaningless. The useful test is the reverse direction: **PC to Mac ping
+succeeded**, which ruled out router client isolation — the one failure mode that would have
+required changing a router setting or moving to Ethernet.
+
+**Also needed:** an inbound firewall rule on TCP 11434.
+
+### No code moved to the second machine
+
+`src/ollama_client.py` now builds its URL from `config.get("ollama_host", "localhost")` instead of
+a hardcoded constant. The default keeps every existing config working untouched, and because
+`Record` stores the config, **every result file now records which machine produced it** — the gap
+that let the 6 August contaminated timing go unmarked.
+
+The Mac runs loader, sampler, BM25, prompt building, trimming, extraction and all writes; the
+desktop runs only the model. `test_harness.py` picked up the new config automatically and is now
+at **44/44**.

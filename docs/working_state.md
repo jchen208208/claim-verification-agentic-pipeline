@@ -571,30 +571,99 @@ condition 1 touches DeepSeek, and the harness asserts all 18 `Record` fields are
 fields means editing the logger and the harness on the day a ten-hour run starts. Deferred to the
 DeepSeek client work.
 
-### `docs/gpu_smoke_test.md` written
+## THE GPU WORKS: 36.8x, and Band B is open
 
-One-off procedure for the brother's **desktop**: AMD RX 7800 XT, 16 GB VRAM, Windows, same Wi-Fi.
-Delete after the machine decision.
+`configs/smoke_bm25_gpu.json`, six claims, same sample and seed as the MacBook baseline.
+**6 ok, 0 failed, 37.7 seconds total against 23.2 minutes.** Full detail in the build log entry
+for 7 August, evening.
 
-**No code moves.** Ollama is already a client/server split over HTTP. The Mac runs the whole
-pipeline and the desktop runs only the model, at about 18 KB out and 2 KB back per example.
-`src/ollama_client.py:7` hardcodes the host and should become config-driven, so every result file
-records which machine produced it — the same gap that let the 6 August contaminated timing go
-unmarked.
+**The card is an RX 7600 XT, not the RX 7800 XT every document said.** Navi 33 / gfx1102, 16 GB
+VRAM, driver 32.0.31035.1003. Roughly half the bandwidth and compute of the assumed card. **It did
+not matter** — ROCm engages on gfx1102 and the speedup is enormous regardless. Do not read "7800
+XT" anywhere and expect these numbers from that card.
 
-**The entire test is `ollama ps` reporting GPU rather than CPU**, because AMD on Windows falls back
-to CPU silently. Baseline is `configs/smoke_bm25.json` at 23.2 minutes for six claims on the Mac,
-same sample and seed. CPU or under ~3x means run on the Mac; 5x or better reopens Band B.
+    example              mac_s   gpu_s   ratio    mac_lbl  gpu_lbl   gold
+    ie-val-108           168.7     7.8   21.6x      False    False  False
+    ie-val-174           199.7     5.7   34.9x      False     True   True
+    knowledge-val-197    188.5     6.6   28.7x      False    False  False
+    knowledge-val-53     342.0     4.9   69.3x       True     True   True
+    numeric-val-158      271.9     5.4   50.4x       True     True   True
+    numeric-val-5        218.7     7.3   30.0x       True     True  False
+    TOTAL               1389.4    37.7   36.8x
+
+Model digest `f72c60cabf62` identical to the Mac's, so weights and quantisation match.
+`done_reason` was `stop` on all twelve records.
+
+### Verdicts do not fully reproduce across machines. 5 of 6.
+
+**`ie-val-174` diverged:** MacBook `False`, GPU `True`, gold `True`. The GPU was right, which is
+luck at n=6 and means nothing.
+
+**`prompt_eval_count` is identical on all six**, so retrieval, sampling, trimming and prompt
+building are perfectly deterministic across machines. **The divergence is entirely in generation.**
+Generated-token counts moved a lot: 503→395, 644→485, 458→287, 246→519. Greedy decoding at
+temperature 0 still depends on floating-point arithmetic, and CPU and ROCm kernels do not produce
+bit-identical logits.
+
+**The hardware rule predicted this and it is now measured, not assumed.** Two consequences.
+**Whichever machine runs condition 1 runs every condition** — no table may mix them. And **the
+final MacBook night is no longer a formality**: it was budgeted for latency and peak RAM with
+portability as a bonus, and portability is now a live question that belongs in the limitations
+section.
+
+Do not read the accuracy column. MacBook 4/6, GPU 5/6, n=6, supports nothing.
+
+### What it costs now
+
+    condition 1 at 102      10.5 h   ->   ~20 min
+    full 700 run              72 h   ->   ~2-3 h
+    7B slice at 102        20-30 h   ->   under an hour
+
+**Caveat, stated up front rather than after being caught by it:** these six average 2,713 prompt
+tokens against the 700-wide mean of 4,426, so they are lighter than a representative draw. Expect
+the real figures above the naive division. Same sample-versus-population trap as 5 and 6 August.
+
+**Band B is open.** The 700 run, the 7B row, the end-to-end retrieval ablation and a real model
+comparison are all affordable. **The one that matters is n=700**, which takes the accuracy margin
+from about ±10 points to about ±4 and makes "we match condition 3" measurable instead of
+unprovable. That was the largest threat to the contribution statement.
+
+**The MacBook remains the device of record** for every latency, throughput and memory figure. The
+GPU makes the experiments affordable, not the operating point cheap.
+
+### Setup findings worth not rediscovering
+
+**Setting `OLLAMA_HOST` is not enough; Ollama must be restarted, and the tray's Quit is
+unreliable.** One line settles it:
+
+    netstat -ano | findstr 11434
+    127.0.0.1:11434  ->  not restarted, unreachable from the network
+    0.0.0.0:11434    ->  correct
+
+Reliable restart is `Get-Process ollama* | Stop-Process -Force`, then relaunch from the Start menu.
+
+**The Windows network profile was `Public`** and had to be set to `Private` in an admin shell.
+**Windows blocks inbound ICMP by default**, so `ping` from the Mac fails even when TCP works —
+alarming and meaningless. The useful test is the reverse: **PC to Mac ping succeeded**, which ruled
+out router client isolation, the one failure mode that would have needed a router change or
+Ethernet.
+
+**No code moved to the second machine.** `src/ollama_client.py` builds its URL from
+`config.get("ollama_host", "localhost")`, so every existing config is untouched and every result
+file now records which machine produced it. Harness picked up the new config automatically: 44/44.
 
 ### Open going into 8 August
 
-- **The GPU smoke test has not been run.** It decides the machine and how much latitude there is
-  on the model.
-- **The local model is not decided.** Free to change today, costs a re-run after condition 1.
-- **Condition 1 has not started.** Two runs, k=10 and k=20, ~10.5 h each on the Mac.
+- **Condition 1 has not started.** Two runs, k=10 and k=20, ~20 min each on the GPU.
+- **Both condition 1 configs still need `"ollama_host": "10.0.0.26"` added**, or they run on the
+  MacBook and cost 21 hours instead of 40 minutes.
+- **The local model is still not decided**, but the GPU makes it an evidence question rather than
+  an argument: run candidates at 102 and compare.
 - `deepseek-v4-flash` and the pinned `DeepSeek-V4-Flash-0731` string are untested.
 - No Overleaf project exists.
 - `evidence_asserter.py:83`, the `check_overflow` docstring, still says `num_ctx` 16384.
+- ~~`docs/gpu_smoke_test.md` can be deleted once condition 1 is running.~~ **Deleted 7 August.** Its
+  content survives in the build log entry for 7 August, evening, and in the section above.
 
 ### Three things tried and rejected, all of which belong in the paper
 
