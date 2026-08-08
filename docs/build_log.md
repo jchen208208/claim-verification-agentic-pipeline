@@ -2401,3 +2401,36 @@ Band B reopens.
 - No Overleaf project exists.
 - `evidence_asserter.py:83` still says `num_ctx` 16384 in the `check_overflow` docstring, carried
   from 6 August.
+
+### The model decision rule, adopted 7 August
+
+Recorded because the ordering was initially got backwards: the model was going to be decided
+*before* the machine test, when it is the machine test that prices the model decision.
+
+**The GPU test runs `qwen2.5-coder:3b` and nothing else**, because the only baseline to divide by
+is `configs/smoke_bm25.json` at 23.2 min for six claims on that exact model, sample and seed.
+
+**The 23.2 min figure was re-verified from the result files today**, after the user asked whether
+it still contained the contaminated `ie-val-108` timing. It does not: the file reads the repaired
+**168.7 s**, and the six sum to 1389.4 s. The contaminated version would have totalled 20.9 min.
+
+**4B is comfortably on-device.** §4.2 allows ≤8B, FINDVER's own baselines include 7B and 8B, and a
+4B at 4-bit is ~2.5 GB.
+
+**One measured quantity, one guess.** That a 4B is more accurate on this task is plausible and
+unverified. Only the wall clock is known: ~⅓ more parameters puts ingestion near 9–10 tok/s
+against the measured 12.4, moving a 102-example run from 10.5 h to ~13–14 h. Material on the
+MacBook, irrelevant on a GPU.
+
+    GPU works    run condition 1 at 102 on both models, ~1 h each, decide on accuracy
+    GPU fails    stay on qwen2.5-coder:3b
+
+The four reasons for staying, in order of weight: one shot per night with ~16 left; it is proven
+end to end at 6/6 with a fitted cost model; the professor chose it himself (§14 item 5); and his
+Coder objection cuts the way OQ8 wants, since condition 1 is a **floor** and a weaker floor makes
+the pipeline's delta more visible.
+
+**What a working GPU additionally buys:** `qwen2.5-coder:3b` vs `qwen2.5:3b` vs `qwen3:4b` at 102
+each, ~3 h total, which answers his Coder objection **with data** — size held fixed, code-tuned
+against general instruct — rather than with an argument. Three nights on the MacBook, so it does
+not happen there.

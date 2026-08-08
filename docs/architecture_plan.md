@@ -1547,6 +1547,17 @@ Table parsing overruns, cut Tier 1's retry loop before cutting Tier 1. Cloud key
 
    **Candidates if it changes, none yet verified on ollama.com:** `Qwen3-4B` is the current recommendation, because the paper already tested `Qwen2_5-7B-Instruct` and a newer, smaller Qwen beating an older, larger one is exactly this venue's story. Gemma 3 4B and Phi-4-mini are the alternatives. **Switching is free until condition 1 starts and costs a re-run afterwards**, so the decision is dated to the machine test, not deferred.
 
+   **[DECISION RULE, 7 Aug 2026. The machine decides the model, not the reverse.]** The GPU smoke test runs first and must use `qwen2.5-coder:3b`, because the comparison baseline is `configs/smoke_bm25.json` at **23.2 min for six claims** on that exact model, sample and seed — a different model leaves nothing to divide by.
+
+   **4B is comfortably on-device.** §4.2's rule already allows ≤8B, FINDVER's own baselines include 7B and 8B models, and a 4B at 4-bit is ~2.5 GB. The argument only starts above 8B.
+
+   **Separate the measured from the guessed.** That a 4B is more accurate *on this task* is plausible and **unverified**. The tradeoff direction is real — a stronger base raises condition 4 and shrinks condition 4 minus condition 1 — but its size is unknown. **Only the wall clock is measured:** a 4B is ~⅓ larger, so ingestion falls from 12.4 tok/s to roughly 9–10, moving a 102-example run from 10.5 h to ~13–14 h. Material on the MacBook with ~16 nights left; irrelevant on a GPU.
+
+   - **GPU works** → run condition 1 at 102 on both models, ~1 h each. Decide on measured accuracy; the loser becomes a results row rather than a limitations sentence.
+   - **GPU fails** → **stay on `qwen2.5-coder:3b`.** One shot per night; it is already proven end to end at 6/6 with a fitted cost model; the professor chose it himself (§14 item 5); and his objection cuts the way this item wants, since condition 1 is a *floor* and a weaker floor makes the pipeline's delta more visible.
+
+   **What a working GPU additionally buys:** `qwen2.5-coder:3b` vs `qwen2.5:3b` vs `qwen3:4b` at 102 each is ~3 h on a GPU and **answers his Coder objection with data** — size held fixed, code-tuned against general instruct — rather than with an argument. On the MacBook that is three nights and does not happen.
+
    **[3B stays primary. 7B is a row, not a switch.]** Considered promoting 7B to primary once the GPU removes the wall-clock objection, and rejected. A bigger model **eats the contribution**: the pipeline's delta is largest where the base model is weakest, so if 7B handles the arithmetic and tables unaided the ablation shows less and the paper says less. Secondary reasons: every measured number in the project is 3B, and the venue rewards the smaller model. This is what §12.3 already encodes — Band A is 3B, Band B holds "7B slice comparisons."
 9. **Is the extraction/imputation finding acceptable as a headline contribution?** §11.8, measured on 11,200 responses at zero compute cost. The paper needs at least one result that does not depend on a long run chain, since Band B is conditional (§12.3). Worth confirming he agrees before building the paper around it. *(Corrected 1 Aug: this item previously read "with Tiers 2–5 cut", which contradicts §12.3. Nothing is cut; scope is banded.)*
 

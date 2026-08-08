@@ -499,6 +499,43 @@ exactly the on-device story. Gemma 3 4B and Phi-4-mini are the alternatives. **V
 and tags on ollama.com before committing; none of these has been checked.** Switching is free
 today and costs a re-run once condition 1 starts.
 
+### The model decision is keyed to the machine, and the ordering matters
+
+**The GPU test comes first. It does not wait on the model decision, it decides how much the model
+decision costs.** And the test has to run `qwen2.5-coder:3b` for a mechanical reason: the
+comparison baseline is `configs/smoke_bm25.json` at 23.2 minutes for six claims on that exact
+model, sample and seed. A different model leaves nothing to divide by.
+
+**Is 4B still on-device? Yes, comfortably.** The hardware rule already allows 8B or below, the
+FINDVER paper's own baselines include 7B and 8B models, and a 4B at 4-bit quantisation is about
+2.5 GB. The argument only starts above 8B.
+
+**What actually differs, separating the measured from the guessed.** That a 4B is more accurate
+here is plausible — newer generation, general instruct rather than code-tuned, more parameters —
+and **completely unverified on this task**. The tradeoff direction is real: a stronger base model
+raises condition 4 and shrinks condition 4 minus condition 1. **The only part that is not a guess
+is wall clock.** A 4B is about a third larger, so ingestion drops from the measured 12.4 tokens
+per second to roughly 9 or 10, taking a 102-example run from 10.5 hours to about 13 or 14. On the
+MacBook with ~16 nights left that is material. On a working GPU it is nothing.
+
+**If the GPU works:** run condition 1 at 102 on both models, about an hour each. Pick on measured
+accuracy rather than argument, and the loser becomes a paper row instead of a limitations
+sentence.
+
+**If the GPU fails: stay on `qwen2.5-coder:3b`.** Four reasons, in order of weight.
+
+1. **One shot per night, ~16 left.** Switching costs a pull, a fresh throughput measurement, a
+   6-example smoke run, and then a 13-hour run instead of 10.5.
+2. **It is already proven end to end** through `run.py`, 6 of 6, with a fitted cost model.
+3. **The professor chose it himself** (§14 item 5), so keeping it needs no justification to him.
+4. **His objection cuts the way we want.** Condition 1 is a *floor*. A weaker floor makes the
+   pipeline's contribution more visible, which is what OQ8 says to optimise for.
+
+**One extra thing a working GPU buys.** Running `qwen2.5-coder:3b`, `qwen2.5:3b` and `qwen3:4b` at
+102 each is about three hours on a GPU. That **answers the professor's Coder objection with data**
+— same size, code-tuned against general instruct — instead of with an argument, and it is a
+defensible ablation row. On the MacBook it is three nights and does not happen.
+
 ### DeepSeek works, and V4 Pro is a reasoning model
 
 One live `curl` against `https://api.deepseek.com/chat/completions`, OpenAI-compatible, model
