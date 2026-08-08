@@ -4,7 +4,7 @@ one HTTP POST to the local Ollama server."""
 import json
 import urllib.request
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_URL = "http://{host}:11434/api/generate"
 TIMEOUT_SECONDS = 1800   # the 7B model measured at 11 minutes 46 seconds so this gives around 2.5x headroom
 
 
@@ -28,8 +28,10 @@ def call_ollama(prompt, config):
         },
     }
 
+    url = OLLAMA_URL.format(host=config.get("ollama_host", "localhost"))
+    
     request = urllib.request.Request(
-        OLLAMA_URL, # destination
+        url, # destination
         data=json.dumps(payload).encode(), # the data (configuration) in bytes
         headers={"Content-Type": "application/json"}, # tells Ollama to read the body in JSON format
     )
