@@ -1,0 +1,16 @@
+{
+  "experiment": "condition2_deepseek_flash",
+
+  "client": "deepseek",
+  "model": "deepseek-v4-flash",
+  "num_ctx": 32768,
+  "num_predict": 8000,
+  "temperature": 0,
+  "seed": 0,
+  "prompt_version": "baseline_v1",
+
+  "retriever": "bm25",
+  "top_k": 10,
+  "per_cell": 17,
+  "sample_seed": 0
+}
