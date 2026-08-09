@@ -2995,7 +2995,73 @@ sit waiting on the network rather than competing for CPU. Pro measured 14.9 s an
 first two claims, so roughly **45 minutes for 102**, against the 1 to 2.5 hours estimated before
 any measurement existed.
 
-**No results are recorded here. Both runs were still in flight when this entry was written.**
+### Condition 2, both models, n=102 — complete, 102 ok and 0 failed on each
+
+                            coder:3b     pro      flash
+    strict accuracy            66.7%    71.6%     75.5%
+    FINDVER-compatible         66.7%    75.5%     76.5%
+    unparseable                 0.0%     4.9%      2.0%
+    evidence_present           54.9%    54.9%     54.9%
+    predicted True            41/102   31/102    31/102    (gold 51/102)
+    prompt tokens, mean         3,651    3,321     3,400
+    output tokens, mean           413    1,667     1,477
+    thinking chars, mean            0    6,218     5,241
+    context_overflow            0/102    0/102     0/102
+    wall clock               11.2 min  34.8 min  21.3 min
+    per claim                   6.6 s   20.5 s    12.6 s
+    cost                            —   $0.295    $0.091
+
+    ie                         64.7%    76.5%     79.4%
+    knowledge                  58.8%    70.6%     64.7%
+    numeric                    76.5%    67.6%     82.4%
+
+`evidence_present` identical to the digit across all three, which is the validity check passing.
+`system_fingerprint` constant across all 102 within each run, `fp_9954b31ca7…` for pro and
+`fp_a18b46594c…` for flash, so no model roll happened mid-run. **$0.386 for both against $0.42
+projected**, so the estimate-from-one-claim method was sound to within 9%.
+
+### Pro's numeric score is a truncation artifact, and that is the real finding
+
+**All five of pro's unparseables are `done_reason=length` at the 8,000 cap, and all five are
+numeric claims**: `numeric-val-11`, `-111`, `-57`, `-69`, `-90`. Not one is a format failure. The
+model was still reasoning when the budget ran out and never wrote a verdict.
+
+**Excluding them, pro scores 79.3% on numeric rather than 67.6%.** Flash excluding its single
+numeric truncation is 84.8%. `numeric-val-90` truncated on both models, and **`numeric-val-69` is
+the same claim that truncated `qwen3:4b` at the same cap earlier tonight** — some numeric claims
+simply demand more reasoning than 8,000 tokens.
+
+**So 71.6% is a floor for pro, not its performance**, depressed by a configuration choice made
+before any of this was known. A re-run at 16,000 is owed before the number enters the paper.
+
+### Three things the raw table would lead you to write, and all three are wrong
+
+**"Flash beats pro."** They agree on 94 of 102; of the 8 disagreements flash is right on 6 and pro
+on 2. That is a tie, and most of the apparent 4-point gap is pro's truncations. The supportable
+sentence is **"flash matched pro at a third of the cost and 1.6x the speed."**
+
+**Pro's FINDVER-compatible 75.5%.** The seeded coin flip resolved 4 of its 5 unparseables in its
+favour. That is luck. **It is also §2.4's imputation argument appearing in our own run rather than
+in a published baseline**, which makes the 3.9-point gap between our two scorings a usable
+illustration rather than an embarrassment. Use strict, 71.6%.
+
+**"The cloud model is better."** On average, yes. Per claim, no. Against pro the two agree on 67 of
+102; pro is right on 20 the 3B misses, and **the 3B is right on 15 that pro misses**, spread over
+all three subsets — 7 numeric, 5 ie, 3 knowledge. **The cloud model does not dominate, which is
+exactly the premise routing rests on.** This is the most useful thing measured tonight.
+
+### Two smaller observations
+
+**All three models skew toward refuted.** Gold is 51/102 entailed. The edge model predicted
+entailed 41 times, both cloud models 31. A systematic bias, and material for the error taxonomy.
+
+**The two DeepSeek models tokenize identical text differently**, 3,321 mean against 3,400. Same
+provider, same prompts. Harmless, but one model's token count does not transfer to the other.
+
+### The gap condition 4 has to close
+
+**4.9 points to pro, 8.8 to flash**, strict, at n=102. That is the first time the target has been
+a measured number rather than an assumption.
 
 Operational note, since the machine had to stay awake unattended: `caffeinate -ims` deliberately
 omits `-d`, so the displays sleep normally while the system stays awake. Verified live with

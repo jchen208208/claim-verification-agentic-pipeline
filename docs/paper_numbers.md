@@ -324,6 +324,67 @@ Per subset, n=34 each:
 
 **Regenerating script: not yet written** (`test_scripts/analyse_condition1.py` owed — it now owes three tables, not one).
 
+### 2.6 **[NEW 9 Aug 2026] Condition 2 — cloud-only baseline, n=102**
+
+Single call, no pipeline, same 102 claims, same BM25 k=10 prompts as condition 1. `max_tokens` 8000, temperature 0. `results/condition2_deepseek_pro/`, `results/condition2_deepseek_flash/`. **102 ok, 0 failed on each.**
+
+| | cond 1, `coder:3b` | cond 2, `v4-pro` | cond 2, `v4-flash` |
+|---|---|---|---|
+| **strict accuracy** | 66.7% | **71.6%** | **75.5%** |
+| FINDVER-compatible | 66.7% | 75.5% *(inflated, see below)* | 76.5% |
+| unparseable | 0.0% | 4.9% | 2.0% |
+| — all of which are truncations | — | 5/5 | 2/2 |
+| evidence_present (all-gold) | 54.9% | 54.9% | 54.9% |
+| predicted True | 41/102 | 31/102 | 31/102 |
+| prompt tokens, mean | 3,651 | 3,321 | 3,400 |
+| output tokens, mean | 413 | 1,667 | 1,477 |
+| thinking chars, mean | 0 | 6,218 | 5,241 |
+| context overflow | 0/102 | 0/102 | 0/102 |
+| wall clock | 11.2 min | 34.8 min | 21.3 min |
+| cost | — | **$0.295** | **$0.091** |
+
+Per subset, n=34 each:
+
+| subset | `coder:3b` | `v4-pro` | `v4-flash` |
+|---|---|---|---|
+| FDV-IE | 64.7% | 76.5% | 79.4% |
+| FDV-KNOW | 58.8% | 70.6% | 64.7% |
+| FDV-MATH | 76.5% | 67.6% | 82.4% |
+
+`evidence_present` is identical across all three, confirming all three received identical prompts.
+
+#### Pro's FDV-MATH score is a truncation artifact, not a model weakness
+
+**All five of pro's unparseable results are `done_reason=length` at the 8,000 cap, and all five are numeric claims:** `numeric-val-11`, `-111`, `-57`, `-69`, `-90`. None is a format failure; the model was still reasoning when the budget ran out.
+
+**Excluding them, pro scores 79.3% (23/29) on FDV-MATH, not 67.6%.** Flash excluding its one numeric truncation is 84.8% (28/33). `numeric-val-90` truncated on both models, and `numeric-val-69` is the same claim that truncated `qwen3:4b` at the same cap (§4.5).
+
+**Consequence: 71.6% is a floor for pro, not its performance.** It is depressed by a configuration choice. A re-run at `max_tokens` 16,000 is owed before this number is written into the paper.
+
+#### Do not write "flash beats pro"
+
+Paired: they agree on **94 of 102**. Of the 8 disagreements, flash is right on 6 and pro on 2. **That is a tie**, and most of the apparent 4-point gap is pro's truncations. **Supportable: "flash matched pro at a third of the cost and 1.6x the speed."** Not supportable: any accuracy claim between them.
+
+#### Pro's FINDVER-compatible 75.5% must not be used
+
+The seeded coin flip resolved **4 of its 5** unparseables in its favour. That is luck from the seed, and it is the same imputation effect documented in §2.4 for the published baselines, now visible in our own run. **Use strict, 71.6%.** The 3.9-point gap between the two scorings is itself a reportable illustration of §2.4's argument.
+
+#### The edge model is not strictly worse, which is what routing rests on
+
+| pair | agree | first right | second right |
+|---|---|---|---|
+| `coder:3b` vs pro | 67/102 | 15 | 20 |
+| `coder:3b` vs flash | 70/102 | 11 | 20 |
+| pro vs flash | 94/102 | 2 | 6 |
+
+**The 3B is right on 15 claims that pro gets wrong**, spread across all three subsets (7 numeric, 5 ie, 3 knowledge). The cloud model is better on average and wrong on a *different* set of claims. **Supportable: "the cloud model does not dominate the edge model per claim."**
+
+#### All three models are biased toward "refuted"
+
+Gold is 51/102 entailed. The edge model predicted entailed 41 times, both cloud models 31 times. **This is a systematic skew and belongs in the error analysis**, not a fact about the claims.
+
+**Regenerating script: not yet written.** Same script owed as §2.3 and §2.5 — it now owes four tables.
+
 ---
 
 ## 3. Deployment cost
@@ -390,6 +451,21 @@ Projected over 102 claims, at the pricing published on 8 August 2026:
 | **total** | **$0.32** | **$0.10** |
 
 **Both together, about $0.42.** The single test call cost $0.003. Treat $0.42 as the high end: `numeric-val-41` is a numeric claim and reasons more than average.
+
+**[SUPERSEDED 9 Aug by the actual runs. Projection kept because it was accurate.]** Measured over the real 102 claims:
+
+| | pro | flash |
+|---|---|---|
+| input | $0.147 (338,721 tok) | $0.049 (346,779 tok) |
+| output | $0.148 (170,034 tok) | $0.042 (150,692 tok) |
+| **actual total** | **$0.295** | **$0.091** |
+| projected | $0.32 | $0.10 |
+
+**$0.386 for both runs, against $0.42 projected.** The method — measure one real claim, multiply — was sound to within 9%.
+
+**Flash is a third the price and 1.6x faster for the same accuracy** (§2.6): 21.3 min against 34.8 min for the same 102 claims. If cloud cost ever binds, flash is the escalation target.
+
+**Unexpected: the two models tokenize identically-identical prompts differently**, 3,321 mean for pro against 3,400 for flash. Same text, same provider. Not a problem, but do not assume one model's token count transfers to the other.
 
 **Attach the date to any quoted price.** DeepSeek's pricing page warns of a significant increase.
 
@@ -462,7 +538,9 @@ Listed so they are not written by accident.
 - ~~**Any unparseable rate for our configuration.** 0 of 12 is not a rate.~~ **[MEASURED 8 Aug 2026 at n=102: 0.0% at k=10, 3.9% at k=20.]** 0 of 102 is a usable figure and is the basis for §2.3's claim that our strict and FINDVER-compatible scores coincide.
 - **Any 7B number.** Not re-measured since week 1.
 - ~~**[NEW 9 Aug] Anything about conditions 2 or 3 being reproducible or deterministic.**~~ **[MEASURED 9 Aug, and the answer is that they are not.]** Three calls on `numeric-val-41`, `deepseek-v4-pro`, temperature 0, identical payloads. Two sharing `seed` 0 produced **different responses**, 1,235 against 1,357 completion tokens, different text and different reasoning. A third at `seed` 12345 gave 1,883. Identical `system_fingerprint` on all three, so this is not a model roll. **`seed` and `temperature` are accepted and ignored.** All three reached the same, correct, verdict, but that is one claim sampled three times and is not evidence of verdict stability. **Supportable: "the cloud model does not honour seed or temperature; our condition 2 figure is a single sample, not a reproducible measurement."** This is a limitation to state plainly, and it is on-topic for a workshop about real-world constraints: the cloud half of an edge-cloud system is not reproducible even when the edge half is.
-- **[NEW 9 Aug] Any condition 2 result.** Both runs were still in flight when this was written. Nothing is measured yet.
+- ~~**[NEW 9 Aug] Any condition 2 result.**~~ **[MEASURED 9 Aug, see §2.6.]** Pro 71.6% strict, flash 75.5%, against the edge baseline's 66.7%. **Three caveats travel with those numbers and must not be dropped:** pro's figure is a floor depressed by 5 truncations at the 8,000 cap; pro and flash are statistically tied, not 4 points apart; and pro's FINDVER-compatible 75.5% is inflated by a lucky coin flip and must not be quoted.
+- **[NEW 9 Aug] Any final condition 2 number for pro.** 71.6% was produced at `max_tokens` 8000, which truncated 5 numeric claims. **A re-run at 16,000 is owed before this enters the paper.** It also delivers the reproducibility measurement in the same job.
+- **[NEW 9 Aug] "Our pipeline matches the cloud model."** The gap to close is now measured: **4.9 points to pro, 8.8 to flash**, on strict scoring at n=102. Condition 4 does not exist yet.
 - **[NEW 9 Aug] Any accuracy claim about `qwen3:4b`.** It ran 6 claims of 102 before being stopped. **The rejection is on cost and stands on the timing alone**, which needs no accuracy figure. Do not report its 3-of-6 label outcomes as a rate.
 - **[NEW 9 Aug] "We selected the best local model."** Two 3B variants were compared, and `qwen3:4b` was rejected on speed without an accuracy measurement. **Supportable: "among the models that meet the latency budget of the target device, code tuning made no measurable difference."**
 - ~~**Any fusion gain for the local dense arm.**~~ **Resolved 5 August at n=700: there is none worth taking.** See §1.6. Untuned fusion is +0.00; the tuned gain is rejected on the same test-set-selection ground as the `k1`/`b` sweep.

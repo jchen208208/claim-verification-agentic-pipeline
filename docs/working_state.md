@@ -831,7 +831,47 @@ edge-cloud system is not reproducible even when the edge half is.
 **Condition 1 is unaffected.** Ollama honours both settings; its instability comes from
 floating-point differences across machines, which is a separate and already-measured thing.
 
-**Both runs were still in flight when this was written.** No condition 2 results are recorded yet.
+### CONDITION 2 IS MEASURED. Both runs 102 ok, 0 failed.
+
+                        coder:3b     pro      flash
+    strict accuracy        66.7%    71.6%     75.5%
+    FINDVER-compatible     66.7%    75.5%     76.5%
+    unparseable             0.0%     4.9%      2.0%
+    evidence_present       54.9%    54.9%     54.9%
+    predicted True        41/102   31/102    31/102    (gold 51/102)
+    output tokens, mean       413    1,667     1,477
+    wall clock           11.2 min  34.8 min  21.3 min
+    cost                        —   $0.295    $0.091
+
+    ie                     64.7%    76.5%     79.4%
+    knowledge              58.8%    70.6%     64.7%
+    numeric                76.5%    67.6%     82.4%
+
+`evidence_present` identical across all three confirms all three saw identical prompts.
+Fingerprints were constant across all 102 in each run, so no model roll mid-run.
+**$0.386 for both, against $0.42 projected.**
+
+**Pro's numeric score is a truncation artifact.** All five of its unparseables are
+`done_reason=length` at the 8,000 cap, and **all five are numeric claims**: `numeric-val-11`,
+`-111`, `-57`, `-69`, `-90`. **Excluding them pro scores 79.3% on numeric, not 67.6%.**
+`numeric-val-69` is the same claim that truncated `qwen3:4b` tonight. **71.6% is a floor, not
+pro's performance.**
+
+**Do not write "flash beats pro."** They agree on 94 of 102; of the 8 disagreements flash is
+right on 6 and pro on 2. That is a tie. **Write "flash matched pro at a third of the cost and
+1.6x the speed."**
+
+**Do not quote pro's FINDVER-compatible 75.5%.** The coin flip resolved 4 of its 5 unparseables in
+its favour. Luck from the seed. **Use strict, 71.6%.**
+
+**The edge model is not strictly worse, and this is the premise routing rests on.** Against pro
+they agree on 67 of 102; pro is right on 20 the 3B misses, but **the 3B is right on 15 that pro
+misses**, spread over all three subsets (7 numeric, 5 ie, 3 knowledge).
+
+**All three models are biased toward refuted.** Gold is 51/102 entailed; the edge model said
+entailed 41 times, both cloud models 31. Belongs in the error analysis.
+
+**The gap condition 4 must close is now measured: 4.9 points to pro, 8.8 to flash.**
 
 ### New environment fact: Python HTTPS needed a certificate bundle
 
@@ -866,8 +906,15 @@ Never noted before. A second reason, independent of the floating-point divergenc
 
 ## What to do on 9 August, in order
 
-1. **Read both condition 2 results.** They finished overnight. Check `status`, `done_reason` for
-   any `length`, and `system_fingerprint` consistency across all 102 before reading accuracy.
+1. ~~**Read both condition 2 results.**~~ **DONE 9 Aug, before bed. See the section above.**
+   Replaced by: **re-run pro at `max_tokens` 16,000**, about $0.35 and 35 minutes unattended.
+   Five truncated numeric claims are potentially 4.9 points, and the current headline is depressed
+   by a configuration choice rather than by the model. **Confirm the trim budget first**:
+   32,768 − 16,000 = 16,768 against a largest observed prompt of 14,066, so no prompt should trim
+   differently, but the margin is thin enough to check rather than assume.
+   **This run also delivers the reproducibility measurement**, since it re-answers the same 102
+   claims — verdict agreement against the first pro run is the noise floor for every cloud
+   comparison in the paper. Two results, one job. Keep the first run's directory.
 2. **Write `test_scripts/analyse_condition1.py`.** Rule 1 is now violated by **three** results:
    the k=10/k=20 table, the published-baseline scoring, and tonight's coder-versus-plain table.
    Make it take a list of result directories and print the comparison, so it covers all of them.
