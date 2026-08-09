@@ -8,6 +8,7 @@ from pathlib import Path
 
 from src.loader import load_claims
 from src.ollama_client import call_ollama
+from src.deepseek_client import call_deepseek
 from src.bm25_retriever import retrieve as bm25_retrieve
 from src.placeholder_retriever import retrieve as placeholder_retrieve
 from src.run_loop import run_sample
@@ -20,6 +21,12 @@ RESULTS_ROOT = REPO_ROOT / "results"
 RETRIEVERS = {
     "bm25": bm25_retrieve,
     "placeholder_token_overlap": placeholder_retrieve,
+}
+
+# the two model clients, selected by the config's "client" key
+CLIENTS = {
+    "ollama": call_ollama,
+    "deepseek": call_deepseek,
 }
 
 def main():
@@ -38,7 +45,6 @@ def main():
 
     results_dir = RESULTS_ROOT / config["experiment"]
 
-    # everything the code reads is printed here, so a missing or misspelled key shows now
     print(f"experiment    {config['experiment']}")
     print(f"model         {config['model']}")
     print(f"num_ctx       {config['num_ctx']}")
@@ -49,8 +55,10 @@ def main():
     print(f"retriever     {config['retriever']}, k={config['top_k']}")
     print(f"sample        {len(sample)} examples, {config['per_cell']} per cell, " f"seed {config['sample_seed']}")
     print(f"results       {results_dir}\n", flush=True)
+    print(f"client        {config.get('client', 'ollama')}")
 
-    run_sample(sample, config, results_dir, call_ollama, retriever)
+    client = CLIENTS[config.get("client", "ollama")]
+    run_sample(sample, config, results_dir, client, retriever)
     return 0
 
 

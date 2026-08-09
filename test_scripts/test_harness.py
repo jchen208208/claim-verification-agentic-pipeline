@@ -55,7 +55,8 @@ CONFIG = {
 RECORD_FIELDS = {
     "example_id", "subset", "gold_label", "gold_explanation", "prompt", "config",
     "response", "extracted_label", "extraction_source", "prompt_eval_count",
-    "eval_count", "done_reason", "elapsed_seconds", "evidence_present",
+    "eval_count", "done_reason", "thinking", "served_model",
+    "system_fingerprint", "elapsed_seconds", "evidence_present",
     "evidences_found", "context_overflow", "status", "traceback",
 }
 
@@ -171,7 +172,7 @@ def main():
 
         one = next(iter(recs.values()))
         missing = RECORD_FIELDS - set(one)
-        check("all 18 Record fields present", not missing, f"missing {missing}")
+        check("all 21 Record fields present", not missing, f"missing {missing}")
 
         check("all status ok",
               all(r["status"] == "ok" for r in recs.values()))
