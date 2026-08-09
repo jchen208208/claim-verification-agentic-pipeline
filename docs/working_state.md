@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 8 August 2026.
+Last updated: 9 August 2026.
 
 ---
 
@@ -727,7 +727,147 @@ recall, and this. If everything downstream failed tomorrow there is still a pape
 
 ---
 
-## What to do on 8 August, in order
+## Where things stand, 9 August
+
+Full narrative in the build log entry for 8–9 August. The short version.
+
+### THE LOCAL MODEL IS SETTLED: `qwen2.5-coder:3b` stays
+
+`qwen2.5:3b` ran condition 1 on the same 102 claims, same seed, same GPU. **102 ok, 0 failed.**
+
+                            coder:3b    qwen2.5:3b
+    strict accuracy           66.7%       67.6%
+    FINDVER-compatible        66.7%       68.6%
+    unparseable                0.0%        2.0%
+    evidence_present          54.9%       54.9%
+    prompt tokens, mean        3,651       3,651
+    wall clock              11.2 min    13.4 min
+    extraction anchored     102/102      92/102
+
+**The professor's Coder objection is answered, and the answer is "no measurable difference."**
+67.6% against 66.7% is one claim in 102, and the paired split is 11 to the Coder model against 12
+to the plain one. **Never write "the plain model is better."** Write *"holding size and
+quantisation fixed and varying only code tuning changed accuracy by one claim in 102."*
+
+**The Coder model is kept on the tiebreakers**, which all point one way: 102/102 anchored against
+92/102, 0.0% unparseable against 2.0%, 17% faster, 20% fewer output tokens.
+
+`evidence_present` and mean prompt tokens are **identical to the digit**, which is the sanity check
+passing, since neither depends on the model.
+
+### Verdict instability, now measured three independent ways
+
+    across machines, 7 Aug      5 of 6 agree
+    across k values, overnight  58 of 102 agree
+    across model variants       79 of 102 agree
+
+Same family, same size, same quantisation, identical prompts, and a fifth of the labels move.
+This is a real finding and belongs in the paper.
+
+### `qwen3:4b` IS REJECTED ON COST, and troubleshooting is optional
+
+Aborted after 6 claims. **145 s per claim on the GPU** against 6.6 for the Coder model, which is
+4.1 hours for 102, and roughly **90 minutes per claim on the MacBook** at the measured 36.8x
+ratio. A model that cannot run on the device of record is not an edge model.
+
+Also, `numeric-val-69` produced 18,282 characters of reasoning, hit the 8,000 cap with
+`done_reason=length`, and wrote **zero characters** into `response`. Unparseable, on the numeric
+subset, within the first four claims.
+
+Records preserved at `results/condition1_qwen3_4b_k10_abandoned_8aug/`, which is the evidence for
+the rejection row. **If it is revived, delete or rename that directory first** — `has_result`
+resumes on file existence, so 6 records made at `num_predict` 8000 would silently mix with a run
+at a different cap.
+
+**Correction, and it inverts what this file said this morning: `think: false` does not disable
+thinking.** Measured, same prompt, same eval_count of 332 either way. The field controls where
+Ollama puts the reasoning, not whether the model produces it. `think: false` dumps it into
+`response`, where the extractor reads it. **`think: true` is the correct setting**, because it
+keeps `response` clean.
+
+### DeepSeek works on a real claim, and condition 2 is running
+
+`numeric-val-41`, `deepseek-v4-pro`: **correct verdict, anchored final sentence, first try.**
+
+    prompt_tokens        3,004        qwen counted 3,622 for the same text
+    completion_tokens    2,123
+      reasoning_tokens   1,731        82% of output is thinking
+    finish_reason        stop         3x headroom under the 8,000 cap
+
+**Cost, from measured tokens: pro $0.32, flash $0.10, about $0.42 for both.** The test call cost
+$0.003. Treat $0.42 as the high end, since numeric claims reason more than average. DeepSeek warns
+of a significant price rise soon.
+
+**`DeepSeek-V4-Flash-0731` is rejected by the API**, HTTP 400. Only `deepseek-v4-pro` and
+`deepseek-v4-flash` are accepted, so **a snapshot cannot be pinned.** That closes the 7 August
+open question with a no.
+
+**`served_model` cannot detect a silent model roll for DeepSeek**, which was the reason it was
+added tonight. The API echoes the alias, not the snapshot. **`system_fingerprint` is the field to
+watch**, and it returned `fp_9954b31ca7_prod0820_fp8_kvcache_20260402`.
+
+**`seed` and `temperature` are accepted but NOT proven honoured.** Nothing may be written about
+condition 2 being deterministic or reproducible until two identical seeded calls are compared.
+
+**Both runs were still in flight when this was written.** No condition 2 results are recorded yet.
+
+### New environment fact: Python HTTPS needed a certificate bundle
+
+Homebrew Python 3.14 looks for `/usr/local/etc/openssl@3/cert.pem`, which does not exist here.
+`.env` now carries, beside the key:
+
+    export SSL_CERT_FILE=/usr/local/etc/ca-certificates/cert.pem
+
+Every Ollama call is plain HTTP to a LAN address and the 7 August smoke test used `curl`, so this
+had never fired before. **A `.env` file does nothing until `source .env` is run**, and it does not
+carry between terminal windows.
+
+### Built tonight
+
+- `src/deepseek_client.py`, an adapter returning DeepSeek's response under Ollama's key names, so
+  `run_loop.py` and everything downstream is untouched.
+- `src/ollama_client.py`, the `think` field, passed only when the key exists so all six older
+  configs send byte-identical requests.
+- `Record` gained `thinking`, `served_model`, `system_fingerprint`. One field serves both
+  providers: Ollama's `thinking` and DeepSeek's `reasoning_content` are the same thing.
+- `run.py` gained a `CLIENTS` dict, selected by `config.get("client", "ollama")`.
+  **A correction: this file previously said `run.py` needed no change. It did.** `run_loop.py`
+  takes the model call as a parameter, but `run.py` was passing `call_ollama` hardcoded.
+- `test_harness.py` moved 18 → 21 `Record` fields. **50/50 passing**, up from 44.
+- Configs: `condition1_qwen25_3b_k10`, `condition1_qwen3_4b_k10`, `condition2_deepseek_pro`,
+  `condition2_deepseek_flash`.
+
+### The PC runs Ollama 0.32.6, the Mac 0.12.3
+
+Never noted before. A second reason, independent of the floating-point divergence measured on
+7 August, why a results table must never mix the two machines.
+
+## What to do on 9 August, in order
+
+1. **Read both condition 2 results.** They finished overnight. Check `status`, `done_reason` for
+   any `length`, and `system_fingerprint` consistency across all 102 before reading accuracy.
+2. **Write `test_scripts/analyse_condition1.py`.** Rule 1 is now violated by **three** results:
+   the k=10/k=20 table, the published-baseline scoring, and tonight's coder-versus-plain table.
+   Make it take a list of result directories and print the comparison, so it covers all of them.
+3. **Prove or disprove `seed` and `temperature` on DeepSeek.** Two identical seeded calls, about
+   a cent. This gates any reproducibility claim about conditions 2 and 3.
+4. **Decide whether `qwen3:4b` is worth any more time.** It is already rejected on cost, so this
+   is optional. If revived: raise `num_predict` above 8000 (at 16,000 the trim budget falls to
+   16,768 against a largest prompt of 14,066, still safe but thin), and clear the abandoned
+   directory first.
+5. **Write `test_scripts/score_published_baselines.py`**, generalised over all 16 models.
+6. **Create the Overleaf project and share it** (§14 item 13).
+
+### Still open, carried
+
+- `evidence_asserter.py:83`, the `check_overflow` docstring, still says `num_ctx` 16384.
+- A DHCP reservation for the brother's PC would stop the IP moving. Ten minutes in the router.
+- `run.py` prints the `client` line after the blank line that ends the banner, so it sits apart
+  from the block it belongs to. Cosmetic.
+
+---
+
+## ~~What to do on 8 August, in order~~ — DONE, superseded by the 9 August list above
 
 **Two tracks that do not conflict — one needs the GPU, one does not.**
 

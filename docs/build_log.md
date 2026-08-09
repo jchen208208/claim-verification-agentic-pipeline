@@ -2735,3 +2735,249 @@ a number enters only when a committed script can regenerate it. Owed:
 
 The second is worth generalising: the same code gives strict-versus-published for every model in
 `outputs/`, which is §11.8's table across the full model-size range rather than one point.
+
+---
+
+## 8–9 August 2026, evening into overnight — the local model settled, qwen3 rejected on cost, and DeepSeek connected
+
+A long session. Four things shipped: the second local model measured end to end, a reasoning model
+tried and abandoned, the DeepSeek client written and proven on a real claim, and both condition 2
+runs started. Two corrections to things this log previously asserted.
+
+### The GPU host, reconnected
+
+IP unchanged at `10.0.0.26`. `netstat -ano | findstr 11434` showed `0.0.0.0:11434`, so the
+7 August restart survived a reboot. `curl http://10.0.0.26:11434/api/tags` from the Mac answered,
+which is the check that matters; `ping` is still useless because Windows blocks inbound ICMP.
+
+**New and worth recording: the PC runs Ollama 0.32.6. The Mac is pinned at 0.12.3.** Nothing
+prior noted how far apart they are. This is a second reason, independent of the floating-point
+divergence measured on 7 August, why a results table must never mix the two machines.
+
+Model inventory on the PC, from `/api/tags`:
+
+    qwen2.5-coder:3b   3.1B  Q4_K_M  ctx  32,768   completion, tools, insert
+    qwen2.5:3b         3.1B  Q4_K_M  ctx  32,768   completion, tools
+    qwen3:4b           4.0B  Q4_K_M  ctx 262,144   completion, tools, thinking
+
+`qwen2.5:3b` matches `qwen2.5-coder:3b` on parameter count and quantisation exactly, so the
+comparison the professor asked for holds size and quantisation fixed and varies only code tuning.
+That is the clean experiment. `qwen3:4b` varies family, size and reasoning mode at once, so it
+could only ever have shown that something better exists, never why.
+
+### Correction: `think: false` does not disable thinking
+
+The plan for `qwen3:4b` was to switch reasoning off with Ollama's `think` field and compare it
+like for like against the two non-reasoning 3B models. **That plan rested on a wrong belief about
+what the field does.** Measured on the same prompt, "Is 2+2 equal to 4? Answer in one sentence.":
+
+                     eval_count   thinking field   response
+    think: false        332       absent           all 332 tokens of reasoning
+    think: true         332       1,308 chars      43 chars, the clean answer
+
+**Identical token counts.** The field controls where Ollama puts the reasoning text, not whether
+the model produces it. Identical behaviour on `/api/generate` and `/api/chat`.
+
+The practical consequence inverts the original recommendation. `think: false` is the **worse**
+setting, because it dumps the reasoning into `response`, where `extract_label_with_source` reads
+it and may take a verdict the model was still arguing against. `think: true` keeps `response`
+clean. **The config was changed from `false` to `true` before the run.**
+
+Most likely cause, unverified: the Qwen3 releases after mid-2025 split into separate Instruct and
+Thinking models and dropped the hybrid `/no_think` toggle, so this build cannot be made to stop
+reasoning at all. Not worth chasing unless qwen3 is revived.
+
+### Code shipped
+
+`src/ollama_client.py` — the `think` field, passed only when the key exists in the config:
+
+    if "think" in config:
+        payload["think"] = config["think"]
+
+Written as `"think" in config` rather than `config.get("think", False)` on purpose, so that all
+six pre-existing configs produce a byte-identical request body to what they sent yesterday.
+
+`src/logger.py` — three new `Record` fields, `thinking`, `served_model`, `system_fingerprint`.
+One field serves both providers: Ollama calls the reasoning trace `thinking` and DeepSeek calls it
+`reasoning_content`, and they are the same thing. `served_model` is deliberately not called
+`model`, because `Record.config` already contains a `model` key and two fields under that name,
+one requested and one delivered, is a debugging trap.
+
+`src/run_loop.py` — three lines filling them, all using `.get`, so a client that does not send
+them writes `None` rather than raising.
+
+`test_scripts/test_harness.py` — `RECORD_FIELDS` and the field-count message moved 18 → 21.
+The existing `ModelStub` needed no change, precisely because of the `.get`. **50/50 passed**, up
+from 44 because the two new configs bring their own per-config checks.
+
+`src/deepseek_client.py` — new. An adapter: it returns DeepSeek's response under Ollama's key
+names, so `run_loop.py`, the prompt builder, the evidence asserter and the label extractor are all
+untouched.
+
+    response            <-  choices[0].message.content       never reasoning_content
+    prompt_eval_count   <-  usage.prompt_tokens
+    eval_count          <-  usage.completion_tokens
+    done_reason         <-  choices[0].finish_reason         "stop"/"length", same vocabulary
+
+`run.py` — a `CLIENTS` dict beside `RETRIEVERS`, selected by `config.get("client", "ollama")`.
+**A correction to `working_state.md`, which claimed no change was needed here** on the grounds
+that `call_model` is already a parameter. Half right: `run_loop.py` takes it as a parameter, but
+`run.py` was passing `call_ollama` hardcoded.
+
+New configs: `condition1_qwen25_3b_k10`, `condition1_qwen3_4b_k10`, `condition2_deepseek_pro`,
+`condition2_deepseek_flash`.
+
+### Condition 1, `qwen2.5:3b`, n=102, GPU — complete, 102 ok
+
+Same 102 claims, same seed, same prompts, same machine as `condition1_3b_k10`.
+
+                            coder:3b    qwen2.5:3b
+    strict accuracy           66.7%       67.6%
+    FINDVER-compatible        66.7%       68.6%
+    unparseable                0.0%        2.0%
+    evidence_present          54.9%       54.9%
+    prompt tokens, mean        3,651       3,651
+    output tokens, mean          413         497
+    wall clock              11.2 min    13.4 min
+    per claim                  6.6 s       7.9 s
+    extraction anchored     102/102      92/102
+
+    ie                        64.7%       64.7%
+    knowledge                 58.8%       58.8%
+    numeric                   76.5%       79.4%
+
+    paired: same label on 79/102 = 77.5%
+    23 disagreements, coder right on 11, plain right on 12
+
+**`evidence_present` and mean prompt tokens are identical to the digit.** That is the sanity check
+passing, since neither depends on the model. The comparison is clean.
+
+**Code tuning changed accuracy by one claim in 102.** The paired split, 11 against 12, is a coin
+flip. The professor's objection is answered, and the answer is "no measurable difference," not
+"the plain model is better." Never write the latter.
+
+**The Coder model wins on the tiebreakers instead.** 102/102 anchored against 92/102, 0.0%
+unparseable against 2.0%, 17% faster, and 20% fewer output tokens for the same job. Same shape as
+the k=10 versus k=20 decision: the headline is a tie and the format compliance breaks it.
+
+**A detail that looks like agreement and is not.** The `ie` and `knowledge` subset totals are
+identical for both models, 22/34 and 20/34. They still disagreed on 23 individual claims and
+happened to land on the same totals. Aggregate agreement hides per-claim instability.
+
+**Verdict instability now has a third independent measurement.** 5 of 6 across machines
+(7 August), 58 of 102 across k values (overnight), 79 of 102 across model variants (tonight).
+Same family, same size, same quantisation, identical prompts, and a fifth of the labels move.
+
+### `qwen3:4b` aborted after 6 claims
+
+Ran with `think: true` and `num_predict` raised to 8000, the budget check being
+32,768 − 8,000 = 24,768 against a largest observed condition 1 prompt of 14,066, so trimming was
+provably unchanged.
+
+    ie-val-193        eval 4,964   stop     thinking 11,670 chars   label True
+    ie-val-239        eval 7,970   stop     thinking 24,728 chars   label False
+    knowledge-val-51  eval 5,787   stop     thinking 17,586 chars   label False
+    numeric-val-69    eval 8,000   length   thinking 18,282 chars   label None, response 0 chars
+
+**Two failures, and the second is the one that ends it.**
+
+`numeric-val-69` produced 18,282 characters of reasoning, hit the 8,000 cap and wrote **nothing at
+all** into `response`. Unparseable, on the numeric subset, one of the first four claims.
+
+**145 seconds per claim on the GPU**, against 6.6 for the Coder model. That is 4.1 hours for 102
+claims. Applying the measured 36.8x MacBook-to-GPU ratio puts it at roughly **90 minutes per claim
+on the device of record.** A model that cannot run on the 2017 MacBook is not an edge model
+whatever its accuracy, and this paper is about on-device inference. Cost, not accuracy, is what
+rejects it.
+
+Stopped deliberately, at the user's decision, rather than spending four GPU hours on a model
+already known to be unusable. The 6 records are preserved at
+`results/condition1_qwen3_4b_k10_abandoned_8aug/` because they are the evidence for the rejection,
+and moving rather than deleting also frees the experiment name. `has_result` resumes on file
+existence, so leaving 6 records made at `num_predict` 8000 in the live directory would have
+silently mixed two configurations if the cap were raised tomorrow.
+
+### DeepSeek: an SSL failure that was not DeepSeek's
+
+The first real call died on `CERTIFICATE_VERIFY_FAILED`. **Not the key, not the API.** Homebrew's
+Python 3.14 looks for its certificate bundle at `/usr/local/etc/openssl@3/cert.pem`, which does
+not exist on this machine. A valid bundle does exist at `/usr/local/etc/ca-certificates/cert.pem`.
+
+Fixed without touching code or disabling verification, by adding to `.env` beside the key:
+
+    export SSL_CERT_FILE=/usr/local/etc/ca-certificates/cert.pem
+
+This is the first HTTPS request the project has made from Python. Every Ollama call is plain HTTP
+to a LAN address, and the 7 August smoke test used `curl`, which reads the system keychain. That
+is why it had never fired before.
+
+Related and worth writing down: **a `.env` file does nothing on its own.** The `export` lines in
+it are instructions nobody has run until `source .env`. That cost a few minutes of confusion.
+
+### DeepSeek, measured on one real claim
+
+`numeric-val-41`, a real condition 1 prompt, `deepseek-v4-pro`, `max_tokens` 8000, temperature 0.
+
+    prompt_tokens        3,004        qwen counted 3,622 for the same text
+    completion_tokens    2,123
+      reasoning_tokens   1,731        82% of output is thinking
+    finish_reason        stop         no truncation, 3x headroom under the cap
+    cached_tokens        0
+
+**The verdict was correct and correctly formatted.** Gold `False`; it computed 112.12% against the
+claim's 112.16%, and closed with "Therefore, the claim is refuted." Anchored final sentence, first
+try, no prompt changes.
+
+**DeepSeek's tokenizer counts about 17% fewer tokens than qwen's** on identical text.
+
+**`num_predict` 8000 is confirmed correct for condition 2.** The cap did not bind and the trim
+budget is unchanged from condition 1.
+
+**`DeepSeek-V4-Flash-0731` is rejected.** HTTP 400: "The supported API model names are
+deepseek-v4-pro or deepseek-v4-flash." **A snapshot cannot be pinned**, closing the question the
+7 August entry left open. The floating alias is the only option.
+
+**A consequence that undoes part of tonight's own design.** The API echoes back the alias,
+`served_model: deepseek-v4-flash`, not the snapshot behind it. So `served_model` **cannot** detect
+a silent model roll for DeepSeek, which is the reason the field was added. `system_fingerprint`
+can, and did return `fp_9954b31ca7_prod0820_fp8_kvcache_20260402`, which carries dates. Keep both,
+but rely on the fingerprint.
+
+**`seed` and `temperature` were accepted without error. Neither is proven to be honoured.**
+Accepted is not the same as respected, and DeepSeek has historically ignored both on reasoning
+models. Proving it needs two identical seeded calls compared against each other, about a cent.
+**Until that is done, nothing may be written about condition 2 being reproducible or deterministic.**
+
+### Cost, from the measured token counts
+
+Projected over 102 claims:
+
+                        pro       flash
+    input   0.309 M    $0.134    $0.043
+    output  0.217 M    $0.188    $0.061
+    TOTAL              $0.32     $0.10        both together about $0.42
+
+The single test call cost about **$0.003**. `numeric-val-41` is a numeric claim and reasons more
+than average, so treat $0.42 as the high end. DeepSeek's pricing page warns of a significant
+increase soon, so quote these with today's date attached.
+
+### Both condition 2 runs started, results not yet in
+
+`condition2_deepseek_pro` and `condition2_deepseek_flash`, launched concurrently in separate
+terminals. Two concurrent requests against limits of 500 and 2500 is nothing, and both processes
+sit waiting on the network rather than competing for CPU. Pro measured 14.9 s and 34.2 s on its
+first two claims, so roughly **45 minutes for 102**, against the 1 to 2.5 hours estimated before
+any measurement existed.
+
+**No results are recorded here. Both runs were still in flight when this entry was written.**
+
+Operational note, since the machine had to stay awake unattended: `caffeinate -ims` deliberately
+omits `-d`, so the displays sleep normally while the system stays awake. Verified live with
+`pmset -g assertions`: `PreventUserIdleDisplaySleep 0`, `PreventUserIdleSystemSleep 1`, on AC
+power, which is what `-s` requires. `pmset displaysleepnow` blanks the screens immediately.
+Closing the lid would still sleep the machine and kill the runs.
+
+### Owed, carried forward
+
+`test_scripts/analyse_condition1.py` is still not written, and tonight's coder-versus-plain table
+was produced by another inline script. **Rule 1 is now violated by three results rather than two.**

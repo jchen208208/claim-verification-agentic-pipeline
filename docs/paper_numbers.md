@@ -290,6 +290,40 @@ Per subset, n=34 each:
 
 **Regenerating script: not yet written** (`test_scripts/score_published_baselines.py` owed, generalised over all 16 models).
 
+### 2.5 **[NEW 9 Aug 2026] Local model choice — code tuning held against plain, n=102**
+
+The professor's objection at the 30 July meeting was that `qwen2.5-coder:3b` is code-tuned and therefore a strange choice for financial text. `qwen2.5:3b` is the same family, same 3.1B parameter count, same Q4_K_M quantisation, so this holds size and quantisation fixed and varies **only** code tuning. Same 102 claims, same seed, same prompts, same GPU. `results/condition1_3b_k10/`, `results/condition1_qwen25_3b_k10/`.
+
+| | `qwen2.5-coder:3b` | `qwen2.5:3b` |
+|---|---|---|
+| **strict accuracy** | 66.7% | **67.6%** |
+| FINDVER-compatible | 66.7% | 68.6% |
+| unparseable | **0.0%** | 2.0% |
+| evidence_present (all-gold) | 54.9% | 54.9% |
+| prompt tokens, mean | 3,651 | 3,651 |
+| output tokens, mean | **413** | 497 |
+| wall clock | **11.2 min** | 13.4 min |
+| per claim | **6.6 s** | 7.9 s |
+| extraction anchored | **102/102** | 92/102 |
+
+Per subset, n=34 each:
+
+| subset | coder | plain |
+|---|---|---|
+| FDV-IE | 64.7% | 64.7% |
+| FDV-KNOW | 58.8% | 58.8% |
+| FDV-MATH | 76.5% | 79.4% |
+
+**The difference is one claim in 102 and is not significant.** Paired: 23 disagreements, coder right on 11, plain right on 12. **Supportable: "holding size and quantisation fixed and varying only code tuning changed accuracy by one claim in 102."** **Not supportable: "the plain model is better."**
+
+**`evidence_present` and mean prompt tokens are identical to the digit**, which is the validity check passing — neither quantity depends on the model.
+
+**The decision rests on the tiebreakers, all of which favour the Coder model:** 102/102 anchored against 92/102, 0.0% unparseable against 2.0%, 17% faster, 20% fewer output tokens. Same structure as the k=10 decision in §2.3, where the headline was a tie and format compliance broke it.
+
+**Verdict instability, third independent measurement.** The identical FDV-IE and FDV-KNOW subset totals are a coincidence, not agreement: only **79 of 102** labels matched. With 5 of 6 across machines (§3.4) and 58 of 102 across k values (§2.3), this is now supported three ways.
+
+**Regenerating script: not yet written** (`test_scripts/analyse_condition1.py` owed — it now owes three tables, not one).
+
 ---
 
 ## 3. Deployment cost
@@ -333,6 +367,34 @@ Hardware: 2017 Intel MacBook Pro, 16 GB RAM, macOS 13, CPU-only, Ollama pinned a
 
 **MACE reports memory and runtime, but never on FINDVER.** Their Table 4 is restricted by caption to closed-domain datasets, Table 5 covers SciTab, SciTab-OD and SemTab. **Deployment cost on FINDVER is unreported by anyone.**
 
+### 3.4 **[NEW 9 Aug 2026] Cloud cost, condition 2, from measured tokens**
+
+Measured on one real condition 1 prompt, `numeric-val-41`, `deepseek-v4-pro`, `max_tokens` 8000, temperature 0.
+
+| | value |
+|---|---|
+| prompt_tokens | 3,004 (qwen counted **3,622** for identical text) |
+| completion_tokens | 2,123 |
+| — of which reasoning_tokens | **1,731, or 82% of output** |
+| finish_reason | `stop`, 3x headroom under the cap |
+| cached_tokens | 0 |
+
+**DeepSeek's tokenizer counts about 17% fewer tokens than qwen's** on identical text. Any cost projected from our qwen token counts overstates the input bill by roughly that much.
+
+Projected over 102 claims, at the pricing published on 8 August 2026:
+
+| | pro | flash |
+|---|---|---|
+| input, 0.309 M | $0.134 | $0.043 |
+| output, 0.217 M | $0.188 | $0.061 |
+| **total** | **$0.32** | **$0.10** |
+
+**Both together, about $0.42.** The single test call cost $0.003. Treat $0.42 as the high end: `numeric-val-41` is a numeric claim and reasons more than average.
+
+**Attach the date to any quoted price.** DeepSeek's pricing page warns of a significant increase.
+
+**Cost is not a constraint on this project.** The binding constraint is the output cap, because 82% of output is reasoning that must fit under `max_tokens` before the verdict is written.
+
 **Their smallest configuration is 27B of resident parameters** (Mistral-7B plus an independent verifier, at 11.5% of the 235B baseline's memory). Ours is 3B local at ~2.5 GB plus a cloud API. §5.3's "fraction of the cost" must say **which** cost: memory is already claimed by them on other datasets; wall-clock and on-device feasibility on FINDVER are unclaimed.
 
 ---
@@ -363,7 +425,7 @@ Hardware: 2017 Intel MacBook Pro, 16 GB RAM, macOS 13, CPU-only, Ollama pinned a
 
 ## 4.5 What we tried and did not use — the negative results
 
-**These belong in the paper.** Three things were built, measured and rejected, each for a stated reason, and each rejection is a result. FINDVER's literature has one method paper on it (MACE), which declined to work on retrieval at all, so "we tried the obvious retrieval upgrades and here is what they were actually worth" is a contribution rather than an admission.
+**These belong in the paper.** Five things were built, measured and set aside, each for a stated reason, and each is a result. The first three are retrieval; the last two are model choice, added 9 August. FINDVER's literature has one method paper on it (MACE), which declined to work on retrieval at all, so "we tried the obvious retrieval upgrades and here is what they were actually worth" is a contribution rather than an admission.
 
 The honest framing throughout: **each was expected to help, and the measurement said otherwise.**
 
@@ -372,6 +434,8 @@ The honest framing throughout: **each was expected to help, and the measurement 
 | **Claim decomposition** | large gain on multi-fact claims | best variant 57.53% vs 57.88% bar, n=174 | no merge of six beat the whole claim; at matched candidate budget it loses to plain BM25 by 3.2 points |
 | **Dense fusion (`nomic` + BM25)** | +2 to +6 macro | +0.00 untuned, +0.6 to +1.2 tuned, n=700 | untuned gain is zero; tuned gain requires a weight chosen on the test set; beaten by k=11 |
 | **`k1`/`b` tuning** | a free point or two | best 74.97% vs default 74.60%, n=700 | inside noise, and selecting the winner is selecting on the test set |
+| **`qwen3:4b` as the local model** | a stronger local model for one extra billion parameters | 145 s/claim on the GPU vs 6.6, n=6 | **rejected on cost, not accuracy.** At the measured 36.8x MacBook-to-GPU ratio that is ~90 min per claim on the device of record. Also truncated on claim 4 of 4: 18,282 characters of reasoning, `done_reason=length` at the 8,000 cap, **zero characters** in `response` |
+| **`qwen2.5:3b` instead of the Coder variant** | the professor's objection, that code tuning suits financial text badly | 67.6% vs 66.7%, n=102 | **not rejected on accuracy — it is a tie**, one claim in 102. Coder kept on format compliance (102/102 vs 92/102 anchored), 0.0% vs 2.0% unparseable, and 17% faster. See §2.5 |
 
 **Two further negatives worth a sentence each.**
 
@@ -397,5 +461,9 @@ Listed so they are not written by accident.
 - ~~**"Higher k improves accuracy."**~~ **[ANSWERED 8 Aug 2026, and the answer is no.]** At n=102, k=10→k=20 raised all-gold recall 10.8 points (gained on 11 claims, lost on 0) and strict accuracy fell 4 points. Paired: 44 disagreements, 18 to k=20 and 22 to k=10 — statistically tied. **Supportable: "a 10.8-point recall gain produced no measurable accuracy gain at 87% more prompt tokens."** Not supportable: "k=20 is worse." See §2.3.
 - ~~**Any unparseable rate for our configuration.** 0 of 12 is not a rate.~~ **[MEASURED 8 Aug 2026 at n=102: 0.0% at k=10, 3.9% at k=20.]** 0 of 102 is a usable figure and is the basis for §2.3's claim that our strict and FINDVER-compatible scores coincide.
 - **Any 7B number.** Not re-measured since week 1.
+- **[NEW 9 Aug] Anything about conditions 2 or 3 being reproducible or deterministic.** DeepSeek **accepted** `seed` and `temperature` without error, but accepted is not honoured, and reasoning models have historically ignored both. Proving it costs about a cent: two identical seeded calls, compared. **Until then, condition 2 is an unseeded measurement**, and that is a limitation to state, not to hide.
+- **[NEW 9 Aug] Any condition 2 result.** Both runs were still in flight when this was written. Nothing is measured yet.
+- **[NEW 9 Aug] Any accuracy claim about `qwen3:4b`.** It ran 6 claims of 102 before being stopped. **The rejection is on cost and stands on the timing alone**, which needs no accuracy figure. Do not report its 3-of-6 label outcomes as a rate.
+- **[NEW 9 Aug] "We selected the best local model."** Two 3B variants were compared, and `qwen3:4b` was rejected on speed without an accuracy measurement. **Supportable: "among the models that meet the latency budget of the target device, code tuning made no measurable difference."**
 - ~~**Any fusion gain for the local dense arm.**~~ **Resolved 5 August at n=700: there is none worth taking.** See §1.6. Untuned fusion is +0.00; the tuned gain is rejected on the same test-set-selection ground as the `k1`/`b` sweep.
 - **Any pipeline latency.** The 7.0 min figure is `baseline_v1` with the placeholder retriever, no code execution, no table parsing, no cloud round trip.
