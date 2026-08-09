@@ -2,9 +2,9 @@
   "experiment": "condition1_qwen3_4b_k10",
 
   "model": "qwen3:4b",
-  "think": false,
+  "think": true,
   "num_ctx": 32768,
-  "num_predict": 2000,
+  "num_predict": 8000,
   "temperature": 0,
   "seed": 0,
   "prompt_version": "baseline_v1",
