@@ -806,8 +806,30 @@ open question with a no.
 added tonight. The API echoes the alias, not the snapshot. **`system_fingerprint` is the field to
 watch**, and it returned `fp_9954b31ca7_prod0820_fp8_kvcache_20260402`.
 
-**`seed` and `temperature` are accepted but NOT proven honoured.** Nothing may be written about
-condition 2 being deterministic or reproducible until two identical seeded calls are compared.
+### MEASURED 9 Aug: DeepSeek is NOT reproducible. `seed` and `temperature` are ignored.
+
+Three calls on `numeric-val-41`, `deepseek-v4-pro`, temperature 0, identical payloads.
+
+    A  seed 0       1,235 completion tokens   1,021 reasoning
+    B  seed 0       1,357                     1,081
+    C  seed 12345   1,883                     1,690
+
+    A == B ?   False, on both the answer text and the reasoning text
+
+**Two identical requests with the same seed produced structurally different responses.**
+`system_fingerprint` was identical on all three, so this is not a model roll. The settings are
+accepted and ignored.
+
+All three reached the same, correct, verdict. That is one claim sampled three times and says
+nothing about verdict stability in general. **Do not report it as such.**
+
+**Consequence: condition 2's accuracy is a single sample, not a reproducible measurement.**
+Re-running the 102 claims would give a different number, and by an unknown amount. This is a
+limitation to state plainly. It is also on topic for this workshop: the cloud half of an
+edge-cloud system is not reproducible even when the edge half is.
+
+**Condition 1 is unaffected.** Ollama honours both settings; its instability comes from
+floating-point differences across machines, which is a separate and already-measured thing.
 
 **Both runs were still in flight when this was written.** No condition 2 results are recorded yet.
 
@@ -849,8 +871,18 @@ Never noted before. A second reason, independent of the floating-point divergenc
 2. **Write `test_scripts/analyse_condition1.py`.** Rule 1 is now violated by **three** results:
    the k=10/k=20 table, the published-baseline scoring, and tonight's coder-versus-plain table.
    Make it take a list of result directories and print the comparison, so it covers all of them.
-3. **Prove or disprove `seed` and `temperature` on DeepSeek.** Two identical seeded calls, about
-   a cent. This gates any reproducibility claim about conditions 2 and 3.
+
+   The definitions the scratch version used, so the committed script reproduces the same numbers:
+   **strict** counts `extracted_label is None` as wrong; **FINDVER-compatible** replaces `None`
+   with `random.Random(0).choice([True, False])` per record, in sorted-id order so it is stable;
+   **evidence_present** is the stored boolean, unmodified; **paired agreement** compares
+   `extracted_label` across two directories on the intersection of example ids. Per-subset tables
+   are strict accuracy only. Wall clock is the sum of `elapsed_seconds`, which excludes retrieval.
+3. ~~**Prove or disprove `seed` and `temperature` on DeepSeek.**~~ **DONE 9 Aug, before bed. They
+   are ignored and condition 2 is not reproducible.** See the section above. What remains is a
+   decision, not a test: whether to quantify the variance by re-running a subset of condition 2,
+   or to state it as a limitation and move on. **Stating it is enough for a 5-page workshop
+   paper**; measuring it costs another $0.32 and buys a number nobody asked for.
 4. **Decide whether `qwen3:4b` is worth any more time.** It is already rejected on cost, so this
    is optional. If revived: raise `num_predict` above 8000 (at 16,000 the trim budget falls to
    16,768 against a largest prompt of 14,066, still safe but thin), and clear the abandoned

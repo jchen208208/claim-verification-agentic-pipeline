@@ -2943,10 +2943,36 @@ a silent model roll for DeepSeek, which is the reason the field was added. `syst
 can, and did return `fp_9954b31ca7_prod0820_fp8_kvcache_20260402`, which carries dates. Keep both,
 but rely on the fingerprint.
 
-**`seed` and `temperature` were accepted without error. Neither is proven to be honoured.**
-Accepted is not the same as respected, and DeepSeek has historically ignored both on reasoning
-models. Proving it needs two identical seeded calls compared against each other, about a cent.
-**Until that is done, nothing may be written about condition 2 being reproducible or deterministic.**
+**`seed` and `temperature` were accepted without error.** Accepted is not the same as respected,
+so this was tested rather than assumed, before bed, for about a cent.
+
+### Tested: DeepSeek ignores both. Condition 2 is not reproducible.
+
+Three calls on the same real prompt, `numeric-val-41`, temperature 0, identical payloads.
+
+    A  seed 0       1,235 completion tokens   1,021 reasoning   content hash 33f2d6445c5a
+    B  seed 0       1,357                     1,081             content hash e4a347e30bef
+    C  seed 12345   1,883                     1,690             content hash 48c66e8bd3aa
+
+**A and B share a seed and produced different text**, on both the answer and the reasoning, and
+differ by 122 completion tokens. `system_fingerprint` was byte-identical across all three, so this
+is not a model roll between calls. The settings are accepted and discarded.
+
+All three closed with "Therefore, the claim is refuted," which is correct. **That is one claim
+sampled three times and is not evidence of verdict stability.** It must not be reported as such.
+
+**Consequence for the paper.** Condition 2's accuracy is a single sample. Re-running the 102
+claims gives a different number by an unknown margin. State it as a limitation rather than
+measuring it: quantifying the variance costs another $0.32 and buys a figure nobody asked for, and
+five pages do not have room for it. The framing is on topic for this venue — **the cloud half of
+an edge-cloud system is not reproducible even when the edge half is.**
+
+**Condition 1 is unaffected.** Ollama honours both settings, and its cross-machine instability is
+floating-point arithmetic, a separate effect already measured on 7 August.
+
+**Incidental: the cost estimate above is conservative.** Four samples of `numeric-val-41` now
+exist at 2,123, 1,235, 1,357 and 1,883 completion tokens. The $0.32 projection used the largest.
+The real figure comes from the finished run, not from this claim.
 
 ### Cost, from the measured token counts
 
