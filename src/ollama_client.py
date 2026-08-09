@@ -28,6 +28,10 @@ def call_ollama(prompt, config):
         },
     }
 
+    # qwen3 shows thinking by default and the thinking counts for num_predict, so a config can switch it off. Only set to false if "think" is an existing field in the config json
+    if "think" in config:
+        payload["think"] = config["think"]
+
     url = OLLAMA_URL.format(host=config.get("ollama_host", "localhost")) #checks if the config json has an ollama_host field and if it doesn't it defaults and returns localhost
     
     request = urllib.request.Request(

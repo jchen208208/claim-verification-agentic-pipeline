@@ -2,6 +2,7 @@
   "experiment": "condition1_qwen3_4b_k10",
 
   "model": "qwen3:4b",
+  "think": false,
   "num_ctx": 32768,
   "num_predict": 2000,
   "temperature": 0,
