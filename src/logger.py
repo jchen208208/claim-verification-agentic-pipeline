@@ -22,6 +22,9 @@ class Record:
     prompt_eval_count: int | None = None
     eval_count: int | None = None
     done_reason: str | None = None # Ollama either returns "stop" if the model finished generation on its own or "length" if the model was truncated due to hitting the num_predict cap
+    thinking: str | None = None # shows model thinking trace text
+    served_model: str | None = None # model name essentially
+    system_fingerprint: str | None = None # for Deepseek
     elapsed_seconds: float | None = None # total generation time
 
     # filled in by the evidence asserter

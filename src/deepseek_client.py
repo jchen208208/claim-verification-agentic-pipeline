@@ -40,7 +40,7 @@ def call_deepseek(prompt, config):
         "prompt_eval_count": raw["usage"]["prompt_tokens"],
         "eval_count": raw["usage"]["completion_tokens"],
         "done_reason": raw["choices"][0]["finish_reason"],
-        "reasoning_content": message.get("reasoning_content"),
+        "thinking": message.get("reasoning_content"),
         "model": raw.get("model"),
         "system_fingerprint": raw.get("system_fingerprint"),
     }

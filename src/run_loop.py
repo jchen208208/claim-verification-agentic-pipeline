@@ -100,6 +100,9 @@ def run_one_claim(claim: Claim, config: dict, template: str, call_model: Callabl
         record.prompt_eval_count = raw.get("prompt_eval_count")
         record.eval_count = raw.get("eval_count")
         record.done_reason = raw.get("done_reason")
+        record.thinking = raw.get("thinking")
+        record.served_model = raw.get("model")
+        record.system_fingerprint = raw.get("system_fingerprint")
 
         record.context_overflow = check_overflow(record.prompt_eval_count, record.eval_count, config["num_ctx"])
 
