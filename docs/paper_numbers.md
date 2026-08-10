@@ -355,6 +355,37 @@ Per subset, n=34 each:
 
 **Regenerating script: `test_scripts/analyse_condition1.py`** (written 9 Aug).
 
+### 2.5.1 **[NEW 9 Aug 2026] THE LOCAL MODEL DECISION IS CLOSED: `qwen2.5-coder:3b`**
+
+Three candidates, same 102 claims, same seed, same prompts, same GPU. `qwen3:4b-instruct-2507-q4_K_M` is the non-thinking Qwen3 build, Q4_K_M like the other two, so quantisation is held fixed and only family and size vary.
+
+| | `coder:3b` | `qwen2.5:3b` | `qwen3:4b-instruct` |
+|---|---|---|---|
+| **strict accuracy** | 66.7% | 67.6% | 67.6% |
+| FINDVER-compatible | 66.7% | 68.6% | 75.5% *(inflated)* |
+| unparseable | **0.0%** | 2.0% | 7.8% |
+| — of which truncated | 0 | 0 | **13** |
+| output tokens, mean | **413** | 497 | 1,281 |
+| **seconds per claim** | **6.6** | 7.9 | **23.0** |
+| extraction anchored | **102/102** | 92/102 | 93/102 |
+| FDV-MATH | 76.5% | 79.4% | 61.8% |
+
+**All three are statistically tied.** Every pairwise McNemar test returns p = 1.000. The spread across a 3B code model, a 3B general model and a 4B general model is **0.9 accuracy points**.
+
+**The 4B's 67.6% is a floor, not its score.** It truncated 13 times at `num_predict` 2000 and **11 of the 13 are numeric**, the same pattern as DeepSeek pro in §2.6. Excluding truncated claims it scores 71.9% overall and 73.9% on FDV-MATH rather than 61.8%. A rerun at 4000 would likely land near 72%, roughly 5 points above `coder:3b`.
+
+**`coder:3b` is kept anyway, and the reason is cost, not accuracy.** It is **3.5x faster per claim** on identical prompts and generates 3.1x fewer output tokens. On the MacBook generation is CPU-bound, so that gap widens rather than narrows, and condition 4 makes several calls per claim on a device where one call already takes 7 minutes. **A model that needs a larger generation budget is a worse edge model, not a better one**, which is the paper's own argument applied to its own model choice.
+
+**Supportable:** *"the 4B matched the 3B on accuracy at 3.5x the generation cost, and required a larger output budget to do it."*
+
+**Not supportable:** *"the 4B is no better than the 3B."* The truncation makes that false.
+
+**Not quotable:** the 4B's FINDVER-compatible 75.5%. Eight unparseables were coin-flipped and mostly landed right, the same trap as §2.6's pro figure.
+
+**The decision rule was fixed at 5 points before the run**, so the choice was not made after seeing the data. The measured gap is 0.9.
+
+**Deliberately left open:** the 4B's true accuracy at an adequate cap, 45 GPU minutes. **Not scheduled, because no plausible result changes the choice** — deployment cost decides it either way. Revisit only if condition 4 proves accuracy-bound rather than latency-bound.
+
 ### 2.6 **[NEW 9 Aug 2026] Condition 2 — cloud-only baseline, n=102**
 
 Single call, no pipeline, same 102 claims, same BM25 k=10 prompts as condition 1. `max_tokens` 8000, temperature 0. `results/condition2_deepseek_pro/`, `results/condition2_deepseek_flash/`. **102 ok, 0 failed on each.**
@@ -561,6 +592,7 @@ The honest framing throughout: **each was expected to help, and the measurement 
 | **`k1`/`b` tuning** | a free point or two | best 74.97% vs default 74.60%, n=700 | inside noise, and selecting the winner is selecting on the test set |
 | **`qwen3:4b` as the local model** | a stronger local model for one extra billion parameters | 145 s/claim on the GPU vs 6.6, n=6 | **rejected on cost, not accuracy.** At the measured 36.8x MacBook-to-GPU ratio that is ~90 min per claim on the device of record. Also truncated on claim 4 of 4: 18,282 characters of reasoning, `done_reason=length` at the 8,000 cap, **zero characters** in `response` |
 | **`qwen2.5:3b` instead of the Coder variant** | the professor's objection, that code tuning suits financial text badly | 67.6% vs 66.7%, n=102 | **not rejected on accuracy — it is a tie**, one claim in 102. Coder kept on format compliance (102/102 vs 92/102 anchored), 0.0% vs 2.0% unparseable, and 17% faster. See §2.5 |
+| **`qwen3:4b-instruct` as the local model** | one extra billion parameters, no thinking overhead, should beat a 3B | 67.6% vs 66.7% at **3.5x the seconds per claim**, n=102 | **rejected on deployment cost.** Tied on accuracy (p = 1.000), generates 3.1x more output tokens, and truncated 13 times at `num_predict` 2000 where the 3B truncated zero. Its true score at an adequate cap is likely ~72%, and that still does not buy 3.5x latency on a CPU-only 2017 laptop. See §2.5.1 |
 
 **Two further negatives worth a sentence each.**
 

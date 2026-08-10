@@ -731,7 +731,45 @@ recall, and this. If everything downstream failed tomorrow there is still a pape
 
 Full narrative in the build log entry for 8–9 August. The short version.
 
-### THE LOCAL MODEL IS SETTLED: `qwen2.5-coder:3b` stays
+### MODEL DECISION CLOSED, 9 Aug: `qwen2.5-coder:3b`. Three candidates, all tied.
+
+`qwen3:4b-instruct-2507-q4_K_M` is the non-thinking Qwen3 build. Verified not thinking before the
+run: capabilities are `['completion','tools']` with no `thinking`, and it answered "Is 2+2 equal
+to 4?" in **12 tokens** where the thinking build spent 332.
+
+                        coder:3b   qwen2.5:3b   qwen3:4b-instruct
+    strict accuracy        66.7%       67.6%          67.6%
+    unparseable             0.0%        2.0%           7.8%
+      of which truncated       0           0             13
+    output tokens, mean      413         497          1,281
+    seconds per claim        6.6         7.9           23.0
+    extraction anchored  102/102      92/102         93/102
+    numeric                76.5%       79.4%          61.8%
+
+**All three tie. Every pairwise McNemar p = 1.000.** The spread across a 3B code model, a 3B
+general model and a 4B general model is 0.9 points.
+
+**The 4B's 67.6% is a floor.** It truncated 13 times at `num_predict` 2000, **11 of them
+numeric**, the same pattern as DeepSeek pro. Excluding truncations it scores 71.9%, and its
+numeric goes 61.8% → 73.9%. A rerun at 4000 would likely reach ~72%.
+
+**`coder:3b` is kept on cost, not accuracy.** 3.5x faster per claim on identical prompts, 3.1x
+fewer output tokens. On the MacBook generation is CPU-bound so that gap widens, and condition 4
+makes several calls per claim on a device where one call already takes 7 minutes. **A model
+needing a larger generation budget is a worse edge model, not a better one.**
+
+**The 45-minute rerun at `num_predict` 4000 is deliberately not scheduled**, because no plausible
+result changes the choice. Revisit only if condition 4 turns out to be accuracy-bound rather than
+latency-bound.
+
+**Do not quote the 4B's FINDVER-compatible 75.5%** — eight coin flips, mostly lucky. **Do not
+write "the 4B is no better than the 3B"** — the truncation makes that false. Write **"the 4B
+matched the 3B on accuracy at 3.5x the generation cost."**
+
+**Keep both other models installed on the PC until the paper is submitted.** GPU access is not
+guaranteed to persist, and re-pulling requires the machine to be available.
+
+### The professor's Coder objection, answered
 
 `qwen2.5:3b` ran condition 1 on the same 102 claims, same seed, same GPU. **102 ok, 0 failed.**
 
@@ -930,11 +968,17 @@ Never noted before. A second reason, independent of the floating-point divergenc
    decision, not a test: whether to quantify the variance by re-running a subset of condition 2,
    or to state it as a limitation and move on. **Stating it is enough for a 5-page workshop
    paper**; measuring it costs another $0.32 and buys a number nobody asked for.
-4. **Decide whether `qwen3:4b` is worth any more time.** It is already rejected on cost, so this
-   is optional. If revived: raise `num_predict` above 8000 (at 16,000 the trim budget falls to
-   16,768 against a largest prompt of 14,066, still safe but thin), and clear the abandoned
-   directory first.
-5. **Write `test_scripts/score_published_baselines.py`**, generalised over all 16 models.
+4. ~~**Decide whether `qwen3:4b` is worth any more time.**~~ **DONE 9 Aug. Closed on cost.**
+   The thinking build was the wrong tag; `qwen3:4b-instruct-2507-q4_K_M` was run properly and
+   ties the 3B at 3.5x the latency. See the model decision section above.
+5. ~~**Write `test_scripts/score_published_baselines.py`**~~ **DONE 9 Aug**, generalised over all
+   16 models. Also corrected a wrong figure in §2.4.
+6. ~~**Write `test_scripts/analyse_condition1.py`**~~ **DONE 9 Aug.** It now also runs an exact
+   McNemar test on every pair, which found that **no accuracy comparison in the project is
+   significant at n=102**, including edge versus cloud at p = 0.500. See §2.7.
+7. **RUN CONDITION 1 ON ALL 700.** `configs/condition1_3b_full700.json`, `qwen2.5-coder:3b`,
+   2 to 3 hours on the GPU. `run.py` now supports `per_cell: null`. **This is the highest-value
+   job in the project**, because the central claim is currently a coin flip.
 6. **Create the Overleaf project and share it** (§14 item 13).
 
 ### Still open, carried

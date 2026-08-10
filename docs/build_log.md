@@ -3063,6 +3063,143 @@ provider, same prompts. Harmless, but one model's token count does not transfer 
 **4.9 points to pro, 8.8 to flash**, strict, at n=102. That is the first time the target has been
 a measured number rather than an assumption.
 
+---
+
+## 9 August 2026 — the two owed scripts, and the model decision closed on cost
+
+### Both owed scripts written, and rule 1 is satisfied for the first time
+
+`test_scripts/analyse_condition1.py` reproduces sections 2.3, 2.5 and 2.6 exactly.
+`test_scripts/score_published_baselines.py` reproduces 2.4 and generalises it to all 16 models.
+Harness unaffected, 56/56 at the time, 59/59 once the new config landed.
+
+**A significance test was added, and the result reframes the project.** The analysis script now
+runs an exact two-sided McNemar test on every pair of runs. **All ten pairs come back ties.**
+
+    coder:3b vs v4-pro       67/102 agree   15 vs 20   p = 0.500
+    coder:3b vs v4-flash     70/102 agree   11 vs 20   p = 0.150
+    k=10 vs k=20             58/102 agree   22 vs 18   p = 0.636
+    coder vs qwen2.5:3b      79/102 agree   11 vs 12   p = 1.000
+
+**The edge-versus-cloud gap, which the contribution rests on, is p = 0.500.** Not one accuracy
+comparison in the project is currently distinguishable from a coin flip. This is not a fault in
+any run, it is what n=102 buys, and §4.5 already recorded the same lesson for retrieval. **The
+700 run stops being an enhancement and becomes the requirement.**
+
+### Generalising the baseline scorer found a better example than the one already written up
+
+    Llama-3.1-8B   published 66.4%   strict 41.3%   no verdict word 26.9%
+    Llama-3.2-3B   published 58.4%   strict 38.3%   no verdict word 26.6%
+    gpt-4o         published 75.3%   strict 75.3%   no verdict word  0.0%
+    claude-3.5     published 73.1%   strict 73.1%   no verdict word  0.0%
+
+**Llama-3.1-8B is the stronger case.** It is published mid-table at 66.4%, ahead of three other
+baselines, and states no verdict on 26.9% of claims. The frontier models sit at 0.0%. The
+imputation effect appearing and disappearing with model scale, across sixteen models, is a much
+harder argument to dismiss than one 3B data point. **Costs nothing: the data was already in the
+repo.**
+
+### A number in `paper_numbers.md` was wrong, and only the raw data caught it
+
+The first version of the scorer counted a response ending in `*` as cut off mid-sentence. That is
+markdown closing a bold **refuted**. It reported **63.7% truncation for gemini-1.5-pro**, whose
+unparseable rate is 6.7%. Verified by inspecting the final character of every flagged response:
+all 446 of gemini's end in `*`, as do 124 of Mistral-Large's, while Llama-3.2-3B's end in ordinary
+letters, which is real truncation.
+
+**§2.4's truncation row was wrong: 17.9% → 15.3% on 700, and 15.7% → 13.7% on our 102.** The old
+figure came from the earlier inline script. **This is exactly the failure rule 1 exists to
+prevent**, and it was catchable only because the raw upstream data still existed. Worth
+remembering the next time deleting result files looks like tidying.
+
+### `qwen3:4b` was not a GPU failure, and the reason matters
+
+Asked whether the 145 s/claim was a CPU fallback. It was not.
+
+    qwen3:4b            6,978 out tokens/claim   127.9 s   54.5 tok/s
+    qwen2.5-coder:3b       413                     6.6 s   63.0 tok/s
+    qwen2.5:3b             497                     7.9 s   62.8 tok/s
+
+**54.5 tokens per second is normal**, 87% of the 3B rate, about what one extra billion parameters
+costs. A CPU fallback would look like 5 to 10. **The slowness was entirely token count**, 17x
+more, all of it thinking.
+
+**Correcting last night's own claim:** the "roughly 90 minutes per claim on the MacBook" figure
+was extrapolated from the 36.8x whole-run ratio, which was measured on prompt-dominated runs. The
+MacBook's generation rate has never been measured separately, so the honest range is 20 to 90
+minutes. The direction was never in doubt; the precision was overstated.
+
+### The real reason `qwen3:4b` failed: Qwen3 ships thinking and non-thinking separately
+
+Checked the Ollama registry rather than guessing. `qwen3:4b-instruct-2507-q4_K_M` exists at the
+same Q4_K_M quantisation as the other two models. **There was never a switch to find** — the tag
+we ran was the thinking build, and the hybrid `/no_think` toggle no longer exists in this
+generation.
+
+### The instruct build, verified before spending a run
+
+Capabilities came back `['completion', 'tools']` with **no `thinking`**, and one trivial call
+returned **12 tokens** where the thinking build spent 332. Only then was the 102 run started. This
+is the check that was skipped last night and cost four aborted claims.
+
+### Condition 1, `qwen3:4b-instruct`, n=102 — complete, 102 ok
+
+                        coder:3b   qwen2.5:3b   qwen3:4b-instruct
+    strict accuracy        66.7%       67.6%          67.6%
+    FINDVER-compatible     66.7%       68.6%          75.5%
+    unparseable             0.0%        2.0%           7.8%
+      of which truncated       0           0             13
+    output tokens, mean      413         497          1,281
+    seconds per claim        6.6         7.9           23.0
+    extraction anchored  102/102      92/102         93/102
+    ie                     64.7%       64.7%          76.5%
+    knowledge              58.8%       58.8%          64.7%
+    numeric                76.5%       79.4%          61.8%
+
+**All three tie, every pairwise p = 1.000.** A 3B code model, a 3B general model and a 4B general
+model spread across 0.9 accuracy points.
+
+**The 4B's number is a floor, and the same caveat applied to DeepSeek pro applies here.** 13
+truncations at `num_predict` 2000, **11 of them numeric**. Excluding them it scores 71.9% overall
+and 73.9% on numeric rather than 61.8%. A rerun at 4000 would likely reach about 72%.
+
+### Decision: `coder:3b`, on cost, with the rule fixed in advance
+
+The threshold was set at 5 points **before the run**, to avoid choosing after seeing the data. The
+measured gap is 0.9.
+
+**Even granting the 4B its optimistic ~72%, it loses.** It is 3.5x slower per claim on identical
+prompts and generates 3.1x more output tokens. On the MacBook generation is CPU-bound, so the gap
+widens rather than narrows, and condition 4 makes several calls per claim on a device where one
+call already takes 7 minutes. **A model that needs a larger generation budget is a worse edge
+model, not a better one.** That is the paper's own argument applied to its own model choice.
+
+**The 45-minute rerun at 4000 is deliberately not scheduled**, because no plausible result changes
+the choice. Recorded as open in §2.5.1 so it is a decision rather than an oversight. Revisit only
+if condition 4 proves accuracy-bound rather than latency-bound.
+
+Two phrasings fixed in the docs. **Do not quote the 4B's FINDVER-compatible 75.5%**, which is
+eight coin flips that mostly landed right, the same trap as pro's. **Do not write "the 4B is no
+better than the 3B"**, which the truncation makes false.
+
+### `run.py` now runs the full split
+
+`per_cell: null` skips the sampler. `stratified_sample` cannot produce 700 because `check_balance`
+requires equal cells and the knowledge cells hold 100 against 125, so 600 was its ceiling. The
+full split is **shuffled with the run's seed**, because file order is solid blocks by label and an
+interrupted 2-hour run would otherwise leave a partial set that is nearly all one class. An
+assertion on the count of 700 guards against a silent loader change.
+
+### Housekeeping
+
+`results/` reorganised rather than pruned. `trial_run_3b`, `smoke_bm25`, `smoke_bm25_gpu`,
+`decompositions_v1.json` and the abandoned qwen3 records moved to `results/archive/`. Total was
+15 MB and the five candidates for deletion were 860 KB, so space was never the issue. Each backs
+a figure that is either in `paper_numbers.md` or in `CLAUDE.md`, and **`results/` is gitignored,
+so deletion has no undo.** `trial_run_3b` is the only measurement of the MacBook that exists.
+
+**Noted and not yet acted on: none of `results/` is backed up anywhere.**
+
 Operational note, since the machine had to stay awake unattended: `caffeinate -ims` deliberately
 omits `-d`, so the displays sleep normally while the system stays awake. Verified live with
 `pmset -g assertions`: `PreventUserIdleDisplaySleep 0`, `PreventUserIdleSystemSleep 1`, on AC
