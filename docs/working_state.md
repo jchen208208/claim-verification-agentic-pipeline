@@ -1114,15 +1114,71 @@ That job needs the 3B to read evidence and judge whether a step follows, and the
 already flags MACE's cross-model false-refutation risk on the same row. **Take this to the
 professor with §13 open question 1.**
 
+### CLARIFIED 10 Aug: what "a fraction of the cost" means, and what the goal actually is
+
+The phrase in §5.3 was never pinned to an axis, and the n=700 numbers made that a problem. **The
+whole cloud-only baseline over 700 claims cost $0.626.** No paper is carried by saving two dollars.
+Full statement now in architecture plan **§5.3.1** and paper numbers **§3.5**.
+
+**Two comparisons, two axes, do not mix them.**
+
+- **Condition 4 vs condition 3.** Both use cloud, so memory does not separate them. The axis is
+  **cloud calls and tokens per claim**, reported as a ratio. Dollars illustrate it, they are not
+  the claim.
+- **Ours vs MACE.** The axis is **resident parameters**. MACE's smallest configuration is 27B held
+  in memory. Ours is 3B plus an API. **This is the on-device claim and it is the strong one.**
+
+**The goal, stated so it stops drifting:**
+
+    assign every role to the cheapest component that can RELIABLY do it
+    no model  <  edge 3B  <  cloud
+
+**It is not "maximise 3B roles."** The biggest savings in §4.4 are the no-model rows: BM25, top-k
+ranking, table parsing, running the generated code, re-checking arithmetic, retry control flow.
+A pipeline that pushed work onto the 3B instead of onto plain Python would be worse on every axis.
+**"Reliably" is now load-bearing**, because the 3B cannot do evidence-based judgment.
+
+**Wall clock cannot be the headline, because it reverses with the machine.** Per claim at n=700:
+3B on the GPU box **6.8 s**, flash **12.7 s**, pro **23.2 s**, and the same 3B on the MacBook about
+**420 s**. The local model is the fastest of the three on the GPU and 33x slower than flash on the
+laptop. Name the machine or do not make the claim.
+
+**The deliverable is the routing curve, not a single ratio.** Condition 1 is never-escalate,
+condition 3 is always-escalate, Tier 5 sweeps between. **The knee of that curve is the result.**
+
+### The bar condition 4 has to clear, and the API spend so far
+
+Full version in paper numbers **§2.6.2**. Beating 77.0% **is** worth reporting. Two different bars,
+not the same claim:
+
+    our condition 2, flash, strict, n=700     77.0%   internal, every variable controlled
+    our condition 2, pro,   strict, n=700     77.3%   internal
+    best published 2024, Claude RAG           75.0%   external, four variables uncontrolled
+    our condition 1, coder:3b, n=700          61.4%   the floor
+    condition 3                            not run    THE ONE THAT MATTERS
+
+Three conditions on any such sentence. **Quote a McNemar p-value, not the accuracy column**, since
+one claim in ten moves as noise. **Strict against our own runs, FINDVER-compatible against
+published ones**, never mixed. And keep §9.2's framing: beating condition 2 is a bonus, matching
+condition 3 at a fraction of the cost is the paper.
+
+**Already supportable at no further cost:** our 77.0% cloud baseline sits above the best published
+2024 RAG figure of 75.0%. **Write it as a tie**, given the noise floor, and note it is a 2026 model
+against a 2024 table.
+
+**[TALLIED 10 Aug] Total DeepSeek spend on the professor's key: $2.934.** Pro's two runs are
+$2.206 of that, 75% of all spend, and 65% is the single n=700 pro run at $1.911. Independent of
+the accuracy tie, that is the practical case for flash.
+
 ## What to do on 10 August, in order
 
 1. ~~**Read both condition 2 results at 700.**~~ **DONE 10 Aug.** See above.
 2. ~~**Back up `results/`.**~~ **DONE 10 Aug**, `~/findver_results_20260810.tgz`, 14 MB.
-3. **RUN `qwen2.5-coder:7b` AT 700.** `configs/condition1_7b_full700.json`. **No pull needed, the
-   model is already on the GPU box at 4.7 GB.** Roughly 2.5 to 4 hours; the 3B did 700 in 79
-   minutes and the 7B is 2.3x the parameters, so do not trust a tighter estimate until the first
-   twenty claims are in. Start early. **It answers the objection the professor is most likely to
-   open with: why not just run a bigger local model instead of building a pipeline.**
+3. **RUN `qwen2.5-coder:7b` AT 700.** **IN FLIGHT as of 10 Aug.** `configs/condition1_7b_full700.json`.
+   No pull was needed, the model was already on the GPU box at 4.7 GB. **Measured at 218 claims:
+   13.6 s per claim, exactly 2.0x the 3B, projecting 2.6 hours total.** 218 ok, 0 failed.
+   **It answers the objection the professor is most likely to open with: why not just run a bigger
+   local model instead of building a pipeline.**
 4. **Email the professor.** The gap is now a real number and there is more than good news to
    report: the n=102 baseline was overstated by 5.3 points, three documented claims were falsified
    on 9 August, and verdicts move on about one claim in ten between identical runs. That last one

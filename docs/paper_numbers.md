@@ -604,6 +604,30 @@ At n=700 the cloud models predict entailed **30.4%** and **31.0%** of the time a
 
 **Regenerating command:** `python3 test_scripts/analyse_condition1.py condition1_3b_full700 condition2_deepseek_pro_full700 condition2_deepseek_flash_full700`. The confusion and evidence-split tables are not in that script yet and were computed inline; folding them in is owed under rule 1.
 
+### 2.6.2 **[NEW 10 Aug 2026] The bar condition 4 has to clear, and how to write the sentence if it clears it**
+
+Beating 77.0% **is** worth reporting. This section fixes what it would mean so the claim is written correctly the first time.
+
+**There are two different bars and they are not the same claim.**
+
+| bar | value | comparison type | strength |
+|---|---|---|---|
+| our condition 2, `v4-flash`, strict, n=700 | **77.0%** | internal, fully controlled | **strongest evidence in the project** |
+| our condition 2, `v4-pro`, strict, n=700 | 77.3% | internal, fully controlled | same |
+| best published 2024, Claude-3.5-Sonnet **RAG** | 75.0% | external | confounded |
+| our condition 1, `coder:3b`, strict, n=700 | 61.4% | internal | the floor |
+| condition 3 | not yet measured | internal | **this is the one that matters** |
+
+The internal bars share retrieval, *k*, slice, prompt version, `num_ctx`, temperature and label extractor (§9.2). Every variable is held fixed except the pipeline. **The external bar holds none of them fixed:** upstream ran temperature 1.0, a 1024-token cap, a retriever at 65.16% recall against our 74.60%, and `gpt-4o-mini` extraction with an unseeded coin flip. Report it, but never as the headline.
+
+**Three conditions on the sentence.**
+
+1. **Significance, not the accuracy column.** §2.3.2 measures about one claim in ten of run-to-run noise, so a 2-point difference is not a difference. Run the exact McNemar test in `analyse_condition1.py` and quote *p*. Today's data shows the range: 15.9 points gave discordant counts of 80/191 and p < 0.001, while 0.3 points gave 21/19 and p = 0.875. **A win has to show up in the discordant split.**
+2. **Matched scoring.** Against our own runs use **strict**. Against published numbers use **FINDVER-compatible**, per §9.1, because those were produced with coin-flip imputation. Never mix the two in one table.
+3. **Correct framing.** §9.2 already fixes it: *"Beating condition 2 is a bonus; matching condition 3 at a fraction of the cost is the paper."* A reviewer answers a condition 2 win with "you beat a single-prompt use of a cloud model, which nobody deploys." **Report it in a sentence, not in the abstract's first line.**
+
+**What is already supportable today, at no further cost:** our cloud baseline at 77.0% sits above the best published 2024 RAG result of 75.0%. Given the noise floor, **write it as a tie, not a win**, and note that it is a 2026 model against a 2024 table, which is expected rather than interesting.
+
 ### 2.7 **[FALSIFIED IN PART 10 Aug 2026 — see below] NOT ONE ACCURACY COMPARISON IN THIS PROJECT IS SIGNIFICANT**
 
 **This heading was true of n=102 and is no longer true of the project.** At n=700 the edge-versus-cloud comparison is p < 0.001 on both cloud models. The section's reasoning was correct and its prediction was correct; only the headline has expired. Read the rest as a statement about n=102 specifically.
@@ -721,9 +745,58 @@ Projected over 102 claims, at the pricing published on 8 August 2026:
 
 **Flash landed within $0.002 of its linear prediction.** Pro came in 5.6% under, consistent with raising `max_tokens` from 8,000 to 16,000 removing five truncated-and-retried-looking long generations rather than adding cost. Raising the cap cost nothing and bought 5.7 accuracy points (§2.6.1).
 
-**Cost of the full condition 2 measurement: $2.537 on the professor's key.** Update the tally in `test_scripts/api_cost_tally.py` before quoting a project total.
+**Cost of the full condition 2 measurement: $2.537 on the professor's key.**
+
+**[TALLIED 10 Aug 2026] Total DeepSeek spend to date: $2.934**, from `test_scripts/api_cost_tally.py` over our own recorded token counts.
+
+| experiment | model | n | in tok | out tok | USD |
+|---|---|---|---|---|---|
+| `condition2_deepseek_flash` | v4-flash | 102 | 346,779 | 150,692 | 0.091 |
+| `condition2_deepseek_flash_full700` | v4-flash | 700 | 2,423,889 | 1,024,447 | 0.626 |
+| `condition2_deepseek_pro` | v4-pro | 102 | 338,721 | 170,034 | 0.295 |
+| `condition2_deepseek_pro_full700` | v4-pro | 700 | 2,368,589 | 1,012,143 | **1.911** |
+| ad-hoc probe calls | both | 7 | 12,034 | 6,693 | 0.011 |
+| **total** | | | | | **$2.934** |
+
+**Pro's two runs are $2.206, which is 75% of all spend on the professor's key; the single n=700 pro run alone is 65%.** That is the practical argument behind the flash decision, independent of the accuracy tie. This is our arithmetic from recorded tokens, not DeepSeek's billing; the script prints their live balance when `DEEPSEEK_API_KEY` is in the environment.
 
 **At n=700 the flash-versus-pro choice is settled on evidence** (§2.6.1, p = 0.875): same accuracy, one third the cost, 1.8x the speed. **The cloud tier in the pipeline is `deepseek-v4-flash`.**
+
+### 3.5 **[NEW 10 Aug 2026] WHICH cost the paper claims — the phrase was ambiguous and these numbers exposed it**
+
+Full statement of the goal in architecture plan §5.3.1. This section holds the numbers behind it.
+
+**The dollar axis is too small to carry a paper. State it and move on.** The entire cloud-only baseline over all 700 claims cost **$0.626** on flash, which is **$0.00089 per claim**. A pipeline that halves the cloud calls saves under a dollar across the whole benchmark.
+
+#### Two comparisons, two different axes. Do not mix them.
+
+| comparison | what differs | the axis | number available? |
+|---|---|---|---|
+| **cond 4 vs cond 3** | how much cloud is used | cloud **calls and tokens per claim**, as a ratio | not yet, needs the pipeline |
+| **ours vs MACE** | what must be resident on the device | **resident parameters** | yes: 27B vs 3B + API |
+
+Condition 3 and condition 4 both use cloud, so resident memory does not separate them. MACE's smallest configuration is 27B of weights held in memory (§3.3); ours is 3B local plus an API call. **That is the on-device claim, and it is the strong one.**
+
+#### Latency reverses with the machine, so it cannot be the headline
+
+**[MEASURED 10 Aug 2026, n=700, per claim.]**
+
+| | per claim | machine |
+|---|---|---|
+| `qwen2.5-coder:3b` | **6.8 s** | GPU box, 10.0.0.26 |
+| `deepseek-v4-flash` | 12.7 s | cloud |
+| `deepseek-v4-pro` | 23.2 s | cloud |
+| `qwen2.5-coder:3b` | **~420 s** | 2017 MacBook, CPU-only (§3.1) |
+
+**The local model is the fastest of the three on the GPU box and about 33x slower than flash on the laptop.** The cloud models are slow because they emit ~1,450 output tokens against the 3B's 416, most of it reasoning. **Every latency sentence must name the machine.** Not supportable in either direction: "the edge tier is faster" or "the edge tier is slower," unqualified.
+
+#### The goal, in one line
+
+**Assign every role to the cheapest component that can *reliably* do it: no model < edge 3B < cloud.** Not "maximise 3B roles" — the biggest savings in architecture plan §4.4 are the no-model rows. **[MEASURED 10 Aug]** "Reliably" is load-bearing: §2.6.1 shows the 3B scores 61.3% with gold evidence present and 61.6% without, so it cannot be given evidence-based judgment.
+
+#### The deliverable is the routing curve, not a single ratio
+
+Condition 1 is never-escalate, condition 3 is always-escalate, and Tier 5's sweep fills in between. **The knee of that curve is the result.** It shows the tradeoff instead of asserting a saving, which is what a reviewer at an on-device venue will actually want.
 
 **Unexpected: the two models tokenize identically-identical prompts differently**, 3,321 mean for pro against 3,400 for flash. Same text, same provider. Not a problem, but do not assume one model's token count transfers to the other.
 
@@ -794,14 +867,17 @@ The honest framing throughout: **each was expected to help, and the measurement 
 Listed so they are not written by accident.
 
 - **"Nobody has done X."** The citation sweep found 23 papers citing FINDVER with MACE the only method evaluated on it, but that was abstract-level screening. **Supportable phrasing: "we found no other method evaluated on FINDVER."**
-- **"Better retrieval improves accuracy."** Assumed throughout, measured nowhere. The only evidence is the trial run's 4/4 with evidence present against 4/8 without, at n=4, which §9 says not to trust.
+- **"Better retrieval improves accuracy."** Assumed throughout, still not established causally. **[UPDATED 10 Aug]** There is now real observational evidence at n=700 (§2.6.1): the cloud models score 8 to 11 points higher on claims where the gold evidence reached the prompt, and the 3B scores **0.3 points lower**. **This is confounded** — claims BM25 succeeds on may simply be easier — so 8 to 11 points is an **upper bound** on what better retrieval buys the cloud tier, not an estimate. **Supportable: "the local model's accuracy is unchanged by whether the gold evidence is present."** The null result is not exposed to the confound. Not supportable: any projected accuracy gain from a stated recall gain.
 - ~~**"Higher k improves accuracy."**~~ **[ANSWERED 8 Aug 2026, and the answer is no.]** At n=102, k=10→k=20 raised all-gold recall 10.8 points (gained on 11 claims, lost on 0) and strict accuracy fell 4 points. Paired: 44 disagreements, 18 to k=20 and 22 to k=10 — statistically tied. **Supportable: "a 10.8-point recall gain produced no measurable accuracy gain at 87% more prompt tokens."** Not supportable: "k=20 is worse." See §2.3.
 - ~~**Any unparseable rate for our configuration.** 0 of 12 is not a rate.~~ **[MEASURED 8 Aug 2026 at n=102: 0.0% at k=10, 3.9% at k=20.]** 0 of 102 is a usable figure and is the basis for §2.3's claim that our strict and FINDVER-compatible scores coincide.
 - **Any 7B number.** Not re-measured since week 1.
 - ~~**[NEW 9 Aug] Anything about conditions 2 or 3 being reproducible or deterministic.**~~ **[MEASURED 9 Aug, and the answer is that they are not.]** Three calls on `numeric-val-41`, `deepseek-v4-pro`, temperature 0, identical payloads. Two sharing `seed` 0 produced **different responses**, 1,235 against 1,357 completion tokens, different text and different reasoning. A third at `seed` 12345 gave 1,883. Identical `system_fingerprint` on all three, so this is not a model roll. **`seed` and `temperature` are accepted and ignored.** All three reached the same, correct, verdict, but that is one claim sampled three times and is not evidence of verdict stability. **Supportable: "the cloud model does not honour seed or temperature; our condition 2 figure is a single sample, not a reproducible measurement."** This is a limitation to state plainly, and it is on-topic for a workshop about real-world constraints: the cloud half of an edge-cloud system is not reproducible even when the edge half is.
 - ~~**[NEW 9 Aug] Any condition 2 result.**~~ **[MEASURED 9 Aug, see §2.6.]** Pro 71.6% strict, flash 75.5%, against the edge baseline's 66.7%. **Three caveats travel with those numbers and must not be dropped:** pro's figure is a floor depressed by 5 truncations at the 8,000 cap; pro and flash are statistically tied, not 4 points apart; and pro's FINDVER-compatible 75.5% is inflated by a lucky coin flip and must not be quoted.
-- **[NEW 9 Aug] Any final condition 2 number for pro.** 71.6% was produced at `max_tokens` 8000, which truncated 5 numeric claims. **A re-run at 16,000 is owed before this enters the paper.** It also delivers the reproducibility measurement in the same job.
-- ~~**[NEW 9 Aug] "Our pipeline matches the cloud model."** The gap to close is now measured: **4.9 points to pro, 8.8 to flash**, on strict scoring at n=102.~~ **[REVISED 9 Aug, later.]** Condition 1 at n=700 is 61.4%, not the 66.7% that gap was computed from, and condition 2 has not yet been measured at 700. **The gap is currently unknown and must not be quoted.** Both 700 runs of condition 2 are in flight.
+- ~~**[NEW 9 Aug] Any final condition 2 number for pro.** 71.6% was produced at `max_tokens` 8000, which truncated 5 numeric claims. **A re-run at 16,000 is owed before this enters the paper.**~~ **[DONE 10 Aug at n=700. Pro is 77.3% strict, unparseable 4.9% → 0.3%.]** The truncation diagnosis was correct. See §2.6.1.
+- ~~**[NEW 9 Aug] "Our pipeline matches the cloud model."** The gap to close is now measured: **4.9 points to pro, 8.8 to flash**, on strict scoring at n=102.~~ **[MEASURED 10 Aug at n=700. The gap is 15.9 points to pro and 15.6 to flash**, p < 0.001 on both.] The n=102 figure was wrong by a factor of three because two biases stacked: the 3B was inflated by an easy sample and pro was depressed by truncation. See §2.6.1. **This is the gap condition 4 has to close and it is much larger than the project believed for two days.**
+- **[NEW 10 Aug] A high absolute score as the paper's accomplishment.** Framing is already recorded in architecture plan §9.2: beating condition 2 is a bonus, matching condition 3 at a fraction of the cost is the paper. **Three facts constrain what a high number would mean.** Published 2024 best on testmini is Claude-3.5-Sonnet **75.0% RAG** (77.2% long-context, which we may not cite since we are RAG-only), and our single cloud call already sits at **77.0%**. Human non-expert is **86.7%** and human expert **93.3%**. And MACE, the only published method evaluated on FINDVER, **tied** the baselines at 0.76 rather than beating them. **A 90%+ result would sit above non-expert human and 13 points above our own single-call cloud baseline, on a benchmark where the one published method produced no gain at all.** Treat it as a signal to audit for a scoring or leakage bug before treating it as a result. **There is also no leaderboard** (checked 3 Aug), so "state of the art on FINDVER" cannot be established by submission, only by comparison against the published table.
+- **[NEW 10 Aug] Beating a number without saying which number, and without a significance test.** Beating 77% **is** worth reporting, and the conditions are recorded in §2.6.2 so the sentence is written correctly the first time. **Two different 77%s are in play and they are not the same claim:** our own condition 2 flash at 77.0% strict, n=700, which is a fully controlled internal comparison; and the best published 2024 RAG figure of 75.0%, which is an external comparison confounded by a different extractor, retriever and temperature. Report both, with different confidence.
+- **[NEW 10 Aug] "The edge tier is faster" or "the edge tier is slower," unqualified.** It reverses with the machine: 6.8 s per claim on the GPU box against flash's 12.7 s, and ~420 s per claim on the 2017 MacBook. §3.5. Name the machine or do not make the claim.
 - **[NEW 9 Aug] ANY n=102 ACCURACY FIGURE AS A HEADLINE NUMBER.** The 102 sample overstates `qwen2.5-coder:3b` by 5.3 points against the full split, and by 12.5 points on FDV-MATH. §2.3.1 diagnoses it as sampling rather than run variance. Every n=102 accuracy figure in this document is inflated by an unknown amount until re-measured at 700. This includes §2.5, §2.5.1 and §2.6. **The model-choice conclusions in §2.5 and §2.5.1 survive** — they rest on latency and format compliance, which are not sample-dependent in the same way — but their accuracy columns do not.
 - **[NEW 9 Aug] That any single run is a point estimate.** §2.3.2: identical reruns disagree on about one claim in ten. A difference smaller than that between two of our own runs is noise, not a result.
 - **[NEW 9 Aug] Any accuracy claim about `qwen3:4b`.** It ran 6 claims of 102 before being stopped. **The rejection is on cost and stands on the timing alone**, which needs no accuracy figure. Do not report its 3-of-6 label outcomes as a rate.

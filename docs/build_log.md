@@ -3491,6 +3491,39 @@ measurement makes the row worse than the plan assumed.
 records the routing boundary as the most useful open question and this is the first hard data on
 it.
 
+### The contribution statement was ambiguous, and today's cost figure exposed it
+
+Raised as a challenge rather than found in the data: if the cloud tier does the prompt ingestion
+and the output generation, why build condition 4 at all instead of just running condition 3.
+
+**The challenge is partly right and the answer is worth recording.** Condition 3 is not a
+shortcut, because §9.2 defines it as the cloud model in *every pipeline role* — the same code as
+condition 4 with the routing knob at "always escalate." Choosing it saves no build time, only run
+time. And it is the baseline the paper is measured against, so running it alone is running the
+control and skipping the experiment.
+
+**Where the challenge lands: the cost claim was never pinned to an axis.** §5.3 said "at a fraction
+of the cost" without saying which cost, and the honest dollar figure is **$0.626 for the entire
+cloud-only baseline over 700 claims**, or $0.00089 per claim. Halving the cloud calls saves under a
+dollar across the whole benchmark.
+
+Resolved into **§5.3.1** of the architecture plan and **§3.5** of paper numbers:
+
+- **Condition 4 vs condition 3** → cloud calls and tokens per claim, as a ratio.
+- **Ours vs MACE** → resident parameters, 3B plus an API against their smallest 27B.
+- **The goal** → cheapest component that can *reliably* do each role, ordered
+  `no model < edge 3B < cloud`. Explicitly **not** "maximise 3B roles," since the no-model rows in
+  §4.4 are the largest saving.
+- **Wall clock** → reported with the machine named, never as a headline, because it reverses:
+  3B 6.8 s per claim on the GPU box against flash's 12.7 s, and about 420 s on the MacBook.
+- **The deliverable** → the routing curve's knee, not a single ratio.
+
+Also clarified while answering: **claim decomposition was closed for retrieval on 5 August, not for
+reasoning.** §3.4.3's last line already said so. §4.4's "decomposition → edge" is the reasoning
+use and remains untested. The 5 August run is direct evidence the 3B is good at the *task* — 174
+claims, mean 3.94 sub-claims, zero parse failures, numbers and dates preserved exactly — and it is
+a rewriting job, not a judgment job, so today's evidence-blindness finding does not touch it.
+
 ### Housekeeping
 
 - `results/` backed up to `~/findver_results_20260810.tgz`, 14 MB. It is gitignored and
@@ -3501,3 +3534,33 @@ it.
   download step is not needed. Models present at 10.0.0.26: `qwen2.5-coder:3b`,
   `qwen2.5-coder:7b`, `qwen3:4b-instruct-2507-q4_K_M`.
 - `test_harness.py` passes **70/70**, up from 50 on 9 August.
+- **`qwen2.5-coder:7b` at 700 is in flight.** At 218 claims it is running **13.6 s per claim, 218
+  ok and 0 failed, exactly 2.0x the 3B's 6.8 s**, projecting 2.6 hours. The morning estimate of
+  "2.5 to 4 hours" holds at its low end.
+- **API spend tallied: $2.934 total on DeepSeek**, from `test_scripts/api_cost_tally.py` over our
+  own recorded tokens. Pro's two runs are $2.206 of that, 75%, and the single n=700 pro run is
+  $1.911, or 65% of everything. **A second, non-accuracy argument for the flash decision.**
+
+### The bar for condition 4, fixed before there is a number to argue about
+
+Recorded in paper numbers **§2.6.2**, prompted by the question of whether beating 77% would be
+worth reporting. It would. The point of writing it down now is that the sentence is easy to get
+wrong once a number exists.
+
+**Two different 77%s, and they are not the same claim.** Our condition 2 flash at 77.0% strict is
+an internal comparison holding retrieval, k, slice, prompt version, `num_ctx`, temperature and
+extractor all fixed. The published 75.0% RAG figure holds none of them fixed: upstream ran
+temperature 1.0, a 1024-token cap, a retriever at 65.16% against our 74.60%, and `gpt-4o-mini`
+extraction with an unseeded coin flip.
+
+Three conditions on the sentence: **quote a McNemar p-value rather than the accuracy column**,
+because §2.3.2 puts run-to-run noise at about one claim in ten; **strict scoring against our own
+runs and FINDVER-compatible against published ones**, never mixed; and keep §9.2's framing, that
+beating condition 2 is a bonus while matching condition 3 at a fraction of the cost is the paper.
+
+Today's own data gives the scale: 15.9 points produced discordant counts of 80/191 and p < 0.001,
+while 0.3 points produced 21/19 and p = 0.875. **A win has to appear in the discordant split.**
+
+**Already supportable and previously unremarked:** our 77.0% cloud baseline sits above the best
+published 2024 RAG result of 75.0%. Given the noise floor it should be written as a tie, and it is
+a 2026 model against a 2024 table, which is expected rather than interesting.

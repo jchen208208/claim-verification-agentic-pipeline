@@ -842,6 +842,38 @@ MACE: "three specialized roles beat one undifferentiated pass" (one big model th
 
 The **routing policy** — when does edge escalate to cloud? — is a knob, not a rule, and varying it yields a reportable curve: *always escalate* ≈ MACE's design; *never escalate* = edge-only floor; the interesting result lives between. Cheap to run once the pipeline exists.
 
+### 5.3.1 **[CLARIFIED 10 Aug 2026] Which cost, exactly — the phrase "a fraction of the cost" was ambiguous and the n=700 numbers exposed it**
+
+"A fraction of the cost" was never pinned to an axis. With condition 2 measured at 700 it has to be, because the honest dollar figure is small enough to be embarrassing: **the entire cloud-only baseline over all 700 claims cost $0.626 on flash.** No paper is carried by saving two dollars.
+
+**There are two different comparisons in this project and they need different axes. Conflating them is what made the phrase feel empty.**
+
+**Comparison A — condition 4 against condition 3** (our pipeline against the all-cloud pipeline). Both use cloud, so resident memory does not separate them. The axis is **how much cloud each consumes per claim**: cloud calls, and tokens sent. Report the ratio; the dollar figure illustrates it and is not the claim.
+
+**Comparison B — our approach against MACE** (§6.1). Here the axis is **resident parameters**, and the number already exists. MACE's *smallest* configuration is 27B of weights held in memory. Ours is 3B local plus an API. That is the on-device claim.
+
+These are separate sentences in the paper. Neither is "we spent less money."
+
+#### The goal, stated so it does not drift again
+
+**Assign every role to the cheapest component that can *reliably* do it, and escalate only what genuinely needs it.** The ordering is:
+
+    no model  <  edge 3B  <  cloud
+
+**It is not "maximise the number of 3B roles."** The largest savings in §4.4 are the **no-model** rows: BM25 search, top-k ranking, table parsing, executing generated code, re-checking arithmetic, retry control flow. All free, all deterministic, all faster than either model. A pipeline that pushed work onto the 3B *instead of* onto plain Python would be worse on every axis at once.
+
+**[MEASURED 10 Aug 2026] The word "reliably" is now load-bearing rather than decorative.** Condition 1 at n=700 shows the 3B scores 61.3% with the gold evidence in its prompt and 61.6% without it. It cannot do evidence-based judgment, whatever §5.2's verifier row assumes.
+
+#### Wall clock cannot carry the claim, because it reverses with the machine
+
+**[MEASURED 10 Aug 2026, n=700.]** Per claim: **3B on the GPU box 6.8 s, `v4-flash` 12.7 s, `v4-pro` 23.2 s.** The local model is the *fastest* of the three, because the cloud models generate ~1,450 output tokens against the 3B's 416, most of it reasoning.
+
+**On the hardware the paper is actually about, this reverses completely.** On the 2017 MacBook the 3B runs at roughly 7 minutes per claim, which is 420 s against flash's 12.7 s, about 33x slower. **Any latency sentence must name the machine.** Wall clock is a reported measurement, never the headline.
+
+#### The curve is a better deliverable than any single ratio
+
+The routing sweep above already commits to producing it. Condition 3 is always-escalate, condition 1 is never-escalate, and the sweep fills in between. **The knee of that curve — how much work can be moved off cloud before accuracy falls — is the result**, and it answers the "which cost" question better than any single number, because it shows the tradeoff instead of asserting a saving.
+
 ---
 
 ## 6. Related Work Since FINDVER — What Exists, and Its Weaknesses
