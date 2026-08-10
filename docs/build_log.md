@@ -3200,6 +3200,134 @@ so deletion has no undo.** `trial_run_3b` is the only measurement of the MacBook
 
 **Noted and not yet acted on: none of `results/` is backed up anywhere.**
 
+### The API spend tally, because the key is the professor's
+
+`test_scripts/api_cost_tally.py`. Two independent figures, because neither alone is enough: spend
+per experiment computed from our own recorded token counts, and DeepSeek's live balance from
+`GET /user/balance`. They will not agree exactly, since the account is in CNY and their CNY price
+list is not the USD list at spot rate. **The per-experiment column attributes the money; the
+balance delta is the truth about how much.**
+
+    condition2_deepseek_pro     102 claims   $0.295
+    condition2_deepseek_flash   102 claims   $0.091
+    ad-hoc calls, 7                          $0.011
+    TOTAL                                    $0.397
+
+**Balance baseline recorded: 142.32 CNY on 9 August**, about $19.80, all topped up, no granted
+credit. The starting balance is unknown so the total cannot be checked against theirs yet. Their
+balance also lags: 142.38 then 142.32 twenty minutes later with nothing running.
+
+The seven hand-made calls are hardcoded in the script with dates and reasons, because they went
+through curl rather than `run.py` and appear in no result file.
+
+### `prompt_budget_tokens`, and why the 46768 hack was replaced
+
+Raising DeepSeek's `max_tokens` to 16,000 to stop the truncation had a side effect: `build_prompt`
+derives its evidence budget as `num_ctx - num_predict`, so the prompt would have shrunk from
+30,768 tokens to 16,768 and condition 2 would have been reading less evidence than condition 1.
+
+The first fix was to raise `num_ctx` to 46,768 so the subtraction landed back on 30,768. **It
+worked and it was wrong**, because 46,768 is not a fact about anything — it encodes condition 1's
+`num_predict` — and JSON cannot carry a comment saying so. Change condition 1's cap later and the
+two configs would silently start trimming differently.
+
+Replaced with an explicit optional key, one line in `build_prompt`:
+
+    budget_tokens = config.get("prompt_budget_tokens", config["num_ctx"] - config["num_predict"])
+
+**Ollama configs must not use it.** There `num_ctx` is real and sent to the model, so
+`num_ctx - num_predict` is the physical room left for the prompt, and hardcoding past it would
+resurrect data trap 3. A harness check enforces `prompt_budget_tokens + num_predict <= num_ctx`
+so the escape hatch cannot defeat the trap. Harness at 70/70.
+
+Verified before spending anything: the three 700 configs produce **byte-identical prompts** on 25
+sampled claims and identical claim ordering, so the conditions are comparable by measurement
+rather than by assertion.
+
+---
+
+## 9 August 2026, evening — condition 1 at n=700, and two documented claims falsified
+
+`configs/condition1_3b_full700.json`, `qwen2.5-coder:3b`, BM25 k=10, full split shuffled with
+seed 0. **700 ok, 0 failed, 79.4 minutes**, faster than the 2 to 3 hours the plan estimated.
+
+                            n=700     n=102
+    strict accuracy         61.4%     66.7%
+    FINDVER-compatible      62.1%     66.7%
+    unparseable              1.1%      0.0%
+    evidence_present        52.0%     54.9%
+    predicted True        324/700    41/102     (gold 350/700)
+    prompt tokens, mean     3,731     3,651
+    output tokens, mean       416       413
+    context_overflow        0/700     0/102
+    trimmer fired           0/700     0/102
+    per claim               6.8 s     6.6 s
+    extraction        690 anchored, 5 none, 3 hedged, 2 bare
+
+    ie                      60.8%     64.7%     152/250
+    knowledge               59.0%     58.8%     118/200
+    numeric                 64.0%     76.5%     160/250
+
+### The headline fell 5.3 points, and the cause was diagnosed rather than guessed
+
+Two candidates: the 102 sample was unrepresentative, or the model is not reproducible. **Both turn
+out to be true, and they matter in different ways.**
+
+    prompts identical across the two runs            102/102
+    the 700 run, on those same 102 claims             67.6%
+    the 102 run, on those same claims                 66.7%
+    the 700 run, on the other 598 claims              60.4%
+
+**The drop is sampling.** The two runs agree to within one claim where they overlap, and the
+unseen 598 are 7 points harder. The 102 draw was easy, worst on numeric, which read 76.5% against
+a true 64.0%. **Third appearance of the sample-versus-population error**, after 5 and 6 August,
+and the first time it has hit an accuracy number rather than a retrieval one.
+
+**Consequence: every n=102 accuracy figure in the project is inflated by an unknown amount**,
+including condition 2's 71.6% and 75.5%. The edge-versus-cloud gap must not be quoted until both
+sides are at 700. Both condition 2 runs at 700 are in flight, which is fortunate timing rather
+than foresight.
+
+The model-choice conclusions in §2.5 and §2.5.1 survive, because they rest on latency and format
+compliance. Their accuracy columns do not.
+
+### The second finding is cleaner and was not being looked for
+
+**Same model, same GPU, byte-identical prompts, same seed, temperature 0, run twice: labels agreed
+on 91 of 102, 89.2%.**
+
+Prompt equality was verified on all 102, so retrieval, sampling, trimming and prompt building are
+perfectly deterministic and **the divergence is entirely in generation** — most likely
+floating-point reduction order varying with GPU scheduling between runs.
+
+**This falsifies a claim written into these docs yesterday.** After DeepSeek was found to ignore
+`seed` and `temperature`, the entry recorded that "Ollama honours both settings" and that its
+instability was a cross-machine effect. The cross-machine half was measured on 7 August. The
+within-machine half was an assumption stated as fact, and it is wrong.
+
+Verdict instability now has four independent measurements, and this is the purest because nothing
+varied at all:
+
+    the machine, Mac vs GPU         5 of 6
+    k, 10 vs 20                    58 of 102
+    the model, three variants      79 of 102
+    nothing, the same run repeated 91 of 102
+
+**Operational rule: a difference smaller than about one claim in ten between two of our own runs
+is noise.** It also makes a point about the benchmark, where single-run numbers are reported as
+point estimates throughout the literature.
+
+### A third documented claim withdrawn
+
+§2.3 said the strict and FINDVER-compatible scorings were identical at 66.7% because unparseable
+was 0.0%, and called that the only figure in the project with the property. **At n=700 unparseable
+is 1.1% and they diverge**, 61.4% against 62.1%. The property belonged to the sample, not to the
+model.
+
+Three claims corrected in one session, all of them ones this project had written down confidently.
+The pattern is the same each time: a number measured on a small or convenient sample, stated
+without the caveat that it might not generalise.
+
 Operational note, since the machine had to stay awake unattended: `caffeinate -ims` deliberately
 omits `-d`, so the displays sleep normally while the system stays awake. Verified live with
 `pmset -g assertions`: `PreventUserIdleDisplaySleep 0`, `PreventUserIdleSystemSleep 1`, on AC

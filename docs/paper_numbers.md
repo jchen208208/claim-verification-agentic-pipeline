@@ -257,7 +257,9 @@ Per subset, n=34 each:
 | FDV-KNOW | 58.8% | 26.5% | 52.9% | 32.4% |
 | FDV-MATH | 76.5% | 70.6% | 70.6% | 82.4% |
 
-**What this may sit beside.** The two scorings are **identical at k=10** because unparseable is 0, so 66.7% may be placed next to a published FINDVER figure *and* used as our strict number. This is the only accuracy figure in the project with that property. It may **not** sit beside any MacBook-run number (§9.2, and see §3.4 — verdicts were measured to diverge across machines).
+> **[SUPERSEDED 9 Aug 2026 by §2.3.1, n=700. This sample was an easy draw and overstates the model by 5.3 points. Use 61.4%, not 66.7%.]** Kept because the k=10 versus k=20 comparison and the trimmer/overflow figures were measured here and have not been repeated at 700.
+
+**What this may sit beside.** ~~The two scorings are **identical at k=10** because unparseable is 0, so 66.7% may be placed next to a published FINDVER figure *and* used as our strict number.~~ **[WITHDRAWN 9 Aug. This held only on the 102 sample.]** At n=700 unparseable is 1.1%, so the two scorings diverge, 61.4% strict against 62.1% compatible. The convenient property was an artefact of a small sample, not of the model. It may **not** sit beside any MacBook-run number (§9.2, and see §3.4 — verdicts were measured to diverge across machines).
 
 **The k=10 versus k=20 difference is not significant.** Paired on the same 102 claims: 44 disagreements, k=20 right on 18, k=10 right on 22. **Write "a 10.8-point recall gain produced no measurable accuracy gain at 87% more prompt tokens," never "k=20 is worse."**
 
@@ -266,6 +268,68 @@ Per subset, n=34 each:
 **Verdict instability, reportable:** only **58 of 102** claims received the same label at both k values.
 
 **Regenerating script: `test_scripts/analyse_condition1.py`** (written 9 Aug). Reproduces every figure above.
+
+### 2.3.1 **[NEW 9 Aug 2026] CONDITION 1 AT FULL SCALE, n=700 — this is the number**
+
+`qwen2.5-coder:3b`, BM25 k=10, `num_ctx` 32768, `num_predict` 2000, temperature 0, seed 0, `baseline_v1`, full split shuffled with seed 0. GPU. `results/condition1_3b_full700/`. **700 ok, 0 failed, 79.4 minutes.**
+
+| | **n=700** | n=102 |
+|---|---|---|
+| **strict accuracy** | **61.4%** | 66.7% |
+| FINDVER-compatible | 62.1% | 66.7% |
+| unparseable | 1.1% | 0.0% |
+| — of which truncated | 1 | 0 |
+| evidence_present (all-gold) | 52.0% | 54.9% |
+| predicted True | 324/700 | 41/102 |
+| gold True | 350/700 | 51/102 |
+| prompt tokens, mean | 3,731 | 3,651 |
+| output tokens, mean | 416 | 413 |
+| context overflow | 0/700 | 0/102 |
+| trimmer fired | 0/700 | 0/102 |
+| wall clock | 79.4 min | 11.2 min |
+| extraction sources | 690 anchored, 5 none, 3 hedged, 2 bare | 102 anchored |
+
+Per subset:
+
+| subset | n=700 | n=102 |
+|---|---|---|
+| FDV-IE | 60.8% (152/250) | 64.7% |
+| FDV-KNOW | 59.0% (118/200) | 58.8% |
+| FDV-MATH | **64.0%** (160/250) | **76.5%** |
+
+**The 5.3-point drop is sampling, not a defect, and it was diagnosed rather than assumed.**
+
+| check | result |
+|---|---|
+| prompts identical across the two runs | 102/102 |
+| the 700 run's accuracy on those same 102 claims | 67.6% |
+| the 102 run's accuracy on those same claims | 66.7% |
+| the 700 run's accuracy on the other 598 | **60.4%** |
+
+The two runs agree to within one claim on shared claims. **The 102 sample was simply an easy draw**, most severely on FDV-MATH, where it read 76.5% against a true 64.0%. This is the sample-versus-population error of 5 and 6 August, appearing a third time and now on accuracy.
+
+**Consequence: every n=102 accuracy figure in this document is inflated by an unknown amount**, including condition 2's 71.6% and 75.5% in §2.6. Only n=700 figures may be quoted as headline numbers.
+
+**Regenerating script: `test_scripts/analyse_condition1.py`.**
+
+### 2.3.2 **[NEW 9 Aug 2026] Condition 1 is not reproducible run to run, on one machine**
+
+Same model, same GPU, same prompts, same seed, temperature 0, run twice. **Labels agreed on 91 of 102 claims, 89.2%.**
+
+Prompts were verified byte-identical on all 102, so retrieval, sampling, trimming and prompt building are perfectly deterministic. **The divergence is entirely in generation**, and the likely cause is floating-point reduction order varying with GPU scheduling between runs.
+
+**This corrects a claim made in this project on 8 August.** After DeepSeek was found to ignore `seed` and `temperature`, the docs recorded that "Ollama honours both settings" and that its instability was a cross-machine effect. The cross-machine part was measured; the within-machine claim was an assumption and is now falsified.
+
+**Verdict instability now has four independent measurements, and this is the cleanest:**
+
+| what varied | agreement |
+|---|---|
+| the machine (Mac vs GPU), 7 Aug | 5 of 6 |
+| k, 10 vs 20 | 58 of 102 |
+| the model, coder vs plain vs 4B | 79 of 102 |
+| **nothing at all, same run repeated** | **91 of 102** |
+
+**Supportable:** *"On this task a 3B model's verdicts move on roughly one claim in ten between identical runs, at temperature 0 with a fixed seed."* That is a limitation for us and a measurement problem for the benchmark, since a single run is reported as a point estimate throughout the FINDVER literature.
 
 ### 2.4 **[NEW 8 Aug 2026] Published 3B baseline, scored both ways**
 
@@ -621,7 +685,9 @@ Listed so they are not written by accident.
 - ~~**[NEW 9 Aug] Anything about conditions 2 or 3 being reproducible or deterministic.**~~ **[MEASURED 9 Aug, and the answer is that they are not.]** Three calls on `numeric-val-41`, `deepseek-v4-pro`, temperature 0, identical payloads. Two sharing `seed` 0 produced **different responses**, 1,235 against 1,357 completion tokens, different text and different reasoning. A third at `seed` 12345 gave 1,883. Identical `system_fingerprint` on all three, so this is not a model roll. **`seed` and `temperature` are accepted and ignored.** All three reached the same, correct, verdict, but that is one claim sampled three times and is not evidence of verdict stability. **Supportable: "the cloud model does not honour seed or temperature; our condition 2 figure is a single sample, not a reproducible measurement."** This is a limitation to state plainly, and it is on-topic for a workshop about real-world constraints: the cloud half of an edge-cloud system is not reproducible even when the edge half is.
 - ~~**[NEW 9 Aug] Any condition 2 result.**~~ **[MEASURED 9 Aug, see §2.6.]** Pro 71.6% strict, flash 75.5%, against the edge baseline's 66.7%. **Three caveats travel with those numbers and must not be dropped:** pro's figure is a floor depressed by 5 truncations at the 8,000 cap; pro and flash are statistically tied, not 4 points apart; and pro's FINDVER-compatible 75.5% is inflated by a lucky coin flip and must not be quoted.
 - **[NEW 9 Aug] Any final condition 2 number for pro.** 71.6% was produced at `max_tokens` 8000, which truncated 5 numeric claims. **A re-run at 16,000 is owed before this enters the paper.** It also delivers the reproducibility measurement in the same job.
-- **[NEW 9 Aug] "Our pipeline matches the cloud model."** The gap to close is now measured: **4.9 points to pro, 8.8 to flash**, on strict scoring at n=102. Condition 4 does not exist yet.
+- ~~**[NEW 9 Aug] "Our pipeline matches the cloud model."** The gap to close is now measured: **4.9 points to pro, 8.8 to flash**, on strict scoring at n=102.~~ **[REVISED 9 Aug, later.]** Condition 1 at n=700 is 61.4%, not the 66.7% that gap was computed from, and condition 2 has not yet been measured at 700. **The gap is currently unknown and must not be quoted.** Both 700 runs of condition 2 are in flight.
+- **[NEW 9 Aug] ANY n=102 ACCURACY FIGURE AS A HEADLINE NUMBER.** The 102 sample overstates `qwen2.5-coder:3b` by 5.3 points against the full split, and by 12.5 points on FDV-MATH. §2.3.1 diagnoses it as sampling rather than run variance. Every n=102 accuracy figure in this document is inflated by an unknown amount until re-measured at 700. This includes §2.5, §2.5.1 and §2.6. **The model-choice conclusions in §2.5 and §2.5.1 survive** — they rest on latency and format compliance, which are not sample-dependent in the same way — but their accuracy columns do not.
+- **[NEW 9 Aug] That any single run is a point estimate.** §2.3.2: identical reruns disagree on about one claim in ten. A difference smaller than that between two of our own runs is noise, not a result.
 - **[NEW 9 Aug] Any accuracy claim about `qwen3:4b`.** It ran 6 claims of 102 before being stopped. **The rejection is on cost and stands on the timing alone**, which needs no accuracy figure. Do not report its 3-of-6 label outcomes as a rate.
 - **[NEW 9 Aug] "We selected the best local model."** Two 3B variants were compared, and `qwen3:4b` was rejected on speed without an accuracy measurement. **Supportable: "among the models that meet the latency budget of the target device, code tuning made no measurable difference."**
 - ~~**Any fusion gain for the local dense arm.**~~ **Resolved 5 August at n=700: there is none worth taking.** See §1.6. Untuned fusion is +0.00; the tuned gain is rejected on the same test-set-selection ground as the `k1`/`b` sweep.

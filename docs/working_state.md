@@ -727,6 +727,67 @@ recall, and this. If everything downstream failed tomorrow there is still a pape
 
 ---
 
+## CONDITION 1 IS MEASURED AT n=700. The headline is 61.4%, not 66.7%.
+
+`results/condition1_3b_full700/`, **700 ok, 0 failed, 79.4 minutes on the GPU.**
+
+                            n=700     n=102
+    strict accuracy         61.4%     66.7%
+    FINDVER-compatible      62.1%     66.7%
+    unparseable              1.1%      0.0%
+    evidence_present        52.0%     54.9%
+    prompt tokens, mean     3,731     3,651
+    wall clock           79.4 min  11.2 min
+
+    ie                      60.8%     64.7%
+    knowledge               59.0%     58.8%
+    numeric                 64.0%     76.5%
+
+**The 5.3-point drop is sampling, and it was diagnosed, not assumed:**
+
+    prompts identical across the two runs            102/102
+    the 700 run scored, on those same 102 claims      67.6%
+    the 102 run scored, on those same claims          66.7%
+    the 700 run scored, on the other 598 claims       60.4%
+
+The two runs agree to within one claim where they overlap. **The 102 sample was an easy draw**,
+worst on numeric, which read 76.5% against a true 64.0%. Third appearance of the
+sample-versus-population error, after 5 and 6 August, and the first on accuracy.
+
+**EVERY n=102 ACCURACY NUMBER IN THIS PROJECT IS INFLATED BY AN UNKNOWN AMOUNT.** That includes
+condition 2's 71.6% and 75.5%. Both 700 runs of condition 2 are in flight. **Do not quote the
+edge-versus-cloud gap until both sides are at 700.**
+
+The model-choice conclusions survive, because they rest on latency and format compliance rather
+than on accuracy. Their accuracy columns do not.
+
+### Condition 1 is NOT reproducible run to run, on the same machine
+
+Same model, same GPU, same byte-identical prompts, same seed, temperature 0, run twice.
+**Labels agreed on 91 of 102, 89.2%.** Retrieval, sampling, trimming and prompt building are
+perfectly deterministic, so the divergence is entirely in generation. Likely floating-point
+reduction order varying with GPU scheduling.
+
+**This corrects what this file said yesterday.** After DeepSeek was found to ignore `seed` and
+`temperature`, it recorded that "Ollama honours both settings" and that its instability was
+cross-machine only. The cross-machine part was measured. The within-machine part was an
+assumption and is now falsified.
+
+Fourth measurement of verdict instability, and the cleanest, because nothing varied:
+
+    the machine (Mac vs GPU)        5 of 6
+    k, 10 vs 20                    58 of 102
+    the model, three variants      79 of 102
+    nothing at all, rerun          91 of 102
+
+**A difference smaller than about one claim in ten, between two of our own runs, is noise.**
+
+### Also withdrawn: "strict and FINDVER-compatible coincide"
+
+§2.3 claimed the two scorings were identical at 66.7% because unparseable was 0.0%, and called it
+the only figure in the project with that property. **At 700 unparseable is 1.1%, so they diverge**,
+61.4% against 62.1%. The property was an artefact of the small sample.
+
 ## Where things stand, 9 August
 
 Full narrative in the build log entry for 8–9 August. The short version.
