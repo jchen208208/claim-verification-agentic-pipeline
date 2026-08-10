@@ -51,6 +51,14 @@ LABEL_TO_BOOL = {"entailed": True, "refuted": False}
 PER_CELL = 17
 SAMPLE_SEED = 0
 
+# A response ending in anything else is treated as cut off mid-sentence. The
+# markdown characters matter: gemini-1.5-pro ends 446 of its 700 responses with
+# `*`, closing a bold "**refuted**", and Mistral-Large ends 124 the same way.
+# Counting those as truncation reports a 63.7% truncation rate for a model whose
+# unparseable rate is 6.7%, which is obviously wrong. Verified by inspecting the
+# final character of every unpunctuated response, 9 August 2026.
+TERMINAL_CHARS = ".!?\"')]}*`"
+
 
 def response_text(record):
     """The model's raw response. Upstream stores it as a list of strings."""
@@ -90,7 +98,7 @@ def score_model(path, keep_ids=None):
                 no_verdict_word += 1
 
         stripped = text.strip()
-        if stripped and stripped[-1] not in ".!?\"')]}":
+        if stripped and stripped[-1] not in TERMINAL_CHARS:
             unpunctuated += 1
 
     n = len(records)

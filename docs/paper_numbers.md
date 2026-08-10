@@ -265,7 +265,7 @@ Per subset, n=34 each:
 
 **Verdict instability, reportable:** only **58 of 102** claims received the same label at both k values.
 
-**Regenerating script: not yet written** (`test_scripts/analyse_condition1.py` owed). Violates rule 1 until it exists.
+**Regenerating script: `test_scripts/analyse_condition1.py`** (written 9 Aug). Reproduces every figure above.
 
 ### 2.4 **[NEW 8 Aug 2026] Published 3B baseline, scored both ways**
 
@@ -278,7 +278,7 @@ Per subset, n=34 each:
 | unparseable, our extractor | 34.7% | 40.2% |
 | — of which no verdict word anywhere | **26.6%** | 30.4% |
 | — of which our regex missed it | 8.1% | 9.8% |
-| ends without terminal punctuation | 17.9% | 15.7% |
+| ends without terminal punctuation | ~~17.9%~~ **15.3%** | ~~15.7%~~ **13.7%** |
 
 **The only defensible imputation number is the "no verdict word anywhere" row**, because a response containing neither "entail" nor "refut" cannot be extracted by *any* extractor, including `gpt-4o-mini`. Those went to the coin flip regardless. **Lower bound on imputation: ~13.3 points of the published 58.4%.**
 
@@ -288,7 +288,38 @@ Per subset, n=34 each:
 
 > Llama-3.2-3B stated no verdict at all on 26.6% of FINDVER's testmini. The official evaluation assigns those a random label, contributing roughly 13 points to its published 58.4%. Nearly a fifth of its responses terminate mid-sentence at the 1024-token generation cap.
 
-**Regenerating script: not yet written** (`test_scripts/score_published_baselines.py` owed, generalised over all 16 models).
+**Regenerating script: `test_scripts/score_published_baselines.py`** (written 9 Aug, `--sample` for the 102-claim scope). Every other figure in this section reproduces exactly.
+
+**Corrected 9 Aug: the truncation row.** The original inline script counted a response ending in `*` as cut off. That is markdown closing a bold **refuted**, not truncation. It reported 63.7% truncation for gemini-1.5-pro, whose unparseable rate is 6.7%. With `*` and backtick treated as terminal, Llama-3.2-3B is **15.3%** on 700 and **13.7%** on our 102. Verified by inspecting the final character of every unpunctuated response.
+
+### 2.4.1 **[NEW 9 Aug 2026] All 16 published baselines, our strict extractor, n=700**
+
+| model | published | strict | unparse | no verdict word | our regex missed | truncated |
+|---|---|---|---|---|---|---|
+| Qwen2.5-72B-AWQ | 75.7% | 72.1% | 6.1% | 5.6% | 0.6% | 5.1% |
+| gpt-4o | 75.3% | 75.3% | 0.1% | **0.0%** | 0.1% | 0.0% |
+| Llama-3.1-70B-AWQ | 75.0% | 66.6% | 14.4% | 4.9% | 9.6% | 1.9% |
+| Mistral-Large-2407 | 74.9% | 75.0% | 0.7% | 0.1% | 0.6% | 0.1% |
+| claude-3.5-sonnet | 73.1% | 73.1% | **0.0%** | **0.0%** | 0.0% | 0.0% |
+| Qwen2.5-7B | 72.4% | 69.9% | 5.7% | 5.1% | 0.6% | 4.1% |
+| gemini-1.5-pro | 71.4% | 69.1% | 6.7% | 0.3% | 6.4% | 0.0% |
+| glm-4-9b | 71.4% | 64.1% | 11.0% | 4.9% | 6.1% | 0.6% |
+| Mistral-7B-v0.3 | 68.0% | 64.3% | 5.6% | 0.6% | 5.0% | 0.3% |
+| Ministral-8B | 67.9% | 65.1% | 3.9% | 1.3% | 2.6% | 0.4% |
+| Qwen2-7B | 67.4% | 64.6% | 6.9% | 4.9% | 2.0% | 3.0% |
+| **Llama-3.1-8B** | 66.4% | **41.3%** | 42.1% | **26.9%** | 15.3% | 14.9% |
+| internlm2.5-7b | 66.0% | 57.1% | 15.9% | 7.9% | 8.0% | 1.6% |
+| mathstral-7B | 61.3% | 48.9% | 24.9% | 9.4% | 15.4% | 1.1% |
+| DeepSeek-V2-Lite | 60.4% | 50.6% | 17.3% | 12.1% | 5.1% | 0.7% |
+| **Llama-3.2-3B** | 58.4% | **38.3%** | 34.7% | **26.6%** | 8.1% | 15.3% |
+
+**This is §2.4's argument generalised, and it holds across the whole size range.** The two strongest models, gpt-4o and claude-3.5-sonnet, state a verdict on essentially every claim — 0.0% with no verdict word — so imputation contributes nothing to their published scores. **The two Llama models state no verdict on more than a quarter of the benchmark**, so roughly 13 points of each published score is a coin flip.
+
+**Llama-3.1-8B is the strongest case, not Llama-3.2-3B.** It is published at 66.4%, ahead of internlm, mathstral and DeepSeek-V2-Lite, and scores **41.3%** strict. An 8B model appears to beat several peers largely because the evaluation guesses for it on 42% of claims.
+
+**Supportable:** *"FINDVER's evaluation imputes a random label when no verdict is stated. That is negligible for frontier models and reaches 27% of claims for the two Llama baselines, contributing roughly 13 accuracy points to each of their published scores."*
+
+**Not supportable:** attributing the full published-minus-strict gap to imputation. The "our regex missed" column is our extractor being weaker than gpt-4o-mini, which is our limitation. Only the "no verdict word" column is unarguable.
 
 ### 2.5 **[NEW 9 Aug 2026] Local model choice — code tuning held against plain, n=102**
 
@@ -322,7 +353,7 @@ Per subset, n=34 each:
 
 **Verdict instability, third independent measurement.** The identical FDV-IE and FDV-KNOW subset totals are a coincidence, not agreement: only **79 of 102** labels matched. With 5 of 6 across machines (§3.4) and 58 of 102 across k values (§2.3), this is now supported three ways.
 
-**Regenerating script: not yet written** (`test_scripts/analyse_condition1.py` owed — it now owes three tables, not one).
+**Regenerating script: `test_scripts/analyse_condition1.py`** (written 9 Aug).
 
 ### 2.6 **[NEW 9 Aug 2026] Condition 2 — cloud-only baseline, n=102**
 
@@ -383,7 +414,25 @@ The seeded coin flip resolved **4 of its 5** unparseables in its favour. That is
 
 Gold is 51/102 entailed. The edge model predicted entailed 41 times, both cloud models 31 times. **This is a systematic skew and belongs in the error analysis**, not a fact about the claims.
 
-**Regenerating script: not yet written.** Same script owed as §2.3 and §2.5 — it now owes four tables.
+**Regenerating script: `test_scripts/analyse_condition1.py`** (written 9 Aug). Cost figures come from a `PRICING` dict inside it, dated 8 August 2026 and needing re-checking before publication.
+
+### 2.7 **[NEW 9 Aug 2026] NOT ONE ACCURACY COMPARISON IN THIS PROJECT IS SIGNIFICANT**
+
+`analyse_condition1.py` now runs an exact two-sided McNemar test on every pair of runs. The result is uniform. **All ten pairs are ties.**
+
+| pair | agree | A right | B right | p |
+|---|---|---|---|---|
+| cond1 k=10 vs k=20 | 58/102 | 22 | 18 | 0.636 |
+| `coder:3b` vs `qwen2.5:3b` | 79/102 | 11 | 12 | 1.000 |
+| **`coder:3b` vs `v4-pro`** | 67/102 | 15 | 20 | **0.500** |
+| **`coder:3b` vs `v4-flash`** | 70/102 | 11 | 20 | **0.150** |
+| `v4-pro` vs `v4-flash` | 94/102 | 2 | 6 | 0.289 |
+
+**The edge-versus-cloud gap, which the whole contribution rests on, is p = 0.500.** A 4.9-point difference at n=102 is indistinguishable from a coin flip. This is not a flaw in any run; it is what n=102 buys.
+
+**Consequence: n=102 cannot support any comparative claim.** It was sized to detect large effects, and §4.5 already records that lesson for retrieval. The same limit now binds on accuracy. **The full 700 run is not an enhancement, it is the requirement for the paper's central claim.** At n=700 the same 4.9-point gap would be roughly p = 0.02.
+
+**Until that run exists, every accuracy sentence must be written as a tie**, with the direction reported and the significance denied.
 
 ---
 
