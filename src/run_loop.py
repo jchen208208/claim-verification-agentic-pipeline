@@ -40,7 +40,8 @@ def build_prompt(claim, chunks, template, config):
     # the length of everything in the prompt that is not a retrieved chunk.
     overhead_chars = (len(template) - len("<REPORT>") - len("<STATEMENT>") + len(claim.statement))
 
-    budget_tokens = config["num_ctx"] - config["num_predict"]
+    # deepseek has a 1 million token context window so we don't need to worry about overflowing and can hardcode the prompt token cap, else we fall back on ollama context window - output cap calculation for prompt token cap
+    budget_tokens = config.get("prompt_budget_tokens", config["num_ctx"] - config["num_predict"])
 
     # chunks are the retrieved context element dicts sorted best-score-first from the retriever.
     kept = trim_to_budget(chunks, overhead_chars, budget_tokens)

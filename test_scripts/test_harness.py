@@ -149,6 +149,15 @@ def main():
                   cfg["retriever"] in RETRIEVERS,
                   f"{cfg['retriever']!r} not in {sorted(RETRIEVERS)}")
 
+        # prompt_budget_tokens overrides the num_ctx - num_predict derivation, which
+        # is meaningless for a cloud client that never receives num_ctx. It must not
+        # be usable to ask for a prompt bigger than a real context window would hold.
+        budget = cfg.get("prompt_budget_tokens")
+        if budget is not None:
+            check(f"{path.name} prompt budget fits inside num_ctx",
+                  budget + cfg["num_predict"] <= cfg["num_ctx"],
+                  f"{budget} + {cfg['num_predict']} > {cfg['num_ctx']}")
+
         ctx, predict = cfg["num_ctx"], cfg["num_predict"]
         check(f"{path.name} overflow False just under num_ctx {ctx}",
               check_overflow(ctx - predict - 1, predict, ctx) is False)

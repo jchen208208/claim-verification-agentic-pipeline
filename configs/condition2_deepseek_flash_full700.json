@@ -1,0 +1,17 @@
+{
+  "experiment": "condition2_deepseek_flash_full700",
+
+  "client": "deepseek",
+  "model": "deepseek-v4-flash",
+  "num_ctx": 1000000,
+  "num_predict": 16000,
+  "prompt_budget_tokens": 30768,
+  "temperature": 0,
+  "seed": 0,
+  "prompt_version": "baseline_v1",
+
+  "retriever": "bm25",
+  "top_k": 10,
+  "per_cell": null,
+  "sample_seed": 0
+}

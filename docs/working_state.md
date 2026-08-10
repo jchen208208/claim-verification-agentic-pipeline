@@ -869,6 +869,28 @@ edge-cloud system is not reproducible even when the edge half is.
 **Condition 1 is unaffected.** Ollama honours both settings; its instability comes from
 floating-point differences across machines, which is a separate and already-measured thing.
 
+### API spend on the professor's key, and how to check it
+
+`test_scripts/api_cost_tally.py` prints spend per experiment from our own recorded token counts,
+plus DeepSeek's live balance. Run it before any message to him.
+
+    condition2_deepseek_pro     102 claims   $0.295
+    condition2_deepseek_flash   102 claims   $0.091
+    ad-hoc probe calls, 7                    $0.011
+    TOTAL so far                             $0.397   about 2.86 CNY
+
+**Balance baseline, 9 August 2026: 142.32 CNY remaining**, topped up, no granted credit, about
+$19.80. The starting balance is unknown, so the total above is our own estimate and cannot be
+checked against theirs yet. **From now on the delta between two balance readings is the only
+exact figure.** Their balance lags: it read 142.38 and then 142.32 twenty minutes later with
+nothing running, so wait a few minutes after a run before recording.
+
+The seven ad-hoc calls are hardcoded in the script with dates and reasons, because they went
+through curl and Python rather than `run.py` and appear in no result file.
+
+Projected: pro at 700 is about $2.02, flash at 700 about $0.62, taking the running total to
+roughly $3.04, or 22 of the 142 CNY.
+
 ### CONDITION 2 IS MEASURED. Both runs 102 ok, 0 failed.
 
                         coder:3b     pro      flash
