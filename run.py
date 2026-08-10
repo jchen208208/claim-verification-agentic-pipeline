@@ -4,6 +4,7 @@
 import functools
 import json
 import sys
+import random
 from pathlib import Path
 
 from src.loader import load_claims
@@ -29,6 +30,20 @@ CLIENTS = {
     "deepseek": call_deepseek,
 }
 
+def build_sample(config):
+    """If per_cell is null, that means it's a full 700 run so no need for sampling. Sampling caps at 600 total claims."""
+    claims = list(load_claims())
+
+    if config["per_cell"] is not None:
+        return stratified_sample(claims, config["per_cell"], seed=config["sample_seed"])
+
+    if len(claims) != 700:
+        raise ValueError(f"expected 700 claims, loaded {len(claims)}")
+
+    random.Random(config["sample_seed"]).shuffle(claims)
+    return claims
+
+
 def main():
     if len(sys.argv) != 2:
         print("usage: python3 run.py configs/<name>.json")
@@ -41,7 +56,9 @@ def main():
     # uses the retriever specified in the config json file
     retriever = functools.partial(RETRIEVERS[config["retriever"]], k=config["top_k"])
 
-    sample = stratified_sample(load_claims(), config["per_cell"], seed=config["sample_seed"])
+    sample = build_sample(config)
+    scope = "full 700" if config["per_cell"] is None else f"{config['per_cell']} per cell"
+    print(f"sample        {len(sample)} examples, {scope}, seed {config['sample_seed']}")
 
     results_dir = RESULTS_ROOT / config["experiment"]
 
