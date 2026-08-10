@@ -58,7 +58,6 @@ def main():
 
     sample = build_sample(config)
     scope = "full 700" if config["per_cell"] is None else f"{config['per_cell']} per cell"
-    print(f"sample        {len(sample)} examples, {scope}, seed {config['sample_seed']}")
 
     results_dir = RESULTS_ROOT / config["experiment"]
 
@@ -70,7 +69,7 @@ def main():
     print(f"seed          {config['seed']}")
     print(f"prompt        {config['prompt_version']}")
     print(f"retriever     {config['retriever']}, k={config['top_k']}")
-    print(f"sample        {len(sample)} examples, {config['per_cell']} per cell, " f"seed {config['sample_seed']}")
+    print(f"sample        {len(sample)} examples, {scope}, seed {config['sample_seed']}")
     print(f"results       {results_dir}\n", flush=True)
     print(f"client        {config.get('client', 'ollama')}")
 

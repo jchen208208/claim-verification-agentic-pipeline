@@ -1025,7 +1025,126 @@ carry between terminal windows.
 Never noted before. A second reason, independent of the floating-point divergence measured on
 7 August, why a results table must never mix the two machines.
 
-## What to do on 9 August, in order
+---
+
+## Where things stand, 10 August
+
+## CONDITION 2 IS MEASURED AT n=700. The gap is 15.9 points, and it is significant.
+
+Both runs `max_tokens` 16,000, temperature 0, seed 0, BM25 k=10, same 700 claims as condition 1.
+**700 ok, 0 failed on each.**
+
+                            coder:3b    v4-pro   v4-flash
+    strict accuracy            61.4%     77.3%      77.0%
+    FINDVER-compatible         62.1%     77.6%      77.0%
+    unparseable                 1.1%      0.3%       0.0%
+    evidence_present           52.0%     52.0%      52.0%
+    predicted True           324/700   213/700    217/700   (gold 350/700)
+    output tokens, mean          416     1,446      1,463
+    wall clock              79.4 min  270.4 min  147.7 min
+    cost                           —    $1.911     $0.626
+
+    ie                         60.8%     80.8%      80.4%
+    knowledge                  59.0%     70.5%      70.5%
+    numeric                    64.0%     79.2%      78.8%
+
+**This is the first significant accuracy comparison in the project.** Edge versus cloud is
+p < 0.001 at n=700, against p = 0.500 at n=102.
+
+### The n=102 gap was wrong by a factor of three, and wrong in both directions at once
+
+The old figure was 4.9 points to pro. The real figure is 15.9. The 3B side was inflated by an easy
+sample, 66.7% against 61.4%, and the pro side was depressed by truncation, 71.6% against 77.3%.
+Two independent biases pointing at each other nearly erased a real gap. **Fourth appearance of the
+sample-versus-population error.** The `max_tokens` 16,000 re-run owed on 9 August is delivered:
+pro's unparseable rate fell from 4.9% to 0.3%.
+
+### DECIDED 10 Aug: the cloud tier is `deepseek-v4-flash`
+
+77.3% against 77.0%, agreeing on 660 of 700, **p = 0.875**. At n=102 the tie meant "too small to
+separate them." At n=700 it is a measurement. **Flash is one third the price and 1.8x the speed for
+the same accuracy.** Pro stays as a reported baseline and nothing more.
+
+### The whole gap is on refuted claims. On entailed claims the 3B ties a frontier model.
+
+                        coder:3b    v4-pro   v4-flash
+    correct on entailed      204       203        203     (of 350)
+    correct on refuted       226       338        336     (of 350)
+    recall on entailed      58.3%     58.0%      58.0%
+    recall on refuted       64.6%     96.6%      96.0%
+
+Cloud is not better at verifying claims. It is better at catching false ones. **Every model, local
+and cloud, misses about 42% of entailed claims, and no tier in the build order addresses that.**
+It is now the largest single error pool in the project.
+
+### The 3B does not use the retrieved evidence
+
+                        with evidence   without    delta
+    coder:3b            61.3% 223/364  61.6% 207/336   -0.3
+    v4-pro              81.0% 295/364  73.2% 246/336   +7.8
+    v4-flash            82.1% 299/364  71.4% 240/336  +10.7
+
+**Observational, not causal.** Claims where BM25 succeeds may be easier claims, so 8 to 11 points
+is an upper bound on what better retrieval buys the cloud tier, not an estimate. The 3B's −0.3 does
+not have that problem, since no confounder rescues a null result.
+
+**Retrieval work is now justified by measurement rather than by the plan, but only for the cloud
+tier.** Do not expect a retrieval improvement to move the edge-only baseline.
+
+### Withdrawn: "all three models are biased toward refuted"
+
+Written on 9 August from n=102. At n=700 the cloud models predict entailed 30.4% and 31.0% against
+a true 50%, a strong skew. The 3B is at 46.3%, a slight lean the other way from its 120 false
+positives. **The 3B has no directional bias worth fixing by prompting. It has weak discrimination**,
+58.3% and 64.6% on the two classes. Do not group all three under one sentence.
+
+### Survives: the edge model is not strictly worse
+
+**The 3B is right on 80 claims pro gets wrong**, 11.4% of the split. Routing still has something to
+route, which is the premise §5.3 rests on.
+
+### The evidence finding hits §5.2, not the pipeline as a whole
+
+§4.4 and §4.7 put prompt ingestion and verdict generation on **cloud**. The edge 3B does claim
+decomposition, `.loc` lookups, glossary spotting, and the first-pass verifier screen. Condition 1
+is the edge-only ablation, not the system, so evidence-blindness there is a property of the floor.
+
+**The one row it damages is §5.2's "verifier, judgment checks: edge first, escalate to cloud."**
+That job needs the 3B to read evidence and judge whether a step follows, and the 3B cannot. §5.2
+already flags MACE's cross-model false-refutation risk on the same row. **Take this to the
+professor with §13 open question 1.**
+
+## What to do on 10 August, in order
+
+1. ~~**Read both condition 2 results at 700.**~~ **DONE 10 Aug.** See above.
+2. ~~**Back up `results/`.**~~ **DONE 10 Aug**, `~/findver_results_20260810.tgz`, 14 MB.
+3. **RUN `qwen2.5-coder:7b` AT 700.** `configs/condition1_7b_full700.json`. **No pull needed, the
+   model is already on the GPU box at 4.7 GB.** Roughly 2.5 to 4 hours; the 3B did 700 in 79
+   minutes and the 7B is 2.3x the parameters, so do not trust a tighter estimate until the first
+   twenty claims are in. Start early. **It answers the objection the professor is most likely to
+   open with: why not just run a bigger local model instead of building a pipeline.**
+4. **Email the professor.** The gap is now a real number and there is more than good news to
+   report: the n=102 baseline was overstated by 5.3 points, three documented claims were falsified
+   on 9 August, and verdicts move on about one claim in ten between identical runs. That last one
+   shapes the pipeline design he wants to discuss. Propose times in both zones.
+5. **Create the Overleaf project and share it** (§14 item 13). Carried from 9 August.
+6. ~~**Update the docs with condition 2 at 700.**~~ **DONE 10 Aug**, this section plus
+   `build_log.md` and `paper_numbers.md` §2.6.1, §2.7, §3.4.
+7. Optional if the GPU is idle later: `qwen2.5:3b` at 700, about 90 minutes, to settle the Coder
+   objection at full scale rather than on the n=102 sample now known to be easy.
+
+### Still open, carried
+
+- `evidence_asserter.py:83`, the `check_overflow` docstring, still says `num_ctx` 16384.
+- A DHCP reservation for the brother's PC would stop the IP moving. Ten minutes in the router.
+  It was still at 10.0.0.26 on 10 August.
+- `run.py` prints the `client` line after the blank line that ends the banner. Cosmetic.
+- **No tier addresses the 42% of entailed claims every model misses.** Not a task yet, but it
+  should become one before the ablation is designed.
+
+---
+
+## ~~What to do on 9 August, in order~~ — DONE, superseded by the 10 August list above
 
 1. ~~**Read both condition 2 results.**~~ **DONE 9 Aug, before bed. See the section above.**
    Replaced by: **re-run pro at `max_tokens` 16,000**, about $0.35 and 35 minutes unattended.

@@ -450,7 +450,9 @@ Three candidates, same 102 claims, same seed, same prompts, same GPU. `qwen3:4b-
 
 **Deliberately left open:** the 4B's true accuracy at an adequate cap, 45 GPU minutes. **Not scheduled, because no plausible result changes the choice** — deployment cost decides it either way. Revisit only if condition 4 proves accuracy-bound rather than latency-bound.
 
-### 2.6 **[NEW 9 Aug 2026] Condition 2 — cloud-only baseline, n=102**
+### 2.6 **[SUPERSEDED 10 Aug 2026 by §2.6.1 — do not quote these numbers] Condition 2 — cloud-only baseline, n=102**
+
+**Every accuracy figure in this section is wrong at full scale.** Kept for the sampling lesson and because the truncation diagnosis below was correct and was confirmed. The n=102 gap of 4.9 points is really 15.9. See §2.6.1.
 
 Single call, no pipeline, same 102 claims, same BM25 k=10 prompts as condition 1. `max_tokens` 8000, temperature 0. `results/condition2_deepseek_pro/`, `results/condition2_deepseek_flash/`. **102 ok, 0 failed on each.**
 
@@ -511,7 +513,105 @@ Gold is 51/102 entailed. The edge model predicted entailed 41 times, both cloud 
 
 **Regenerating script: `test_scripts/analyse_condition1.py`** (written 9 Aug). Cost figures come from a `PRICING` dict inside it, dated 8 August 2026 and needing re-checking before publication.
 
-### 2.7 **[NEW 9 Aug 2026] NOT ONE ACCURACY COMPARISON IN THIS PROJECT IS SIGNIFICANT**
+### 2.6.1 **[NEW 10 Aug 2026] CONDITION 2 AT FULL SCALE, n=700 — these are the numbers**
+
+Single call, no pipeline, the same 700 claims and the same BM25 k=10 prompts as condition 1. `max_tokens` 16,000, `prompt_budget_tokens` 30,768, temperature 0, seed 0, `baseline_v1`. `results/condition2_deepseek_pro_full700/`, `results/condition2_deepseek_flash_full700/`. **700 ok, 0 failed, 0 skipped on each.**
+
+| | cond 1, `coder:3b` | cond 2, `v4-pro` | cond 2, `v4-flash` |
+|---|---|---|---|
+| **strict accuracy** | **61.4%** | **77.3%** | **77.0%** |
+| FINDVER-compatible | 62.1% | 77.6% | 77.0% |
+| unparseable | 1.1% | 0.3% | 0.0% |
+| — of which truncations | 1 | 2 | 0 |
+| evidence_present (all-gold) | 52.0% | 52.0% | 52.0% |
+| predicted True | 324/700 | 213/700 | 217/700 |
+| prompt tokens, mean | 3,731 | 3,384 | 3,463 |
+| output tokens, mean | 416 | 1,446 | 1,463 |
+| thinking chars, mean | 0 | 5,312 | 5,173 |
+| context overflow | 0/700 | 0/700 | 0/700 |
+| trimmer fired | 0/700 | 0/700 | 0/700 |
+| wall clock | 79.4 min | 270.4 min | 147.7 min |
+| per claim | 6.8 s | 23.2 s | 12.7 s |
+| cost | — | **$1.911** | **$0.626** |
+
+Per subset, strict, ie 250 / knowledge 200 / numeric 250:
+
+| subset | `coder:3b` | `v4-pro` | `v4-flash` |
+|---|---|---|---|
+| FDV-IE | 60.8% (152/250) | 80.8% (202/250) | 80.4% (201/250) |
+| FDV-KNOW | 59.0% (118/200) | 70.5% (141/200) | 70.5% (141/200) |
+| FDV-MATH | 64.0% (160/250) | 79.2% (198/250) | 78.8% (197/250) |
+
+`evidence_present` identical across all three confirms identical prompts. One `system_fingerprint` per run, so no model roll mid-run. Extraction: pro 698 anchored / 2 none, flash 700 anchored.
+
+#### The truncation diagnosis in §2.6 was correct and is now confirmed
+
+Pro's unparseable rate fell from **4.9% at `max_tokens` 8,000 to 0.3% at 16,000**. §2.6 called 71.6% a floor depressed by a configuration choice. It was. Pro at full budget and full scale is 77.3%.
+
+#### The n=102 gap was wrong by a factor of three, and wrong in both directions at once
+
+Old figure 4.9 points to pro, real figure **15.9**. The 3B side was inflated by an easy sample (66.7% against 61.4%) and the pro side depressed by truncation (71.6% against 77.3%). The two errors pointed toward each other and nearly closed a real gap. **Fourth appearance of the sample-versus-population error**, and the first where two independent biases stacked.
+
+#### Flash and pro are tied, and the cloud tier is flash
+
+| pair | agree | A right | B right | p |
+|---|---|---|---|---|
+| `coder:3b` vs `v4-pro` | 428/700 | 80 | 191 | **0.000** |
+| `coder:3b` vs `v4-flash` | 424/700 | 83 | 192 | **0.000** |
+| `v4-pro` vs `v4-flash` | 660/700 | 21 | 19 | 0.875 |
+
+At n=102 the pro/flash tie meant "too small to separate them." At n=700, agreeing on 660 and splitting 21/19, it is a measurement. **Flash is one third the price and 1.8x the speed for the same accuracy.** **Supportable: "the cheaper cloud model matched the reasoning model at a third of the cost."** Not supportable: any accuracy claim between them, in either direction.
+
+#### The entire gap is on refuted claims
+
+Computed directly from the per-claim JSONs. Gold is 350 entailed and 350 refuted.
+
+| | `coder:3b` | `v4-pro` | `v4-flash` |
+|---|---|---|---|
+| correct on entailed | 204 | 203 | 203 |
+| correct on refuted | 226 | **338** | **336** |
+| false positives | 120 | 10 | 14 |
+| false negatives | 142 | 147 | 147 |
+| unparseable | 8 | 2 | 0 |
+| **recall on entailed** | 58.3% | 58.0% | 58.0% |
+| **recall on refuted** | 64.6% | 96.6% | 96.0% |
+
+**All three models are within one claim of each other on entailed claims.** The 15.9-point gap is built entirely out of refuted claims. **Supportable: "the cloud tier's advantage on this benchmark is concentrated entirely in rejecting false claims; on entailed claims a 3B local model matches it."** That is a strong, specific, and previously unstated result.
+
+**Every model misses about 42% of entailed claims and no tier in §8 addresses it.** Largest single error pool in the project.
+
+#### The 3B model does not use the retrieved evidence
+
+Each run split on the stored `evidence_present` boolean. 364 with, 336 without, identical across all three runs.
+
+| run | with evidence | without | delta |
+|---|---|---|---|
+| `coder:3b` | 61.3% (223/364) | 61.6% (207/336) | **−0.3** |
+| `v4-pro` | 81.0% (295/364) | 73.2% (246/336) | +7.8 |
+| `v4-flash` | 82.1% (299/364) | 71.4% (240/336) | +10.7 |
+
+**Caveat, and it must be stated wherever this is used: observational, not causal.** Claims where BM25 succeeds may simply be easier claims, so 8 to 11 points is an **upper bound** on what better retrieval buys the cloud tier, not an estimate of it. The 3B's −0.3 is not exposed to that argument, because no confounder rescues a null result.
+
+**Supportable: "the local model's accuracy is unchanged by whether the gold evidence is in its prompt."** Not supportable: "improving retrieval by X would raise cloud accuracy by Y."
+
+#### Corrected: "all three models are biased toward refuted" (§2.6, 9 Aug)
+
+At n=700 the cloud models predict entailed **30.4%** and **31.0%** of the time against a true 50%, which is a strong skew. The 3B predicts entailed **46.3%**, a slight lean, with errors splitting 142 false negatives to 120 false positives. **The 3B has no directional bias worth correcting by prompting; it has weak discrimination.** Do not group all three under one sentence.
+
+#### Survives from §2.6: the edge model is not strictly worse
+
+**The 3B is right on 80 claims pro gets wrong**, 11.4% of the split, against 15 of 102 at the smaller size. **Supportable, and now at a sample size that supports it: "the cloud model does not dominate the edge model per claim."** This is the premise §5.3's routing curve rests on.
+
+**Regenerating command:** `python3 test_scripts/analyse_condition1.py condition1_3b_full700 condition2_deepseek_pro_full700 condition2_deepseek_flash_full700`. The confusion and evidence-split tables are not in that script yet and were computed inline; folding them in is owed under rule 1.
+
+### 2.7 **[FALSIFIED IN PART 10 Aug 2026 — see below] NOT ONE ACCURACY COMPARISON IN THIS PROJECT IS SIGNIFICANT**
+
+**This heading was true of n=102 and is no longer true of the project.** At n=700 the edge-versus-cloud comparison is p < 0.001 on both cloud models. The section's reasoning was correct and its prediction was correct; only the headline has expired. Read the rest as a statement about n=102 specifically.
+
+**What the section predicted:** "At n=700 the same 4.9-point gap would be roughly p = 0.02." The gap at n=700 turned out to be 15.9 points rather than 4.9, and p came in below 0.001. The direction of the reasoning held.
+
+**What still stands:** the pro-versus-flash tie, now at p = 0.875 on n=700, and the rule that a difference smaller than about one claim in ten between two of our own runs is noise (§2.3.2).
+
 
 `analyse_condition1.py` now runs an exact two-sided McNemar test on every pair of runs. The result is uniform. **All ten pairs are ties.**
 
@@ -608,6 +708,22 @@ Projected over 102 claims, at the pricing published on 8 August 2026:
 **$0.386 for both runs, against $0.42 projected.** The method — measure one real claim, multiply — was sound to within 9%.
 
 **Flash is a third the price and 1.6x faster for the same accuracy** (§2.6): 21.3 min against 34.8 min for the same 102 claims. If cloud cost ever binds, flash is the escalation target.
+
+**[EXTENDED 10 Aug 2026 — actual cost at n=700, `max_tokens` 16,000.]**
+
+| | pro | flash |
+|---|---|---|
+| **actual total, 700 claims** | **$1.911** | **$0.626** |
+| linear extrapolation from n=102 | $2.025 | $0.624 |
+| wall clock | 270.4 min | 147.7 min |
+| per claim | 23.2 s | 12.7 s |
+| output tokens, mean | 1,446 | 1,463 |
+
+**Flash landed within $0.002 of its linear prediction.** Pro came in 5.6% under, consistent with raising `max_tokens` from 8,000 to 16,000 removing five truncated-and-retried-looking long generations rather than adding cost. Raising the cap cost nothing and bought 5.7 accuracy points (§2.6.1).
+
+**Cost of the full condition 2 measurement: $2.537 on the professor's key.** Update the tally in `test_scripts/api_cost_tally.py` before quoting a project total.
+
+**At n=700 the flash-versus-pro choice is settled on evidence** (§2.6.1, p = 0.875): same accuracy, one third the cost, 1.8x the speed. **The cloud tier in the pipeline is `deepseek-v4-flash`.**
 
 **Unexpected: the two models tokenize identically-identical prompts differently**, 3,321 mean for pro against 3,400 for flash. Same text, same provider. Not a problem, but do not assume one model's token count transfers to the other.
 

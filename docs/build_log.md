@@ -3338,3 +3338,166 @@ Closing the lid would still sleep the machine and kill the runs.
 
 `test_scripts/analyse_condition1.py` is still not written, and tonight's coder-versus-plain table
 was produced by another inline script. **Rule 1 is now violated by three results rather than two.**
+
+---
+
+## 10 August 2026 — condition 2 at n=700, and the gap is not where anyone assumed
+
+Both condition 2 runs finished overnight. `configs/condition2_deepseek_pro_full700.json` and
+`configs/condition2_deepseek_flash_full700.json`, `max_tokens` 16,000, `prompt_budget_tokens`
+30,768, temperature 0, seed 0, BM25 k=10, `baseline_v1`, full 700 split shuffled with seed 0.
+**700 ok, 0 failed, 0 skipped on each.** Regenerated with
+`python3 test_scripts/analyse_condition1.py condition1_3b_full700 condition2_deepseek_pro_full700
+condition2_deepseek_flash_full700`.
+
+                            coder:3b    v4-pro   v4-flash
+    strict accuracy            61.4%     77.3%      77.0%
+    FINDVER-compatible         62.1%     77.6%      77.0%
+    unparseable                 1.1%      0.3%       0.0%
+      of which truncated            1         2          0
+    evidence_present           52.0%     52.0%      52.0%
+    predicted True           324/700   213/700    217/700   (gold 350/700)
+    prompt tokens, mean        3,731     3,384      3,463
+    output tokens, mean          416     1,446      1,463
+    thinking chars, mean           0     5,312      5,173
+    context overflow           0/700     0/700      0/700
+    trimmer fired              0/700     0/700      0/700
+    wall clock              79.4 min  270.4 min  147.7 min
+    per claim                  6.8 s     23.2 s     12.7 s
+    cost                           —    $1.911     $0.626
+
+    ie                         60.8%     80.8%      80.4%
+    knowledge                  59.0%     70.5%      70.5%
+    numeric                    64.0%     79.2%      78.8%
+
+    extraction, pro       698 anchored, 2 none
+    extraction, flash     700 anchored
+
+`evidence_present` is 52.0% in all three, so all three received identical prompts and the model is
+the only variable. One `system_fingerprint` per run, so no model roll mid-run.
+
+### The truncation fix worked, exactly as predicted
+
+Pro's unparseable rate fell from **4.9% at `max_tokens` 8,000 to 0.3% at 16,000**, two claims
+instead of five. The 9 August entry called 71.6% a floor depressed by a configuration choice and
+owed a re-run. That prediction is now confirmed: pro at full scale and full budget is 77.3%.
+
+### The edge-versus-cloud gap is 15.9 points, and n=102 understated it by a factor of three
+
+    pair                          agree    A right   B right       p
+    coder:3b vs v4-pro          428/700         80       191   0.000
+    coder:3b vs v4-flash        424/700         83       192   0.000
+    v4-pro  vs v4-flash         660/700         21        19   0.875  tie
+
+**This is the first significant accuracy comparison the project has produced.** At n=102 the same
+pair was p = 0.500, a coin flip.
+
+The n=102 figure of 4.9 points was wrong in **both** directions at once, which is why it was so far
+off. The 3B side was inflated by an easy sample, 66.7% against a true 61.4%. The pro side was
+depressed by truncation, 71.6% against a true 77.3%. The two errors pointed toward each other and
+nearly closed a real 15.9-point gap. **Fourth appearance of the sample-versus-population error**,
+and the first where two independent biases stacked.
+
+### Flash and pro are tied at n=700, so the cloud tier is flash
+
+77.3% against 77.0%, agreeing on 660 of 700, disagreements splitting 21/19, **p = 0.875**. This is
+no longer "too small a sample to separate them," which is what the n=102 tie meant. At n=700 the
+tie is a measurement.
+
+**Flash costs $0.626 against pro's $1.911 and finishes in 148 minutes against 270.** One third the
+price, 1.8x the speed, no accuracy difference. **Decision: the cloud tier in the pipeline is
+`deepseek-v4-flash`.** Pro is kept as a reported baseline and nothing else.
+
+Cost also confirms the §3.4 projection method at scale. Flash scaled from $0.091 at 102 to $0.626
+at 700, against $0.624 predicted by linear extrapolation.
+
+### The entire gap is on refuted claims. On entailed claims a 3B laptop model ties a frontier model.
+
+Confusion matrices computed directly from the per-claim JSONs, all 700, gold 350 entailed and 350
+refuted:
+
+                        coder:3b    v4-pro   v4-flash
+    correct on entailed      204       203        203     (of 350)
+    correct on refuted       226       338        336     (of 350)
+    false positives          120        10         14
+    false negatives          142       147        147
+    unparseable                8         2          0
+
+    recall on entailed      58.3%     58.0%      58.0%
+    recall on refuted       64.6%     96.6%      96.0%
+
+**All three models are within one claim of each other on entailed claims.** The 15.9-point gap is
+built entirely out of refuted claims, where cloud goes from 226 correct to 338.
+
+Two consequences. **The cloud tier is not better at verifying claims, it is better at catching
+false ones.** And **nothing in this pipeline currently helps the 42% of entailed claims that every
+model misses**, which is the single largest error pool in the project and is not addressed by any
+tier in §8's build order.
+
+### The 3B model does not use the retrieved evidence at all
+
+Each run split by whether the gold evidence actually reached the prompt, using the stored
+`evidence_present` boolean. 364 claims with, 336 without, identical across all three runs.
+
+                        with evidence   without    delta
+    coder:3b            61.3% 223/364  61.6% 207/336   -0.3
+    v4-pro              81.0% 295/364  73.2% 246/336   +7.8
+    v4-flash            82.1% 299/364  71.4% 240/336  +10.7
+
+**The 3B scores the same whether or not the correct evidence is in front of it.** The cloud models
+gain 8 to 11 points from it.
+
+**Caveat, and it is a real one: this is observational, not causal.** Claims where BM25 succeeds may
+simply be easier claims, so the cloud figure of 8 to 11 points is an upper bound on what better
+retrieval would buy, not an estimate of it. The 3B result does not have that problem in the same
+way, because a −0.3 point difference cannot be rescued by any confounder argument.
+
+### A framing error from this morning, corrected before it reached the docs
+
+The 120 false positives were first described as the 3B being "credulous" and inclined toward
+entailed. **That is wrong.** The 3B predicts entailed 324 times out of 700 when the truth is 350,
+so it predicts entailed slightly *less* often than it should, and its errors lean marginally toward
+refuted, 142 false negatives against 120 false positives.
+
+The 3B has no directional bias worth correcting. It has **weak discrimination**, 58.3% and 64.6% on
+the two classes. 120 only looked like credulity beside the cloud's 10, and the cloud's 10 is the
+anomaly.
+
+**This also qualifies a claim written on 9 August.** "All three models are biased toward refuted"
+was recorded from the n=102 run. At n=700 the two cloud models are strongly skewed, predicting
+entailed 30.4% and 31.0% of the time against a true 50%. The 3B is at 46.3%, which is a slight lean
+and not the same phenomenon. Do not group all three under one sentence.
+
+### What survives from n=102, and it is the premise routing rests on
+
+**The 3B is right on 80 claims that pro gets wrong**, 11.4% of the split, against 15 of 102 at the
+smaller size. The cloud model is better on average and wrong on a *different* set of claims. §5.3's
+routing curve still has something to route.
+
+### Consequence for §5.2: the edge-first verifier row is in trouble
+
+§4.4 and §4.7 assign prompt ingestion of the retrieved evidence and generation of the verdict and
+explanation to **cloud**. The edge 3B is assigned claim decomposition, `.loc` lookup writing,
+glossary term-spotting, and the first-pass verifier screen. So the evidence-blindness finding does
+**not** condemn the pipeline: condition 1 is the edge-only ablation, not the system.
+
+It does hit one row. §5.2 assigns **"verifier, judgment checks: edge first, escalate to cloud."**
+That role requires the 3B to read evidence and decide whether a reasoning step follows. A model
+measured at −0.3 points from having the correct evidence present cannot do that job. §5.2 already
+flags a related risk from MACE, that a cross-model verifier falsely refuses correct claims. This
+measurement makes the row worse than the plan assumed.
+
+**This belongs in front of the professor alongside §13 open question 1**, since §4.5 already
+records the routing boundary as the most useful open question and this is the first hard data on
+it.
+
+### Housekeeping
+
+- `results/` backed up to `~/findver_results_20260810.tgz`, 14 MB. It is gitignored and
+  `condition1_3b_full700` exists in exactly one place.
+- The 9 August "Owed, carried forward" note above is **stale**: `test_scripts/analyse_condition1.py`
+  does exist and produced every table in this entry. It was written later the same night.
+- `qwen2.5-coder:7b` is **already on the GPU box**, 4.7 GB, pulled on 10 August. The plan's
+  download step is not needed. Models present at 10.0.0.26: `qwen2.5-coder:3b`,
+  `qwen2.5-coder:7b`, `qwen3:4b-instruct-2507-q4_K_M`.
+- `test_harness.py` passes **70/70**, up from 50 on 9 August.
