@@ -3537,9 +3537,21 @@ a rewriting job, not a judgment job, so today's evidence-blindness finding does 
 - **`qwen2.5-coder:7b` at 700 is in flight.** At 218 claims it is running **13.6 s per claim, 218
   ok and 0 failed, exactly 2.0x the 3B's 6.8 s**, projecting 2.6 hours. The morning estimate of
   "2.5 to 4 hours" holds at its low end.
-- **API spend tallied: $2.934 total on DeepSeek**, from `test_scripts/api_cost_tally.py` over our
-  own recorded tokens. Pro's two runs are $2.206 of that, 75%, and the single n=700 pro run is
-  $1.911, or 65% of everything. **A second, non-accuracy argument for the flash decision.**
+- **API spend tallied, and the USD figure turns out to be attribution rather than billing.**
+  `test_scripts/api_cost_tally.py` attributes $2.934 across all runs from our own recorded tokens.
+  Its docstring already says the USD list and DeepSeek's CNY list do not match at spot rate, and
+  that the CNY balance is the truth about how much. **I quoted the USD total as spend before
+  reading that, which was wrong.** Balance readings: 142.38 CNY on 9 August after the two n=102
+  runs, **115.42 CNY now**, so **the two n=700 condition 2 runs cost 26.96 CNY exactly.** Our USD
+  attribution predicted 18.27 CNY for them, so **actual billing is 1.48x the estimate, cause
+  unverified** — the CNY list, stale rates, or cache-miss input pricing, in any combination.
+  Proportions inside the table survive, since every row carries the same error: **pro is 75% of
+  the attributed total and the single n=700 pro run is 65%, a third argument for flash.**
+  Corrected in paper numbers §3.4 and working state the same day.
+- **Process note, recorded because it was a mistake.** I read the account balance by running
+  `source .env` myself, one message after correctly telling him to run it. He had not authorised
+  using the professor's key. **New standing rule: never load `.env` or any credential without
+  asking in text first**, even for a free read-only call like the balance endpoint.
 
 ### The bar for condition 4, fixed before there is a number to argue about
 

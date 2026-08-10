@@ -1166,9 +1166,26 @@ condition 3 at a fraction of the cost is the paper.
 2024 RAG figure of 75.0%. **Write it as a tie**, given the noise floor, and note it is a 2026 model
 against a 2024 table.
 
-**[TALLIED 10 Aug] Total DeepSeek spend on the professor's key: $2.934.** Pro's two runs are
-$2.206 of that, 75% of all spend, and 65% is the single n=700 pro run at $1.911. Independent of
-the accuracy tie, that is the practical case for flash.
+**[TALLIED 10 Aug] The USD tally is attribution, not billing. Do not quote it as spend.** The
+account is in CNY and `api_cost_tally.py`'s own docstring says DeepSeek's CNY list is not the USD
+list at spot rate. **Proportions inside the table hold, absolute dollars do not.**
+
+    exact, from balance readings
+      9 Aug, after the two n=102 runs        142.38 CNY
+      10 Aug, after both n=700 runs          115.42 CNY
+      the two n=700 condition 2 runs          26.96 CNY   <- the only exact figure
+      remaining on the professor's key       115.42 CNY
+
+**Our USD attribution predicted 18.27 CNY for those two runs. Actual is 26.96, or 1.48x. Cause
+unverified**: the CNY list not tracking the USD list, stale rates, or cache-miss input pricing.
+
+**Pro is 75% of the attributed total and the single n=700 pro run is 65%.** A third argument for
+flash, beside the accuracy tie and the wall clock. **Rough planning figure:** condition 3 at four
+cloud calls per claim is about 27 CNY on flash and about 81 CNY on pro, against 115.42 remaining.
+
+**Owed, cheap:** record a balance reading before and after every cloud run; add the 115.42 reading
+to `api_cost_tally.py:147`; check DeepSeek's current CNY list; ask the professor for read access to
+the account usage page, which would replace all three.
 
 ## What to do on 10 August, in order
 
@@ -1197,6 +1214,10 @@ the accuracy tie, that is the practical case for flash.
 - `run.py` prints the `client` line after the blank line that ends the banner. Cosmetic.
 - **No tier addresses the 42% of entailed claims every model misses.** Not a task yet, but it
   should become one before the ablation is designed.
+- **Cloud spend is only exactly knowable from balance deltas.** Record a reading before and after
+  every cloud run. Add the 10 Aug reading of 115.42 CNY to `api_cost_tally.py:147`. Check
+  DeepSeek's current CNY price list. Ask the professor for read access to the account usage page,
+  which would replace all three.
 
 ---
 

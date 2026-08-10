@@ -747,7 +747,7 @@ Projected over 102 claims, at the pricing published on 8 August 2026:
 
 **Cost of the full condition 2 measurement: $2.537 on the professor's key.**
 
-**[TALLIED 10 Aug 2026] Total DeepSeek spend to date: $2.934**, from `test_scripts/api_cost_tally.py` over our own recorded token counts.
+**[TALLIED 10 Aug 2026] ATTRIBUTION, NOT BILLING. Do not quote the USD total as spend.** The table below comes from `test_scripts/api_cost_tally.py` over our own recorded token counts, priced at the published **USD** list. The account is denominated in **CNY**, and the script's own docstring states that DeepSeek's CNY price list is not the USD list at spot rate. **The USD figure says where the money went. The CNY balance says how much.**
 
 | experiment | model | n | in tok | out tok | USD |
 |---|---|---|---|---|---|
@@ -758,7 +758,31 @@ Projected over 102 claims, at the pricing published on 8 August 2026:
 | ad-hoc probe calls | both | 7 | 12,034 | 6,693 | 0.011 |
 | **total** | | | | | **$2.934** |
 
-**Pro's two runs are $2.206, which is 75% of all spend on the professor's key; the single n=700 pro run alone is 65%.** That is the practical argument behind the flash decision, independent of the accuracy tie. This is our arithmetic from recorded tokens, not DeepSeek's billing; the script prints their live balance when `DEEPSEEK_API_KEY` is in the environment.
+**Pro's two runs are 75% of the attributed total; the single n=700 pro run alone is 65%.** Proportions within this table are trustworthy, because every row is scaled by the same pricing error. **The absolute dollars are not.** This is a third argument for the flash decision, alongside the accuracy tie and the wall clock.
+
+#### The only exact spend figures we have, in CNY
+
+| reading | CNY | source |
+|---|---|---|
+| 9 Aug 2026, after the two n=102 condition 2 runs | 142.38 | `api_cost_tally.py:147` |
+| 10 Aug 2026, after both n=700 condition 2 runs | **115.42** | live balance |
+| **delta, the two n=700 runs** | **26.96** | exact |
+| remaining on the professor's key | **115.42** | live balance |
+
+**The two n=700 condition 2 runs cost 26.96 CNY.** That is the only precisely known spend figure in the project, and it is the one to quote.
+
+**Our USD attribution predicted $2.537 for those same two runs, which is 18.27 CNY at the script's rough 7.2 rate. Actual billing is 1.48x that.** The docstring already warns the two will not match; 48% is larger than "not exactly" implies, and the cause is **unverified**. Three candidates, in any combination: the CNY list not tracking the USD list, the rates being stale (§3.4 records an announced increase, unconfirmed), and cache-miss input pricing, since our probe showed `cached_tokens: 0`.
+
+**One caveat on the 26.96.** Line 147 records the 9 August reading only as "after the two n=102 condition 2 runs," with no time. The build log puts the n=700 runs starting around 22:30 on 9 August, so the reading very probably predates them, but this is inference and not recorded fact.
+
+**Planning figure, rough.** Splitting 26.96 CNY by the ~3:1 pro-to-flash ratio the token counts imply gives about **20 CNY for a pro n=700 run and about 7 CNY for a flash one**. At four cloud calls per claim, **condition 3 on flash is roughly 27 CNY and fits inside the remaining 115.42; on pro it is roughly 81 CNY, most of what is left.**
+
+#### Owed, and cheap
+
+1. **Record a balance reading immediately before and immediately after every cloud run**, so the delta is always recoverable. Without it, no cloud cost after today is exactly knowable.
+2. **Add the 10 Aug reading of 115.42 CNY to `api_cost_tally.py`** beside the 9 Aug one at line 147.
+3. **Check DeepSeek's current CNY price list** and either correct `PRICING` or convert it to CNY outright, which would remove the exchange-rate guess entirely.
+4. **Ask the professor for read access to the account's usage page.** A per-day, per-model usage export would give attribution and accuracy together and make items 1 to 3 unnecessary.
 
 **At n=700 the flash-versus-pro choice is settled on evidence** (§2.6.1, p = 0.875): same accuracy, one third the cost, 1.8x the speed. **The cloud tier in the pipeline is `deepseek-v4-flash`.**
 

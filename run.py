@@ -45,6 +45,9 @@ def build_sample(config):
 
 
 def main():
+    # example command: python3 run.py configs/condition1_7b_full700.json 2>&1 | tee logs/condition1_7b_full700.txt, here python's sys.argv = ['run.py', 'config...']
+    # 'tee' command writes the same stream to a file and also let's you see it on your screen/terminal. with just '>', all the output get redirected to the file without showing on screen.
+    #if more or less than two cli arguments, wrong command
     if len(sys.argv) != 2:
         print("usage: python3 run.py configs/<name>.json")
         return 1

@@ -20,17 +20,17 @@ def call_deepseek(prompt, config):
         "max_tokens": config["num_predict"],
     }
 
-    request = urllib.request.Request(
+    request = urllib.request.Request( #  builds the HTTP request but does not send it yet
         DEEPSEEK_URL,
-        data=json.dumps(payload).encode(),
+        data=json.dumps(payload).encode(),  # json.dumps turns the dict into a JSON string and .encode() turns that string into raw bytes
         headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {os.environ['DEEPSEEK_API_KEY']}",
+            "Content-Type": "application/json",  # tells the deepseek server how to read these bytes
+            "Authorization": f"Bearer {os.environ['DEEPSEEK_API_KEY']}",  # attaches the key to the request and deepseek server will authenticate it
         },
     )
 
-    with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
-        raw = json.loads(response.read())
+    with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response: # sending the HTTP request and creates a data stream you can read the response from. response is a file-like object that reads the body of an HTTP reply off a socket, and 'with' guarantees it gets closed 
+        raw = json.loads(response.read())  # response.read() returns bytes, json.loads parses them back into a dict
 
     message = raw["choices"][0]["message"]
 
@@ -39,8 +39,8 @@ def call_deepseek(prompt, config):
         "response": message["content"],
         "prompt_eval_count": raw["usage"]["prompt_tokens"],
         "eval_count": raw["usage"]["completion_tokens"],
-        "done_reason": raw["choices"][0]["finish_reason"],
-        "thinking": message.get("reasoning_content"),
+        "done_reason": raw["choices"][0]["finish_reason"], # square bracket means this field is always present and needed and if it doesn't exist, then raise error
+        "thinking": message.get("reasoning_content"), # .get() return None instead because only reasoning models need htis field
         "model": raw.get("model"),
         "system_fingerprint": raw.get("system_fingerprint"),
     }
