@@ -4,7 +4,7 @@ non-gold elements until there are k chunks."""
 from src.bm25_retriever import TOP_K, report_stats, score_element
 from src.evidence_asserter import tokenize
 
-def retrieve(claim, report, k=TOK_K):
+def retrieve(claim, report, k=TOP_K):
     # returns k context elements in BM25 scored order with the gold elements guaranteed present\
 
     stats = report_stats(report)
