@@ -1042,6 +1042,46 @@ Positions FINDVER/FISCAL as classification-framed. Useful for related-work posit
 
 ### 7.1 **[RESOLVED]** Table Normalizer — much cheaper than planned
 
+> **[CONTRADICTED BY MEASUREMENT 11 Aug 2026 — read this before the section below.]**
+>
+> This section's central claim, that `read_html` gives "structure preserved, no custom parser" and
+> that the structural parsing problem "largely disappears", **is false on this corpus.** Measured
+> across 1,079 real data tables from 30 reports:
+>
+>     columns are integers only           100.0%     header detection never works
+>     merged-cell duplication              84.8%     in the first three rows
+>     null fraction, whole frame            0.56
+>     columns entirely null                 0.20     layout spacers
+>     column inflation vs the text copy     1.95x    median 1.83x
+>
+> **Not one table in 1,079 returned usable column names**, so the `.loc` lookup this tier is for is
+> impossible on every table without a custom post-processor. pandas returns **the numbers without
+> the structure**. A four-column income statement comes back as 17x12 with the merged header
+> duplicated across nine columns and half the cells NaN.
+>
+> Also measured: **`read_html` raised on 0 of 1,228 tables**, so step 3's `try/except` fallback
+> trigger fires on nothing and must be the numeric round-trip instead. And only **64.6% of real
+> data tables round-trip their numbers perfectly**, so about a third lose data silently.
+>
+> **Step 1 is confirmed and is trivial.** The mapping is ordinal: the table count equals
+> `len(html_tables)` on 255/255 reports, and numeric content aligns at 0.940 against 0.191 for the
+> neighbouring table. One line, not a task.
+>
+> **Step 2's scaling trap is confirmed and its remedy is decided.** The phrase is findable on 44.6%
+> of data tables, but **19.5% of those carry a carve-out** ("in thousands, except per share data"),
+> so "multiply through" would corrupt per-share rows on 821 tables. **Store a `scale` attribute,
+> never mutate the numbers.** "Not found" stays unknown and must not become `scale = 1`.
+>
+> **Consequence: Tier 1 is the code sandbox (§7.2), and tables-as-DataFrames is dropped.** The
+> failure this tier exists to fix is arithmetic, not lookup, and code execution fixes it on numbers
+> read from the pipe-delimited text. `src/table_parser.py` was written and deleted the same day,
+> committed at `c4c0d7c`. Full detail in the build log entry for 11 August, afternoon.
+>
+> **Honest caveat:** post-processing the frames was never attempted. The argument against it is
+> that a structural repair has no ground truth to validate against, unlike the numeric round-trip.
+> That is reasoning, not evidence.
+
+
 The previous version of this plan budgeted heavily for a custom parser, because the paper describes tables as flattened pipe-delimited text. **The repository stores them as HTML** in a separate `html_tables` array (~83 per document). pandas parses HTML natively:
 
 ```python

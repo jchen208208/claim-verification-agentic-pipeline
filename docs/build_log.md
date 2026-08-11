@@ -3980,3 +3980,196 @@ nothing. **One report proves nothing; the measurement across all 255 is the firs
 **Tier 1 was not started.** The revised §12.2 plan gives 9 to 16 August to building pipeline
 modules, and on the 11th none exist. Today produced two diagnostic runs and a set of corrections
 to the documentation, all of which are useful and none of which is the pipeline.
+
+### GOLD-PADDED AT n=700: the decomposition, and distractors are the bigger half
+
+`results/gold_padded_3b_full700/`, **700 ok, 0 failed, 80.2 minutes.**
+
+                            condition 1   gold-padded   gold-alone
+    strict accuracy             61.4%        63.0%        65.0%
+    FINDVER-compatible          62.1%        63.3%        65.3%
+    unparseable                  1.1%         1.1%         0.6%
+    evidence_present            52.0%       100.0%       100.0%
+    prompt tokens, mean          3,731        3,711        1,124
+    wall clock                79.4 min     80.2 min     61.8 min
+
+    ie                          60.8%        64.4%        71.2%
+    knowledge                   59.0%        62.0%        61.0%
+    numeric                     64.0%        62.4%        62.0%
+
+**The design held.** Padded's mean prompt is 3,711 tokens against condition 1's 3,731, a 0.5%
+difference, and `evidence_present` is 100%. Chunk count and prompt size stayed fixed while only
+gold presence moved, which is exactly what the run was built to isolate.
+
+**All three pairwise comparisons are ties on the headline number:** condition 1 vs padded
+p = 0.410, padded vs alone p = 0.370, condition 1 vs alone p = 0.116.
+
+### The decomposition, on ie where the effect lives
+
+    condition 1                     60.8%
+      + gold present (padded)       64.4%      +3.6   p = 0.253
+      + distractors gone (alone)    71.2%      +6.8   p = 0.057
+                                              -----
+      total                                   +10.4   p = 0.004
+
+**Removing the distractors is about two thirds of the gain.** Neither half clears significance
+alone; the combination does, because it has 78 discordant pairs against 49 and 71 for the halves.
+That is a power difference, not a contradiction.
+
+Knowledge and numeric show nothing in either half: knowledge +6 then -2, numeric -4 then -1.
+
+**The prediction written down before the run was binary and reality is a split.** The build log
+recorded that padded reproducing the gain would mean gold presence matters, and padded showing
+nothing would mean distractor load matters. It reproduced about a third. **Neither branch was
+right, and the honest reading is that both mechanisms are real and distractors are the larger
+one.**
+
+### What the three runs together say about retrieval
+
+**Perfect recall is worth +3.6 points on ie and nothing anywhere else, and that is not
+significant.** Since fixing recall completely is the most any retriever could ever achieve, a real
+retrieval improvement buys less than that. This tempers the retrieval story rather than killing
+it: the recall result at 74.60% against the published 68.01% stands on its own as a retrieval
+measurement, but **the end-to-end accuracy it implies for the 3B is small.**
+
+**A direction nobody has tested: fewer chunks.** k was frozen at 10 and tested upward to 20, which
+was worse. It has never been tested downward. Gold-alone's advantage came with 2.8 chunks. A run
+at k=5 or k=3 trades recall for a cleaner prompt and that trade is unmeasured, because the k sweep
+only ever measured recall, which of course falls. **This should take the k-ablation GPU slot
+instead of k=20 at 700**, which only re-answers at n=700 what n=102 already answered.
+
+---
+
+## 11 August 2026, afternoon - Tier 1, and pandas does not parse these tables
+
+### The mapping question is closed: it is ordinal
+
+    count of type=="table" == len(html_tables)      255 / 255 reports
+    numeric content, context[i] vs html_tables[i]   0.940
+    same, vs html_tables[i+1]  (control)            0.191
+
+The shifted control is what rules out coincidence. §7.1 step 1 called this "the first task of the
+module" and it collapses to one line:
+
+    table_positions = [i for i, e in enumerate(report["context"]) if e["type"] == "table"]
+
+### `read_html` never fails, which is the problem
+
+    tables attempted                    1,228
+    read_html raised an exception           0     0.0%
+    returned >1 dataframe                  97     nested tables
+
+**Zero exceptions on 1,228 tables.** A `try/except` fallback would fire on nothing and pass every
+broken table through as if it were fine. §7.1 predicted this; it is now measured.
+
+Numeric round-trip, comparing the DataFrame against the pipe-delimited text copy that never went
+through pandas:
+
+    REAL DATA TABLES        n=1,071     mean containment 0.948
+      perfect round-trip        64.6%
+      >= 0.95                   75.8%
+      >= 0.90                   86.5%
+      <  0.50                    1.6%
+
+**35% of real data tables lose at least one number, silently, in a frame that looks clean.**
+
+**A measurement error caught and corrected mid-session.** The first pass reported 58.7% perfect.
+pandas converts numeric columns to floats, so the cell `45300` becomes `45300.0`, and comparing
+those as strings scored a match as a miss. Comparing as numbers gives 64.6%. **Six points of an
+apparent finding were my own comparison bug.**
+
+### THE FINDING THAT KILLS THE DATAFRAME PLAN: structure is not preserved
+
+Across 1,079 real data tables:
+
+    columns are integers only           100.0%     header detection never works
+    merged-cell duplication              84.8%     in the first three rows
+    null fraction, whole frame            0.56     more than half the cells empty
+    columns entirely null                 0.20     pure layout spacers
+    column inflation vs the text copy     1.95x    median 1.83x
+      inflation >= 2.0x                  47.2%
+      inflation <= 1.2x                  16.9%
+
+**Not one table in 1,079 came back with usable column names.** A representative case, a four-column
+income statement returned as 17x12:
+
+         0    1    2         3                   4                    9
+    1  NaN  NaN  NaN  Three Months Ended  Three Months Ended   Three Months Ended
+    2  NaN  NaN  NaN         January 31,         January 31,          January 31,
+    3  NaN  NaN  NaN                2024                2024                 2023
+
+The merged header spans nine columns and pandas duplicates it into every one. The text copy of the
+same table is far cleaner.
+
+**This contradicts architecture plan §7.1**, which says `read_html` gives "structure preserved, no
+custom parser" and that the structural parsing problem "largely disappears." It does not. pandas
+returns **the numbers without the structure**, on essentially every table. §7.1 has been marked.
+
+**It also means the round-trip measurement was over-read.** 64.6% perfect round-trip says the
+numbers survived. It says nothing about whether the result is queryable. Those are two different
+claims and they were run together for part of this session.
+
+### The addressable population, before the decision
+
+    claims whose gold evidence includes a real data table    48.1%
+    ... where every such table round-trips perfectly         29.1%
+    numeric subset, same figure                              37.2%
+
+### DECIDED: build the sandbox, drop the DataFrame path
+
+Three reasons, in order of weight.
+
+1. **The failure Tier 1 exists to fix is arithmetic, not lookup.** The trial run's error was
+   `$15,800,000 + $0.015 million = $15,800,015`, a magnitude mistake. `15800000 + 0.015e6` in
+   Python is correct, and that works on numbers read from the pipe-delimited text just as well as
+   from a DataFrame. §7.2 puts the sandbox at about 30 lines and it validates for free against the
+   gold `execution_result` on every numeric claim.
+2. **A structural repair cannot be validated.** The numeric round-trip works because the text copy
+   is an answer key for *what numbers should be there*. There is no equivalent answer key for
+   *what shape the table should be*. Dropping null columns, collapsing merged headers and promoting
+   a header row would be three heuristics with no ground truth, on a benchmark where every silent
+   failure so far has cost days.
+3. **The schedule.** Repairing structure on 100% of tables is the custom parser §7.1 said was
+   avoided. It is the 11th and results freeze on the 23rd.
+
+**`src/table_parser.py` is deleted.** Committed at `c4c0d7c` and recoverable. Nothing in it
+survives: `parse_table` is dead, `table_index` exists only to reach `html_tables`, and the scale
+detector needs neither.
+
+**Honest caveat, recorded because the decision rests on it.** Reason 2 is an argument, not a
+measurement. Post-processing was never tried. If the sandbox lands early, testing it is about an
+hour.
+
+### The scaling note: metadata, not multiplication
+
+Measured across all 255 reports, 9,432 real data tables:
+
+    phrase in the table's own text     3,694    39.2%
+    phrase in the element before         509     5.4%
+    not found in either place          5,229    55.4%
+
+    "in thousands" 3,062   "in millions" 1,132   "in billions" 8
+    carve-out near the phrase            821    19.5% of those found
+
+**Nearly one in five scaled tables says "in thousands, except per share data."** Multiplying values
+through would turn a correct $2.15 earnings-per-share into $2,150 on 821 tables, silently, in
+exactly the subset where arithmetic decides the verdict. **So `scale` is metadata: stated beside
+the table in the prompt and bound as a variable in the sandbox, never applied to the numbers.**
+§7.1 offered both options; the 19.5% closes it.
+
+**"Not found" is a third state, not "unscaled."** Recording it as `scale = 1` is precisely how data
+trap 7 gets you. Of the 5,229: roughly 28% contain a `%` and 13% mention "per share", which are
+genuinely scale-free; about 11% use a phrasing the regex missed, such as "Thousands of dollars" as
+a column header; and about 10% have the note further up than one element back. Widening to the bare
+words and searching several elements back should recover about a fifth of them.
+
+**One more of my own bad checks, recorded.** An alternative-pattern search for `(000)` reported
+32.7%. The pattern matches the bare digits `000`, which appear inside any number like `1,000`. It
+was counting ordinary figures. Discarded. **Second measurement bug of the session, both mine, both
+caught before they reached a conclusion.**
+
+### What did not happen, again
+
+**The sandbox is still not built.** The afternoon produced the measurements that killed a planned
+approach before it was written, which is a good outcome for a day of measurement and is still not
+a pipeline module.

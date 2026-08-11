@@ -813,6 +813,117 @@ Prompt tokens fall 3,731 → 1,124, a 70% reduction, and wall clock 79.4 → 61.
 
 ---
 
+### 2.8.1 **[NEW 11 Aug 2026] ORACLE RETRIEVAL DECOMPOSED — gold presence vs distractor load, n=700**
+
+Reproduce with: `python3 test_scripts/analyse_condition1.py condition1_3b_full700 gold_padded_3b_full700 gold_alone_3b_full700`
+
+**The design.** `gold-padded` keeps the gold *and* pads with BM25's best non-gold to k=10, so chunk count and prompt size stay at condition 1's values and **only gold presence moves**. `gold-alone` additionally removes the distractors. Subtracting them separates the two mechanisms.
+
+| | condition 1 | gold-padded | gold-alone |
+|---|---|---|---|
+| strict accuracy | 61.4% | 63.0% | 65.0% |
+| FINDVER-compatible | 62.1% | 63.3% | 65.3% |
+| unparseable | 1.1% | 1.1% | 0.6% |
+| evidence_present | 52.0% | 100.0% | 100.0% |
+| prompt tokens, mean | 3,731 | **3,711** | 1,124 |
+| wall clock | 79.4 min | 80.2 min | 61.8 min |
+| ie | 60.8% | 64.4% | 71.2% |
+| knowledge | 59.0% | 62.0% | 61.0% |
+| numeric | 64.0% | 62.4% | 62.0% |
+
+**The manipulation check passed:** padded's mean prompt is 3,711 against condition 1's 3,731, a 0.5% difference, with `evidence_present` at 100%. Prompt size did not move; gold presence did.
+
+**All three pairwise comparisons are ties on the headline number.** cond1 vs padded p = 0.410, padded vs alone p = 0.370, cond1 vs alone p = 0.116.
+
+#### The decomposition, on FDV-IE where the effect lives
+
+| step | ie accuracy | delta | p |
+|---|---|---|---|
+| condition 1 | 60.8% | — | — |
+| + gold present (padded) | 64.4% | +3.6 | 0.253 |
+| + distractors removed (alone) | 71.2% | +6.8 | 0.057 |
+| **total** | | **+10.4** | **0.004** |
+
+**Distractor removal is roughly two thirds of the gain.** Neither half is individually significant; the total is, because it carries 78 discordant pairs against 49 and 71 for the halves. That is statistical power, not inconsistency.
+
+Knowledge and numeric move in neither half: knowledge +6 then −2, numeric −4 then −1.
+
+#### What may and may not be written
+
+**Supportable.** *"Handing the 3B perfect evidence raises FDV-IE accuracy by 10.4 points (p = 0.004), of which roughly one third comes from the evidence being present and two thirds from removing the competing chunks. Neither FDV-KNOW nor FDV-MATH improves under either intervention."*
+
+**Not supportable.** Any statement that the retrieval half alone is significant (p = 0.253), or the distractor half alone (p = 0.057). And any overall claim: the all-subset effect is p = 0.116.
+
+**The consequence for §5's retrieval assumption.** Perfect recall is the ceiling for any retriever, and it buys +3.6 points on one subset, not significantly. **So a realistic retrieval improvement buys less than that end to end for the 3B.** The standalone recall result (§1.6, 74.60% vs the published 68.01%) is untouched and stands on its own; what is now bounded is the accuracy it implies.
+
+**A direction never tested: fewer chunks.** k was frozen at 10 (§2.3) and tested upward to 20, which was worse. It has never been tested downward, and gold-alone's advantage came with 2.80 chunks. **k=5 at n=700 is about an hour on the GPU and is a better use of the k-ablation slot than k=20.**
+
+---
+
+### 2.9 **[NEW 11 Aug 2026] `pandas.read_html` ON SEC FILINGS — the numbers survive, the structure does not**
+
+**Not yet reproducible by a committed script. See the debt note at the end of §2.8.**
+
+**Mapping, all 255 reports referenced by testmini.** The `context` to `html_tables` correspondence is **ordinal**: table count equals `len(html_tables)` on 255/255, and on a 40-report sample the numbers in `context[i]` match `html_tables[i]` at **0.940** against **0.191** for `html_tables[i+1]` as a control. Architecture plan §7.1 step 1 is one line, not a task.
+
+**Parse fidelity, 1,228 tables from 30 reports.**
+
+| | |
+|---|---|
+| `read_html` raised an exception | **0 — 0.0%** |
+| returned more than one DataFrame | 97 — 7.9% (nested tables) |
+
+**A `try/except` fallback trigger fires on nothing.** The numeric round-trip against the pipe-delimited copy is the only usable test, and §7.1 step 3 is corrected accordingly.
+
+| real data tables, n=1,071 | |
+|---|---|
+| perfect numeric round-trip | **64.6%** |
+| >= 0.95 | 75.8% |
+| >= 0.90 | 86.5% |
+| < 0.50 | 1.6% |
+| mean containment | 0.948 |
+
+**Structure, 1,079 real data tables.**
+
+| | |
+|---|---|
+| columns are integers only | **100.0%** |
+| merged-cell duplication in the first 3 rows | 84.8% |
+| null fraction, whole frame | 0.56 mean, 0.58 median |
+| columns entirely null (layout spacers) | 0.20 mean |
+| column inflation vs the text copy | **1.95x** mean, 1.83x median |
+| inflation >= 2.0x | 47.2% |
+
+**Not one table in 1,079 returned usable column names.** A four-column income statement comes back as 17×12, with the merged header "Three Months Ended" duplicated across nine columns and more than half the cells NaN.
+
+**The paper sentence this supports**, and it is on-topic for the venue: *"On SEC filings `pandas.read_html` preserves the values but not the structure — headers are lost on 100% of tables and column counts inflate 1.95x from layout spacers — so treating filing tables as DataFrames is not the free win it appears to be, and about a third of tables silently lose numbers entirely."*
+
+**Addressable population, all 700 claims.**
+
+| | ALL | ie | knowledge | numeric |
+|---|---|---|---|---|
+| gold evidence includes a real data table | 48.1% | 43.2% | 39.0% | 60.4% |
+| ... and every such table round-trips perfectly | 29.1% | 25.6% | 23.5% | **37.2%** |
+
+**Scaling notes, 9,432 real data tables across all 255 reports.**
+
+| | | |
+|---|---|---|
+| phrase in the table's own text | 3,694 | 39.2% |
+| phrase in the element before | 509 | 5.4% |
+| not found in either place | 5,229 | 55.4% |
+| **carve-out near the phrase** | **821** | **19.5% of those found** |
+
+"in thousands" 3,062, "in millions" 1,132, "in billions" 8.
+
+**The 19.5% decides the design: `scale` is metadata, never applied to the values.** "In thousands, except per share data" means one table carries two scales, and no rule we can write knows which rows are the exception. Multiplying through would turn a correct $2.15 per-share figure into $2,150 on 821 tables — data trap 7, manufactured by our own code. **"Not found" is a third state and must never be recorded as `scale = 1`.**
+
+**Two measurement bugs of ours, both caught before they reached a conclusion, both recorded because they are the same class as the bugs this project keeps hitting.** Parse fidelity first read 58.7% because pandas turns the cell `45300` into `45300.0` and the comparison was on strings; comparing as numbers gives 64.6%. And an alternative scale-phrase check for `(000)` reported 32.7% while actually matching the digits inside any number like `1,000`.
+
+**Consequence for the build order: Tier 1 is the code sandbox, and tables-as-DataFrames is dropped.** Full reasoning in the architecture plan §7.1 correction block and the build log for 11 August, afternoon. The caveat stated there applies here too: post-processing the frames was never attempted, and the argument against it — that a structural repair has no ground truth, unlike the numeric round-trip — is reasoning rather than evidence.
+
+---
+
 ## 3. Deployment cost
 
 **The MacBook is the device of record.** Never print a GPU-derived number under a MacBook label; never mix machines in one table (§9.2).

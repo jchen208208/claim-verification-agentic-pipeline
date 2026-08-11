@@ -1459,6 +1459,106 @@ task and needs no model.
 
 ---
 
+### GOLD-PADDED IS MEASURED, n=700. Distractors are the bigger half.
+
+`results/gold_padded_3b_full700/`, **700 ok, 0 failed, 80.2 minutes.**
+
+                            condition 1   gold-padded   gold-alone
+    strict accuracy             61.4%        63.0%        65.0%
+    evidence_present            52.0%       100.0%       100.0%
+    prompt tokens, mean          3,731        3,711        1,124
+    ie                          60.8%        64.4%        71.2%
+    knowledge                   59.0%        62.0%        61.0%
+    numeric                     64.0%        62.4%        62.0%
+
+**All three pairwise comparisons are ties**: cond1 vs padded p = 0.410, padded vs alone p = 0.370,
+cond1 vs alone p = 0.116. **The design held** — padded's prompt is 3,711 tokens against 3,731, so
+only gold presence moved.
+
+**The decomposition, on ie:**
+
+    condition 1                     60.8%
+      + gold present (padded)       64.4%      +3.6   p = 0.253
+      + distractors gone (alone)    71.2%      +6.8   p = 0.057
+      total                                   +10.4   p = 0.004
+
+**Removing distractors is about two thirds of the gain.** The prediction recorded before the run
+was binary — padded reproduces the gain, or shows nothing — and **neither branch was right.** Both
+mechanisms are real and distractors are the larger one.
+
+**What this does to the retrieval story.** Perfect recall is worth +3.6 on ie and nothing
+elsewhere, not significant. Since perfect recall is the ceiling for any retriever, **a real
+retrieval improvement buys less than that end to end.** The standalone recall result, 74.60%
+against the published 68.01%, is unaffected and still carries its own section of the paper.
+
+**NEW DIRECTION, untested: fewer chunks.** k was frozen at 10 and tested upward to 20, which was
+worse. **It has never been tested downward.** Gold-alone's advantage came with 2.8 chunks. k=5 or
+k=3 trades recall for a cleaner prompt and nobody has measured that trade, because the k sweep only
+measured recall. **Spend the k-ablation GPU slot on k=5, not on k=20 at 700.**
+
+### TIER 1 REDIRECTED: build the sandbox, drop tables-as-DataFrames
+
+**Architecture plan §7.1 is contradicted by measurement and has been marked.** It says
+`read_html` gives "structure preserved, no custom parser." Across 1,079 real data tables:
+
+    columns are integers only           100.0%     header detection never works
+    merged-cell duplication              84.8%
+    null fraction, whole frame            0.56
+    columns entirely null                 0.20     layout spacers
+    column inflation vs the text copy     1.95x    median 1.83x
+
+**Not one table in 1,079 came back with usable column names**, so `.loc["Net income", "2024"]` is
+impossible everywhere without a custom post-processor. pandas returns **the numbers without the
+structure.**
+
+Also measured: **`read_html` raised on 0 of 1,228 tables**, so a try/except fallback fires on
+nothing. And only **64.6% of real data tables round-trip their numbers perfectly**, so a third lose
+data silently in a frame that looks clean.
+
+**The decision.** The failure Tier 1 exists to fix is arithmetic, not lookup: the trial run's
+`$15,800,000 + $0.015 million = $15,800,015`. Python cannot make that error, on numbers from the
+text just as well as from a DataFrame. A structural repair cannot be validated, because the text
+copy is an answer key for *which numbers* should be present but not for *what shape* the table
+should be. And it is the 11th with a freeze on the 23rd.
+
+**`src/table_parser.py` is deleted**, committed at `c4c0d7c` and recoverable.
+
+**Caveat, because the decision rests on it:** reason 2 is an argument, not a measurement.
+Post-processing was never tried. About an hour to find out, if the sandbox lands early.
+
+### The mapping question is closed, and the scale rule is decided
+
+**Ordinal.** Table count equals `len(html_tables)` on 255/255 reports, and numeric content aligns
+at 0.940 against 0.191 for the neighbouring table. §7.1 step 1 is one line.
+
+**Scale is metadata, never multiplication.** Across 9,432 real data tables the phrase is findable
+44.6% of the time, almost always inside the table itself. **19.5% of those carry a carve-out**,
+"in thousands, except per share data", so multiplying through would corrupt per-share rows on 821
+tables. The scale is stated beside the table in the prompt and bound as a variable in the sandbox.
+**"Not found" stays unknown and never becomes `scale = 1`.**
+
+**Addressable population for any table work:** 48.1% of claims have a real data table in their gold
+evidence, 29.1% have one that round-trips perfectly, 37.2% on the numeric subset.
+
+### Two measurement bugs of my own, both caught before they reached a conclusion
+
+The parse-fidelity figure first read 58.7% because pandas turns `45300` into `45300.0` and the
+comparison was on strings. Comparing as numbers gives 64.6%. And an alternative scale-phrase check
+for `(000)` reported 32.7% while actually matching the digits inside any number like `1,000`.
+Discarded.
+
+### What to do next, revised
+
+1. ~~Read gold-padded.~~ **DONE, above.**
+2. ~~Install pandas and lxml.~~ **DONE.** pandas 3.0.5, lxml 6.1.1, bs4, html5lib.
+3. ~~Measure the `html_tables` mapping.~~ **DONE, ordinal.**
+4. **Build the code sandbox (§7.2).** The remaining half of Tier 1 and now the whole of it.
+5. Fold the per-subset McNemar and entailed/refuted tables into `analyse_condition1.py`, and add a
+   committed script for the table-parsing measurements. **Neither set of numbers may be cited until
+   this exists** (`paper_numbers.md` rule 1).
+6. GPU, when free: **condition 1 at k=5, n=700**, about an hour.
+7. Deferred, no compute: read the 49 knowledge failures.
+
 ---
 
 ## ~~What to do on 9 August, in order~~ — DONE, superseded by the 10 August list above
