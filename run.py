@@ -12,6 +12,7 @@ from src.ollama_client import call_ollama
 from src.deepseek_client import call_deepseek
 from src.bm25_retriever import retrieve as bm25_retrieve
 from src.placeholder_retriever import retrieve as placeholder_retrieve
+from src.gold_retriever import retrieve as gold_retrieve
 from src.run_loop import run_sample
 from src.sampler import stratified_sample
 
@@ -22,6 +23,7 @@ RESULTS_ROOT = REPO_ROOT / "results"
 RETRIEVERS = {
     "bm25": bm25_retrieve,
     "placeholder_token_overlap": placeholder_retrieve,
+    "gold": gold_retrieve
 }
 
 # the two model clients, selected by the config's "client" key
