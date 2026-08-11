@@ -6,4 +6,4 @@ which limits what any retrieval improvement could do."""
 def retrieve(claim, report, k=None):
     elements = report["context"]
 
-    return [elements[index] for index in sorted(claim.relevant_context)]
+    return [elements[index] for index in sorted(set(claim.relevant_context))]

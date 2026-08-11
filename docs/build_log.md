@@ -3679,3 +3679,304 @@ while 0.3 points produced 21/19 and p = 0.875. **A win has to appear in the disc
 **Already supportable and previously unremarked:** our 77.0% cloud baseline sits above the best
 published 2024 RAG result of 75.0%. Given the noise floor it should be written as a tie, and it is
 a 2026 model against a 2024 table, which is expected rather than interesting.
+
+
+## 11 August 2026 - the oracle retrievers, and what perfect retrieval is actually worth
+
+Two retrievers built, one measurement run finished, one still running at the time of writing.
+**Nothing in the pipeline was built today.** That is recorded at the end rather than buried.
+
+### Why these runs exist
+
+`paper_numbers.md` §5 has carried "better retrieval improves accuracy" as *assumed throughout,
+still not established causally* since the project began. The 10 August n=700 split gave the first
+real evidence, cloud +8 to +11 points on claims where the gold reached the prompt and the 3B at
+-0.3, but it is observational. Claims BM25 succeeds on may simply be easier claims.
+
+An oracle run removes that. Instead of BM25's top ten, put the gold evidence itself in the prompt
+and change nothing else.
+
+**Two variants, because they answer different questions.**
+
+    gold-alone     the claim's gold elements and nothing else, mean 2.80 chunks
+    gold-padded    the gold, plus BM25's best non-gold until there are k, so chunk
+                   count and prompt size stay at condition 1's values
+
+`padded - condition 1` is the effect of recall with distractor load held fixed. `gold-alone -
+padded` is what removing the distractors buys on top of that. Two runs, one decomposition.
+
+### The retrievers
+
+`src/gold_retriever.py` and `src/gold_padded_retriever.py`. The padded one imports `report_stats`,
+`score_element` and `TOP_K` from `bm25_retriever` rather than copying them, so the two cannot
+drift apart.
+
+**Neither needed an interface change.** `retrieve(claim, report, k)` already receives the whole
+claim object, so `claim.relevant_context` was already reachable. The no-leakage property BM25 has
+was never enforced by the interface. It was a property of what BM25 chose to read.
+
+**One design decision, and it is the only interesting one.** Padded returns its chunks in BM25
+score order, not gold-first. A gold element BM25 missed enters the prompt at the position its own
+weak score puts it. Gold-first would have changed both *whether* the model sees the evidence and
+*where*, and position alone moves a language model's answer, so the two could never have been
+separated afterwards.
+
+**A property that fell out of that choice, better than the design promised.** Where BM25 already
+retrieved all the gold, padded returns the same ten elements in the same order, so the prompt is
+byte-identical to condition 1. The experiment is confined to exactly the claims it is about.
+
+### Verification, before either run was queued
+
+Over all 700 claims, offline, no model calls:
+
+    padded missing gold          0 / 700
+    padded chunk counts          10 on 699 claims, 20 on 1
+    identical to plain BM25      353
+    different from plain BM25    347
+    identical AND evidence True  353 / 353
+
+The prediction going in was 364 identical, taken from condition 1's `evidence_present` rate of
+52.0%. It came back 353. **That 11-claim gap is a finding in itself and is recorded below.**
+
+### NEW DATA TRAP: `relevant_context` is not a set
+
+Five of 700 claims repeat an index:
+
+    ie-val-193        (7, 8, 7)
+    numeric-val-36    (24, 24)
+    numeric-val-41    (30, 30)
+    numeric-val-139   (61, 61)
+    knowledge-val-20  (190, 188, 183, 192, 188)
+
+`gold_retriever` originally used `sorted(claim.relevant_context)`, which keeps duplicates, so the
+same element went into the prompt twice on those five claims. The padded retriever was immune by
+accident, because it does `gold = set(...)` first for an unrelated reason.
+
+**Caught by verification, not by a crash.** Nothing raises. Added to `CLAUDE.md` as data trap 8.
+
+**Recall figures are unaffected.** `measure_recall.py:68` already stores gold as
+`frozenset(claim.relevant_context)`, so 74.60% and every other recall number stand. One small
+correction that follows: the distinct gold count is **1,959, not 1,964**, and the mean is 2.80
+rather than 2.81.
+
+**Repaired using resume rather than a re-run.** The fix landed after gold-alone had finished, so
+the five result files were deleted and the same command re-run. It recomputed five claims, skipped
+695, and took about fifteen seconds. This is the mechanism that became a trap on 8 August with the
+abandoned `qwen3:4b` records, used correctly for once: delete the affected records first, then
+resume.
+
+### MEASURED: the evidence asserter has an 11-claim false-positive rate on real retrieval
+
+347 claims where BM25 genuinely missed at least one gold element, but only 336 were flagged
+`evidence_present: False`. On 11 claims the asserter reported the evidence had arrived when the
+gold element was never retrieved, presumably via a different element carrying the same rare
+tokens, which is the repeated-content pattern the 2 August validation already described.
+
+**The 2 August entry asked for exactly this check:** *"Accepted at 0.7 percent under a
+deliberately adversarial control. Re-check it once the real retriever exists, since maximum
+lexical overlap is a proxy for a retrieval miss and not an upper bound."* The answer on the real
+retriever is **1.6%**, up from 0.7%.
+
+**Zero false negatives.** All 353 claims where BM25 got the full gold were flagged True. The
+asymmetry the project relies on, that `False` is trustworthy, holds on real data.
+
+**A free precision upgrade that follows.** §2.6.1's with-evidence versus without-evidence split
+used this flag, so 11 claims sit in the wrong bucket. That split can now be computed **exactly**
+from the gold indices by set comparison, with no token heuristic involved.
+
+### GOLD-ALONE AT n=700: 65.0%, and the headline is a tie
+
+`results/gold_alone_3b_full700/`, **700 ok, 0 failed, 61.8 minutes.**
+
+                            condition 1   gold-alone
+    strict accuracy             61.4%        65.0%
+    FINDVER-compatible          62.1%        65.3%
+    unparseable                  1.1%         0.6%
+    evidence_present            52.0%       100.0%
+    prompt tokens, mean          3,731        1,124
+    output tokens, mean            416          389
+    wall clock                79.4 min     61.8 min
+    extraction anchored        690/700      695/700
+
+Paired on the same 700 claims: they agree on 461, with 104 to condition 1 and 129 to gold-alone.
+**p = 0.116. Not distinguishable from a coin flip.**
+
+`evidence_present` at 100.0% confirms the oracle did what it claims.
+
+### The average was hiding the result. FDV-IE gains 10.4 points, and it is significant.
+
+    subset        n   cond1 only   gold only    net       p
+    ie          250           26          52    +26   0.004
+    knowledge   200           35          39     +4   0.728
+    numeric     250           43          38     -5   0.657
+    ALL         700          104         129    +25   0.116
+
+**ie goes 60.8% to 71.2%, p = 0.004.** That survives a correction for testing three subsets, since
+0.004 x 3 is still well under 0.05. The overall tie is that gain being cancelled by knowledge and
+numeric moving nothing.
+
+**The two runs genuinely differ, so this is not noise.** They agree on 461 of 700, 65.9%.
+Re-running an identical config on 8 August agreed 89.2% of the time. The intervention moved far
+more than noise moves.
+
+### CORRECTED: "the 3B cannot use evidence" is too strong
+
+Both `working_state.md` and architecture plan §869 assert flatly that the 3B cannot do
+evidence-based judgment, on the strength of the 10 August observational -0.3. **Handed perfect
+evidence with the distractors removed, the 3B uses it on extraction claims, significantly.**
+
+The observational split missed it for two reasons. It averaged three subsets whose effects run in
+opposite directions, and it only ever compared prompts that still carried seven or more
+distractors.
+
+**What survives:** the 3B does not benefit *on average*, and does not benefit at all on knowledge
+or numeric. **What must be withdrawn:** the unqualified sentence.
+
+### CORRECTED: "FDV-KNOW is a retrieval problem" is falsified
+
+The 7-8 August entry recorded *"FDV-KNOW is the weak subset and it is a retrieval problem"*, on
+the basis of 26.5% all-gold recall against numeric's 70.6%. **Perfect retrieval moved knowledge
+2.0 points, p = 0.728.** The inference from low recall to "retrieval is the bottleneck" did not
+hold, and this is the first direct test of it.
+
+### Numeric got WORSE with perfect evidence, which is the Tier 1 argument again
+
+Numeric went 64.0% to 62.0%, not significantly. Every gold number in front of the model, no
+distractors, and it got no better at numeric claims.
+
+**This lines up exactly with the 10 August 7B result**, where the model's entire remaining deficit
+was FDV-MATH at 68.0 against cloud's 79.2. **Two independent lines now say numeric is limited by
+arithmetic, not retrieval.** That is the strongest case the project has assembled for code
+execution being the right next module.
+
+### The entailed deficit survives perfect evidence
+
+                        condition 1   gold-alone
+    ALL entailed      204/350 58.3%  214/350 61.1%
+    ALL refuted       226/350 64.6%  241/350 68.9%
+
+    ie  entailed       81/125 64.8%   93/125 74.4%
+    ie  refuted        71/125 56.8%   85/125 68.0%
+    know entailed     51/100 51.0%   51/100 51.0%
+    know refuted       67/100 67.0%   71/100 71.0%
+    num entailed      72/125 57.6%   70/125 56.0%
+    num refuted       88/125 70.4%   85/125 68.0%
+
+The 10 August entry called the entailed miss rate the largest single error pool in the project and
+noted that no tier addresses it. **Retrieval does not either.** 39% of true claims are still
+missed with all the gold present.
+
+**`knowledge` entailed is 51/100 in both runs. Identical, and exactly chance**, with perfect
+evidence handed over. That is the worst cell in the table.
+
+**The ie gain is symmetric**, +9.6 on entailed and +11.2 on refuted, so it is real improvement
+rather than the model shifting its decision threshold.
+
+### What would fix the knowledge gap - the honest position, recorded rather than guessed
+
+**I do not know, and today's run does not say. It only rules something out.**
+
+What is now measured: knowledge's bottleneck is **not retrieval**. Perfect evidence moved it 2
+points, and knowledge-entailed did not move at all, 51/100 both times. What that leaves is a
+guess, and it should not be dressed up as more.
+
+**The cheapest thing that would actually answer it.** Read the failures. There are now **49
+knowledge claims that are true, had every gold element in the prompt, and were still called
+refuted.** Retrieval is excluded by construction, so whatever went wrong is visible in the
+response text. It costs no compute, no GPU and no quota, and the plan already requires it:
+*"every iteration, sample >=25 failures, hand-label with the taxonomy."* This is that step, on a
+set where one whole explanation is already eliminated. **Until those are read, "glossary" and
+"the model is too small" are equally unfalsified.**
+
+**The candidates, with what the existing data says about each.**
+
+- **Domain vocabulary, the glossary.** Alive. 51% on entailed with a lean toward refuted fits a
+  model that cannot see a passage *implies* a claim when the link needs an accounting concept.
+  Against it: §7.4 already rates the glossary the smallest expected gain of any tier, and it is
+  Tier 3.
+- **Model capability.** The strongest single lever measured. The 7B scores **73.0% on knowledge
+  against the 3B's 59.0%**, a 14-point jump, and it beats both cloud models on this subset. No
+  glossary supplies that.
+- **Escalate knowledge to cloud.** The most on-thesis option, since this is what a routed system
+  is for. Cloud is 70.5%. But that is condition 4 work, not a knowledge fix.
+
+**Worth knowing before investing anywhere:** the best published 2024 model gets 75.5% on FDV-KNOW.
+Everything above 3B clusters at 70 to 75. Part of this subset is simply hard, and the realistic
+headroom for a 3B is roughly 59 to 70, not 59 to 90.
+
+**What not to do: start a knowledge workstream now.** It is Tier 3, the lowest priority in the
+build order, and Tier 1 now has two independent lines pointing at it. It is the 11th, results
+freeze on the 23rd, and Tier 1 is not built. Read the 49 while other work runs. That is thirty
+minutes, and it either produces a real hypothesis or tells us the gap is capability and closes the
+question.
+
+### What gold-padded now tests, written down before it lands
+
+Gold-alone changed two things at once: gold present, and distractors gone. Padded changes only the
+first.
+
+- If padded reproduces the ie gain, **gold presence** is what matters, and better retrieval is
+  worth building.
+- If padded shows nothing, **distractor load** is what matters. The 3B can use evidence but cannot
+  find it among ten chunks, and §5.2's verifier row is salvageable by feeding it fewer chunks.
+
+Opposite conclusions from the same number, which is why the pair was worth running rather than
+either alone.
+
+### One ordering inconsistency, accepted rather than fixed
+
+Gold-alone returns document order; padded returns BM25 score order. So `gold-alone - padded` moves
+distractor load **and** ordering, and that subtraction is not clean. The `padded - condition 1`
+subtraction, which is the one that repairs the causal claim, is unaffected. If the distractor
+question ends up load-bearing, re-running gold-alone in score order is about 35 minutes and
+settles it.
+
+### Five bugs caught in review before anything ran
+
+The padded retriever went through three drafts. The first assigned
+`returned_elements = claim.relevant_context`, which in Python aliases rather than copies, so
+`.append()` would have written retrieved non-gold elements **into the claim's answer key**.
+`Claim` being a frozen dataclass does not prevent this: frozen blocks replacing an attribute, not
+mutating a list inside one. The evidence asserter reads gold off the claim, so `evidence_present`
+would have come back True on all 700 and meant nothing.
+
+The second draft added `if first not in returned_elements` to stop duplicates. That guard can
+never fire, because `first` is a `(score, index)` tuple and the list held plain integers, and a
+tuple is never equal to an integer. **Same family as the unreachable `_HEDGE_BEFORE` branch from
+1 August:** a check that reads correctly, runs every iteration, and cannot do anything.
+
+The fix was structural rather than defensive: split `scored` into a gold list and a non-gold pool
+up front, and a duplicate becomes unrepresentable instead of merely checked for. Same reasoning as
+the 2 August decision to scope the evidence asserter to the evidence block rather than filter
+claim tokens out of the witness list.
+
+Also caught: the loop used the module constant `TOP_K` where it needed the parameter `k`, which
+would have made the config's `top_k` field a lie the first time a k-ablation was attempted.
+
+### The smoke run was dropped, deliberately
+
+The 6 August rule was a six-example smoke run before any long job. That rule was priced against a
+12-hour night. Gold-alone at 700 is 35 minutes on the GPU, so a separate config, results directory
+and step to protect it is ceremony. The same check ran against the first five records of the real
+run instead, one minute in: chunk counts of 2 to 4 rather than 10, and `evidence_present` True.
+
+**The condition attached to that shortcut** is that a kill requires deleting the results directory
+before restarting, or `has_result` silently preserves records made with the wrong retriever.
+
+### Tier 1 environment, checked but not started
+
+`pandas`, `lxml`, `bs4` and `html5lib` are **all absent** from this machine. Only numpy is
+installed. Install route is the same `--break-system-packages` used for numpy on 5 August, and it
+is needed **only on the Mac**, since `run.py` executes here and only the model call crosses the
+network to the PC.
+
+**A hint on §7.1 step 1, the `html_tables` to `context` mapping.** On the first report:
+283 context elements, 48 flagged `type: "table"`, and `html_tables` holds exactly 48 entries. If
+that count match holds across all 255 reports the mapping is ordinal and step 1 collapses to
+nothing. **One report proves nothing; the measurement across all 255 is the first Tier 1 task.**
+
+### What did not happen today
+
+**Tier 1 was not started.** The revised §12.2 plan gives 9 to 16 August to building pipeline
+modules, and on the 11th none exist. Today produced two diagnostic runs and a set of corrections
+to the documentation, all of which are useful and none of which is the pipeline.

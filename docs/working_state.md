@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 9 August 2026.
+Last updated: 11 August 2026.
 
 ---
 
@@ -1289,6 +1289,175 @@ the account usage page, which would replace all three.
   every cloud run. Add the 10 Aug reading of 115.42 CNY to `api_cost_tally.py:147`. Check
   DeepSeek's current CNY price list. Ask the professor for read access to the account usage page,
   which would replace all three.
+
+## Where things stand, 11 August
+
+Full narrative in the build log entry for 11 August. Two oracle retrievers built, one run
+finished, one running. **No pipeline module was built today**, which is the thing that matters
+against the 23 August freeze.
+
+### THE CAUSAL RETRIEVAL QUESTION IS ANSWERED, AND THE ANSWER IS PER SUBSET
+
+`paper_numbers.md` §5 has carried "better retrieval improves accuracy" as unestablished since the
+project began. Two oracle runs test it directly: put the gold evidence in the prompt instead of
+BM25's top ten.
+
+`results/gold_alone_3b_full700/`, **700 ok, 0 failed, 61.8 minutes.**
+
+                            condition 1   gold-alone
+    strict accuracy             61.4%        65.0%
+    FINDVER-compatible          62.1%        65.3%
+    unparseable                  1.1%         0.6%
+    evidence_present            52.0%       100.0%
+    prompt tokens, mean          3,731        1,124
+    wall clock                79.4 min     61.8 min
+
+**Overall it is a tie: +3.6 points, p = 0.116.** Do not write it as an improvement.
+
+**The average hides the result. Per subset, paired on the same claims:**
+
+    subset        n   cond1 only   gold only    net       p
+    ie          250           26          52    +26   0.004
+    knowledge   200           35          39     +4   0.728
+    numeric     250           43          38     -5   0.657
+    ALL         700          104         129    +25   0.116
+
+**FDV-IE gains 10.4 points, 60.8% to 71.2%, at p = 0.004**, which survives correcting for three
+subset tests. Knowledge and numeric move nothing and cancel it out.
+
+### Two documented claims are corrected by this
+
+**"The 3B cannot use evidence" is too strong and must be requalified.** This file and architecture
+plan §869 both assert it flatly from the 10 August observational -0.3. Given perfect evidence with
+distractors removed, the 3B uses it on extraction claims, significantly. **What survives:** no
+benefit on average, none at all on knowledge or numeric. **What is withdrawn:** the unqualified
+sentence, and with it the unqualified version of §5.2's "the 3B cannot do evidence-based
+judgment."
+
+**"FDV-KNOW is a retrieval problem" is falsified.** The 7-8 August entry inferred it from 26.5%
+all-gold recall. Perfect retrieval moved knowledge 2.0 points, p = 0.728. Low recall did not mean
+retrieval was the bottleneck.
+
+### Numeric got worse with perfect evidence. Second independent line for Tier 1.
+
+64.0% to 62.0%, not significant. Every gold number present, no distractors, no improvement. This
+agrees with the 10 August 7B result, where the entire remaining deficit was FDV-MATH.
+**Numeric is limited by arithmetic, not retrieval**, now measured two independent ways. Strongest
+case the project has for code execution being the right next module.
+
+### The entailed deficit survives perfect evidence
+
+                        condition 1   gold-alone
+    ALL entailed      204/350 58.3%  214/350 61.1%
+    ALL refuted       226/350 64.6%  241/350 68.9%
+    know entailed     51/100 51.0%   51/100 51.0%
+
+**`knowledge` entailed is 51/100 in both runs, exactly chance, with perfect evidence in hand.**
+The 10 August entry called the entailed miss rate the largest error pool in the project. Retrieval
+does not address it.
+
+### The knowledge gap: the honest position
+
+**Unknown, and today's run does not say. It only rules retrieval out.**
+
+**The cheapest thing that would answer it: read the 49 knowledge claims that are true, had every
+gold element in the prompt, and were still called refuted.** Retrieval is excluded by
+construction, so the failure is visible in the response text. No compute, no quota. The plan
+already requires >=25 hand-labelled failures per iteration. **Until they are read, "glossary" and
+"the model is too small" are equally unfalsified.**
+
+Candidates, with what the data says. **Glossary:** alive, since 51% on entailed with a refuted
+lean fits a model that cannot see implication without an accounting concept; against it, §7.4
+rates it the smallest expected gain of any tier. **Model capability:** strongest lever measured,
+the 7B scores 73.0% against the 3B's 59.0% and beats both cloud models here. **Escalate to
+cloud:** most on-thesis, cloud is 70.5%, but that is condition 4 work rather than a fix.
+
+**Headroom is bounded.** The best published 2024 model gets 75.5% on FDV-KNOW and everything above
+3B clusters at 70 to 75. Realistic target for a 3B is roughly 59 to 70, not 59 to 90.
+
+**Do not start a knowledge workstream now.** Tier 3, lowest priority, and Tier 1 has two
+independent lines pointing at it with 12 days to the freeze.
+
+### Gold-padded is running, and what it tests was written down first
+
+Gold-alone changed two things: gold present, and distractors gone. Padded changes only the first,
+holding chunk count and prompt size at condition 1's values.
+
+- If padded reproduces the ie gain, **gold presence** matters and better retrieval is worth
+  building.
+- If padded shows nothing, **distractor load** matters. The 3B can use evidence but cannot find it
+  among ten chunks, and §5.2's verifier row is salvageable by feeding it fewer chunks.
+
+**One inconsistency, accepted.** Gold-alone returns document order, padded returns score order, so
+`gold-alone - padded` moves ordering as well as distractor load. The `padded - condition 1`
+subtraction is unaffected. Re-running gold-alone in score order is 35 minutes if that becomes
+load-bearing.
+
+### NEW DATA TRAP 8: `relevant_context` is not a set
+
+Five of 700 claims repeat an index: `ie-val-193` (7, 8, 7), `numeric-val-36` (24, 24),
+`numeric-val-41` (30, 30), `numeric-val-139` (61, 61), `knowledge-val-20`
+(190, 188, 183, 192, 188). A retriever using `sorted(claim.relevant_context)` puts the same
+element in the prompt twice. Added to `CLAUDE.md`.
+
+**Recall figures are unaffected**, because `measure_recall.py:68` already stores gold as a
+`frozenset`. The distinct gold count is **1,959, not 1,964**, mean 2.80 rather than 2.81.
+
+**Repaired via resume**, by deleting the five affected result files and re-running: 5 recomputed,
+695 skipped, about fifteen seconds. The 8 August `qwen3:4b` trap used correctly for once.
+
+### MEASURED: the evidence asserter's false-positive rate on real retrieval is 1.6%
+
+347 claims where BM25 genuinely missed gold, but only 336 flagged `evidence_present: False`. On 11
+claims the asserter said the evidence arrived when the gold element was never retrieved.
+
+**The 2 August entry asked for this re-check**, having only the 0.7% adversarial-control figure.
+The real-retriever answer is **1.6%**.
+
+**Zero false negatives**, 353/353. The asymmetry the project relies on, that `False` is
+trustworthy, holds on real data.
+
+**Free precision upgrade:** §2.6.1's with-evidence split used this flag, so 11 claims are in the
+wrong bucket. That split can now be computed exactly from gold indices by set comparison.
+
+### Built today
+
+- `src/gold_retriever.py`, `src/gold_padded_retriever.py`, two entries in `run.py`'s `RETRIEVERS`,
+  and configs `gold_alone_3b_full700.json` and `gold_padded_3b_full700.json`.
+- Neither needed an interface change: `retrieve(claim, report, k)` already receives the claim.
+- **Five bugs caught in review before anything ran**, including a list alias that would have
+  written retrieved elements into the claim's answer key, and a duplicate guard that could never
+  fire because it compared a tuple to an integer. Full detail in the build log.
+
+### Tier 1 environment, checked not started
+
+**`pandas`, `lxml`, `bs4` and `html5lib` are all missing.** Only numpy is installed. Install with
+`pip3 install --break-system-packages pandas lxml`, **on the Mac only**, since `run.py` runs here
+and only the model call crosses the network.
+
+**Hint on §7.1 step 1.** First report: 283 context elements, 48 flagged `type: "table"`,
+`html_tables` holds exactly 48. If that count match holds across all 255 reports the mapping is
+ordinal and step 1 disappears. **One report proves nothing.** Measuring all 255 is the first Tier 1
+task and needs no model.
+
+### What to do next, in order
+
+1. **Read gold-padded when it finishes**, against the prediction above.
+2. **Install pandas and lxml.**
+3. **Measure the `html_tables` to `context` mapping across all 255 reports.** No model calls.
+4. **Then Tier 1 proper**, code execution and tables as DataFrames.
+5. Optional, GPU: k=20 at n=700, about 2.5 hours, to move the k ablation off the known-easy n=102.
+6. Deferred, no compute: read the 49 knowledge failures.
+
+### Still open, carried forward
+
+- `evidence_asserter.py:83`, the `check_overflow` docstring, still says `num_ctx` 16384.
+- Per-subset McNemar and the entailed/refuted split were computed by throwaway scripts.
+  `paper_numbers.md` rule 1 says a number enters the paper only when a committed script
+  reproduces it. **These need folding into `analyse_condition1.py` before they are cited.**
+- The 42% entailed miss rate still has no tier addressing it, and retrieval is now ruled out.
+
+---
 
 ---
 

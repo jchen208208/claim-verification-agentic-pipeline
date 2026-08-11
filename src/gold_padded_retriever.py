@@ -21,7 +21,7 @@ def retrieve(claim, report, k=TOP_K):
     returned_elements = [row for row in scored if row[1] in gold]  # every gold elment first
     non_gold_elements = [row for row in scored if row[1] not in gold]
 
-    while len(returned_elements) < TOP_K:
+    while len(returned_elements) < k:
         returned_elements.append(non_gold_elements.pop(0))
 
     # sort back into score ordered.

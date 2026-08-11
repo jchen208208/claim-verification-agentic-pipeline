@@ -741,6 +741,76 @@ The internal bars share retrieval, *k*, slice, prompt version, `num_ctx`, temper
 
 **Until that run exists, every accuracy sentence must be written as a tie**, with the direction reported and the significance denied.
 
+### 2.8 **[NEW 11 Aug 2026] ORACLE RETRIEVAL, n=700 — what perfect retrieval is worth, and it is not what the docs assumed**
+
+Reproduce with: `python3 test_scripts/analyse_condition1.py condition1_3b_full700 gold_alone_3b_full700`
+
+**The intervention.** Replace BM25's top ten with the claim's gold `relevant_context` elements. Everything else identical: same model, same prompt template, same seed, same machine, same 700 claims. `src/gold_retriever.py`. This is an **oracle and unachievable**, so every number here is a ceiling, not a system.
+
+| | condition 1 | gold-alone |
+|---|---|---|
+| strict accuracy | 61.4% | **65.0%** |
+| FINDVER-compatible | 62.1% | 65.3% |
+| unparseable | 1.1% | 0.6% |
+| evidence_present | 52.0% | **100.0%** |
+| prompt tokens, mean | 3,731 | **1,124** |
+| output tokens, mean | 416 | 389 |
+| wall clock | 79.4 min | 61.8 min |
+| extraction `anchored` | 690/700 | 695/700 |
+
+**The overall result is a TIE. +3.6 points, McNemar p = 0.116**, on 461/700 agreement with 104 to condition 1 and 129 to gold-alone. **Never write "perfect retrieval improves accuracy" from this table.**
+
+#### Per subset, and this is where the result is
+
+| subset | n | cond1 only | gold only | net | p |
+|---|---|---|---|---|---|
+| ie | 250 | 26 | 52 | **+26** | **0.004** |
+| knowledge | 200 | 35 | 39 | +4 | 0.728 |
+| numeric | 250 | 43 | 38 | −5 | 0.657 |
+| ALL | 700 | 104 | 129 | +25 | 0.116 |
+
+**FDV-IE gains 10.4 points, 60.8% → 71.2%, p = 0.004.** Survives Bonferroni across three subset tests (0.004 × 3 = 0.012). The overall tie is this gain being cancelled by the other two subsets.
+
+**These two runs genuinely differ**, agreeing on 65.9% against the 89.2% agreement of two identical re-runs (§2.3.2), so the intervention moved far more than noise moves.
+
+#### What this establishes, and what it retires
+
+**Establishes, and §5 can drop one entry:** the causal direction of retrieval on accuracy, for the first time in the project, because this is an intervention rather than the confounded observational split of §2.6.1. **It is subset-specific, not general.**
+
+**Retires two documented claims.**
+
+1. **"The 3B cannot use evidence" (§2.6.1, architecture plan §869) is too strong.** Supportable version: *"the 3B gains nothing on average from having the gold evidence present, and nothing at all on FDV-KNOW or FDV-MATH, but gains 10.4 points on FDV-IE when the evidence is present and the distractors are removed."*
+2. **"FDV-KNOW is a retrieval problem" (7–8 Aug) is falsified.** Inferred from 26.5% all-gold recall; perfect retrieval moves it 2.0 points at p = 0.728.
+
+#### Numeric got worse, and it is the second independent line for Tier 1
+
+64.0% → 62.0%, not significant. **Agrees with §2.6.3**, where the 7B's entire remaining deficit against cloud was FDV-MATH, 68.0 vs 79.2. Two independent measurements now say FDV-MATH is limited by arithmetic rather than retrieval.
+
+#### Entailed/refuted, and the worst cell in the project
+
+| | condition 1 | gold-alone |
+|---|---|---|
+| ALL entailed | 204/350 58.3% | 214/350 61.1% |
+| ALL refuted | 226/350 64.6% | 241/350 68.9% |
+| ie entailed | 81/125 64.8% | 93/125 74.4% |
+| ie refuted | 71/125 56.8% | 85/125 68.0% |
+| know entailed | 51/100 51.0% | **51/100 51.0%** |
+| know refuted | 67/100 67.0% | 71/100 71.0% |
+| num entailed | 72/125 57.6% | 70/125 56.0% |
+| num refuted | 88/125 70.4% | 85/125 68.0% |
+
+**`knowledge` entailed is 51/100 in both runs — identical, and exactly chance — with perfect evidence in hand.** §2.6.1 named the entailed miss rate the largest single error pool in the project. **Retrieval does not address it**: 39% of true claims are still missed with all the gold present.
+
+**The ie gain is symmetric**, +9.6 entailed and +11.2 refuted, so it is genuine improvement rather than a shifted decision threshold.
+
+#### Deployment note
+
+Prompt tokens fall 3,731 → 1,124, a 70% reduction, and wall clock 79.4 → 61.8 min. Since §3.1 makes prompt size the whole cost model, **perfect retrieval is a latency result as well as an accuracy one** — but it is an oracle, so this bounds what retrieval work could buy rather than reporting an achieved figure.
+
+#### REPRODUCIBILITY DEBT — read before citing
+
+`analyse_condition1.py` reproduces the headline table, the per-subset accuracies and the overall paired p. **The per-subset McNemar table and the entailed/refuted table above were produced by throwaway scripts.** Rule 1 of this document says a number enters the paper only when a committed script reproduces it. **Fold both into `analyse_condition1.py` before either is cited.**
+
 ---
 
 ## 3. Deployment cost
