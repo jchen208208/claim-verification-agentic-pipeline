@@ -1120,13 +1120,22 @@ The phrase in §5.3 was never pinned to an axis, and the n=700 numbers made that
 whole cloud-only baseline over 700 claims cost $0.626.** No paper is carried by saving two dollars.
 Full statement now in architecture plan **§5.3.1** and paper numbers **§3.5**.
 
-**Two comparisons, two axes, do not mix them.**
+**Two comparisons. One axis is solid, the other is a hole.**
 
-- **Condition 4 vs condition 3.** Both use cloud, so memory does not separate them. The axis is
-  **cloud calls and tokens per claim**, reported as a ratio. Dollars illustrate it, they are not
-  the claim.
-- **Ours vs MACE.** The axis is **resident parameters**. MACE's smallest configuration is 27B held
-  in memory. Ours is 3B plus an API. **This is the on-device claim and it is the strong one.**
+- **Ours vs MACE. SOLID.** MACE self-hosts every role and its smallest configuration needs **27B
+  resident**, which this machine cannot hold. Ours is **3B plus an API**. Resident parameters and
+  laptop feasibility are both legitimate here, precisely because MACE uses no cloud at all.
+- **Condition 4 vs condition 3. A HOLE, found 10 Aug.** Memory does not merely fail to separate
+  them, **it runs the wrong way. Condition 3 keeps ZERO parameters on the device**, since the cloud
+  plays every role and the laptop only orchestrates. Condition 4 must hold 3B resident. Both run on
+  a laptop. **Condition 3 wins on memory and ties on portability.** What is left is cloud calls and
+  tokens per claim, which is under $3 of money and some data sent to a third party. **This is the
+  weakest point in the contribution statement. Take it to the professor, do not write around it.**
+
+**Fallback if that stays empty.** Report **beating condition 2 at 77.0% as a headline result in its
+own right**, then present the rest as a study of where the line between the two models can be
+drawn. §9.2's "beating condition 2 is a bonus" governs what leads the abstract. **It is not a
+reason to omit the result**, and these docs previously read it that way.
 
 **The goal, stated so it stops drifting:**
 
@@ -1145,6 +1154,64 @@ laptop. Name the machine or do not make the claim.
 
 **The deliverable is the routing curve, not a single ratio.** Condition 1 is never-escalate,
 condition 3 is always-escalate, Tier 5 sweeps between. **The knee of that curve is the result.**
+
+## THE 7B IS MEASURED AT n=700: 72.4%. The strengths are opposite to cloud.
+
+`condition1_7b_full700`, **700 ok, 0 failed, 160.1 min, 13.7 s per claim**, 2.0x the 3B.
+
+                        3B       7B      pro    flash
+    strict           61.4%    72.4%    77.3%    77.0%
+    predicted True 324/700  353/700  213/700  217/700   (gold 350)
+    s per claim         6.8     13.7     23.2     12.7
+
+    ie               60.8%    76.4%    80.8%    80.4%
+    knowledge        59.0%    73.0%    70.5%    70.5%
+    numeric          64.0%    68.0%    79.2%    78.8%
+
+    correct entailed    204      257      203      203   (of 350)
+    correct refuted     226      250      338      336
+
+**The 7B closes 11.0 of the 15.9 points**, and is now only just behind cloud, p = 0.027 vs pro.
+
+**It beats both frontier cloud models on entailed claims by 54 claims**, 73.4% against 58.0%, and
+loses on refuted. **The local and cloud models fail on disjoint parts of the task.** The 7B is also
+the best calibrated of the four.
+
+**WITHDRAWN, written earlier today:** "every model misses about 42% of entailed claims." True of
+the 3B and both cloud models, **false of the 7B**, which misses 26.6%. Caught before the email went.
+
+**The 7B beats cloud on FDV-KNOW and its whole remaining deficit is FDV-MATH**, 68.0 against 79.2.
+**Arithmetic is what is left, which is what Tier 1's code execution builds to fix.** Strongest
+argument the project has produced for the pipeline being worth building.
+
+**The 7B also uses the evidence and the 3B does not:** 75.3% with against 69.3% without, a gain of
+6.0 points, where the 3B is −0.3. **Evidence use appears somewhere between 3B and 7B.**
+
+**The speed argument dies at 7B.** 13.7 s per claim against flash's 12.7. Only the 3B at 6.8 s is
+faster than the cloud, so any latency claim is a 3B claim.
+
+### ROUTING: the oracle is big, every rule we can implement is a tie
+
+Full version in paper numbers **§2.6.4**. You cannot route on entailed versus refuted, because you
+do not know which it is. Measured instead of argued.
+
+    per-claim oracle, whichever model is right      90.9%
+    route by subset, FDV-KNOW local                 78.0%   <- test-set selection, not a result
+    pro alone                                       77.3%
+    trust pro's entailed verdict, else 7B           76.3%
+    trust the 7B's refuted verdict, else pro        73.9%
+
+**Disagreement carries no information.** Where the 7B says entailed and pro says refuted, 179
+claims, **49% are truly entailed. A coin flip.**
+
+**One strong asymmetry, unanticipated:** pro is **95.3% right when it says entailed** and only
+69.7% when it says refuted. **The pipeline should spend its effort on claims the cloud calls
+refuted.**
+
+**THE REFRAMING, and it is the usable finding.** The two models **agree on 468 claims and are 88.0%
+accurate there**, and **disagree on 232, where pro gets 55.6%**. **Condition 4's job is not routing.
+It is beating 55.6% on those 232 claims.** A fifth of the benchmark, a concrete target, and a
+better statement of the job than "match condition 3."
 
 ### The bar condition 4 has to clear, and the API spend so far
 
@@ -1191,16 +1258,19 @@ the account usage page, which would replace all three.
 
 1. ~~**Read both condition 2 results at 700.**~~ **DONE 10 Aug.** See above.
 2. ~~**Back up `results/`.**~~ **DONE 10 Aug**, `~/findver_results_20260810.tgz`, 14 MB.
-3. **RUN `qwen2.5-coder:7b` AT 700.** **IN FLIGHT as of 10 Aug.** `configs/condition1_7b_full700.json`.
-   No pull was needed, the model was already on the GPU box at 4.7 GB. **Measured at 218 claims:
-   13.6 s per claim, exactly 2.0x the 3B, projecting 2.6 hours total.** 218 ok, 0 failed.
-   **It answers the objection the professor is most likely to open with: why not just run a bigger
-   local model instead of building a pipeline.**
-4. **Email the professor.** The gap is now a real number and there is more than good news to
-   report: the n=102 baseline was overstated by 5.3 points, three documented claims were falsified
-   on 9 August, and verdicts move on about one claim in ten between identical runs. That last one
-   shapes the pipeline design he wants to discuss. Propose times in both zones.
-5. **Create the Overleaf project and share it** (§14 item 13). Carried from 9 August.
+3. ~~**RUN `qwen2.5-coder:7b` AT 700.**~~ **DONE 10 Aug. 72.4%, 700 ok, 160.1 min.** No pull was
+   needed. See the 7B section above. **It answers the objection the professor was most likely to
+   open with, and the answer is more interesting than expected:** a bigger local model closes two
+   thirds of the gap, beats cloud on entailed claims and on FDV-KNOW, and its whole remaining
+   deficit is arithmetic, which is what Tier 1 builds to fix.
+4. ~~**Email the professor.**~~ **DONE 10 Aug**, plus a same-day follow-up carrying the 7B result
+   and correcting one sentence in the first email. The withdrawn sentence was "every model misses
+   about 42 percent of entailed claims," which the 7B falsified hours after it was sent.
+5. ~~**Create the Overleaf project and share it**~~ **DONE 10 Aug**, NeurIPS 2026 template,
+   `\usepackage[dblblindworkshop]{neurips_2026}` (option 6, workshop with double-blind review, not
+   the default `main`). Shared with him and the link went out in the first email. **Two things
+   still owed inside it:** `\@workshoptitle` is unset, and `checklist.tex` is the main-conference
+   questionnaire, which the workshop probably does not require.
 6. ~~**Update the docs with condition 2 at 700.**~~ **DONE 10 Aug**, this section plus
    `build_log.md` and `paper_numbers.md` §2.6.1, §2.7, §3.4.
 7. Optional if the GPU is idle later: `qwen2.5:3b` at 700, about 90 minutes, to settle the Coder
@@ -1209,8 +1279,9 @@ the account usage page, which would replace all three.
 ### Still open, carried
 
 - `evidence_asserter.py:83`, the `check_overflow` docstring, still says `num_ctx` 16384.
-- A DHCP reservation for the brother's PC would stop the IP moving. Ten minutes in the router.
-  It was still at 10.0.0.26 on 10 August.
+- ~~A DHCP reservation for the brother's PC would stop the IP moving.~~ **DECLINED 10 Aug.** If the
+  IP moves, edit `ollama_host` in the affected configs. The address held all day on 10 August. The
+  risk accepted is losing one overnight run to a silent failure at claim 1.
 - `run.py` prints the `client` line after the blank line that ends the banner. Cosmetic.
 - **No tier addresses the 42% of entailed claims every model misses.** Not a task yet, but it
   should become one before the ablation is designed.

@@ -848,11 +848,15 @@ The **routing policy** — when does edge escalate to cloud? — is a knob, not 
 
 **There are two different comparisons in this project and they need different axes. Conflating them is what made the phrase feel empty.**
 
-**Comparison A — condition 4 against condition 3** (our pipeline against the all-cloud pipeline). Both use cloud, so resident memory does not separate them. The axis is **how much cloud each consumes per claim**: cloud calls, and tokens sent. Report the ratio; the dollar figure illustrates it and is not the claim.
+**Comparison A — condition 4 against condition 3** (our pipeline against the all-cloud pipeline). **[SHARPENED 10 Aug 2026, and this is a problem, not a clarification.]** Resident memory does not merely fail to separate them, **it runs the wrong way. Condition 3 keeps zero model parameters on the device**, since the cloud plays every role and the laptop only orchestrates. Condition 4 must hold 3B resident. **On memory, condition 3 beats condition 4. On "runs on a laptop," they tie, because both do.**
 
-**Comparison B — our approach against MACE** (§6.1). Here the axis is **resident parameters**, and the number already exists. MACE's *smallest* configuration is 27B of weights held in memory. Ours is 3B local plus an API. That is the on-device claim.
+What is left is **how much cloud each consumes per claim**: calls, and tokens sent. That converts to money, which is under $3 across the whole project, and to data sent to a third party, which nobody has asked us about. **This is thin, and it is the weakest point in the contribution statement.** It is open question material for the professor, not something to write around.
+
+**Comparison B — our approach against MACE** (§6.1). **This one is solid and is unaffected by the above.** MACE self-hosts every role, and its *smallest* configuration needs **27B of weights resident**. Ours is 3B plus an API call. Their smallest configuration cannot run on this machine; ours does. **Resident parameters and laptop feasibility are legitimate claims here precisely because MACE uses no cloud at all.** This is the on-device claim and it survives everything in Comparison A.
 
 These are separate sentences in the paper. Neither is "we spent less money."
+
+**The fallback, if Comparison A stays empty.** If nothing meaningful separates condition 4 from condition 3, the honest paper reports **beating condition 2 at 77.0% as a headline result in its own right** — a pipeline doing part of its work with a 3B model on a laptop beating a frontier cloud model used the obvious way — and presents the rest as a study of **where the line between the two models can be drawn**. §9.2's "beating condition 2 is a bonus" governs what leads the abstract. **It is not a reason to omit the result**, and an earlier reading of it in this document treated it that way.
 
 #### The goal, stated so it does not drift again
 

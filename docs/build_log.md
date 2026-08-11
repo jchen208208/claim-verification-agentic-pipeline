@@ -3507,6 +3507,28 @@ of the cost" without saying which cost, and the honest dollar figure is **$0.626
 cloud-only baseline over 700 claims**, or $0.00089 per claim. Halving the cloud calls saves under a
 dollar across the whole benchmark.
 
+**[SHARPENED later the same day, by his objection, and it is worse than the first pass said.]** The
+first version of §5.3.1 recorded that resident memory "does not separate" conditions 3 and 4. **That
+was too kind. It runs the wrong way.** Condition 3 keeps **zero** model parameters on the device,
+because the cloud plays every role and the laptop only orchestrates, while condition 4 must hold 3B
+resident. Both run on a laptop. **So condition 3 beats condition 4 on memory and ties on
+portability.** The two axes that felt strongest are the two that fail.
+
+What survives against condition 3 is cloud calls and tokens per claim, which converts to under $3
+of money and to data sent to a third party that nobody asked about. **This is the weakest point in
+the contribution statement and it should be put to the professor rather than written around.**
+
+**The MACE comparison is untouched and remains solid**, precisely because MACE uses no cloud at
+all: its smallest configuration needs 27B resident, which this machine cannot hold, against our 3B
+plus an API. Resident parameters and laptop feasibility are legitimate there.
+
+**A framing correction that came out of the same exchange.** §9.2's "beating condition 2 is a
+bonus" was being read as a reason to downplay the result. It is not. It governs what leads the
+abstract. **If condition 4 beats 77.0%, that is a headline result in its own right** — a pipeline
+doing part of its work with a 3B model on a laptop beating a frontier cloud model used the obvious
+way is a real finding for this venue. The fallback paper, if nothing separates condition 4 from
+condition 3, is that result plus a study of where the line between the two models can be drawn.
+
 Resolved into **§5.3.1** of the architecture plan and **§3.5** of paper numbers:
 
 - **Condition 4 vs condition 3** → cloud calls and tokens per claim, as a ratio.
@@ -3524,10 +3546,91 @@ use and remains untested. The 5 August run is direct evidence the 3B is good at 
 claims, mean 3.94 sub-claims, zero parse failures, numbers and dates preserved exactly — and it is
 a rewriting job, not a judgment job, so today's evidence-blindness finding does not touch it.
 
+### The 7B at 700: two thirds of the gap closed, and the strengths turn out to be opposite
+
+`condition1_7b_full700`, **700 ok, 0 failed, 160.1 minutes, 13.7 s per claim**, exactly 2.0x the 3B.
+
+                        3B       7B      pro    flash
+    strict           61.4%    72.4%    77.3%    77.0%
+    predicted True 324/700  353/700  213/700  217/700   (gold 350)
+    s per claim         6.8     13.7     23.2     12.7
+
+    ie               60.8%    76.4%    80.8%    80.4%
+    knowledge        59.0%    73.0%    70.5%    70.5%
+    numeric          64.0%    68.0%    79.2%    78.8%
+
+**The 7B closes 11.0 of the 15.9 points** and is now only just behind cloud, p = 0.027 against pro
+and p = 0.040 against flash, where the 3B was p < 0.001.
+
+**The finding that matters is the confusion split.**
+
+                        3B       7B      pro    flash
+    correct entailed    204      257      203      203    (of 350)
+    correct refuted     226      250      338      336
+
+**The 7B beats both frontier cloud models on entailed claims by 54 claims**, 73.4% against 58.0%,
+and loses on refuted, 250 against 338. **The local and cloud models fail on disjoint parts of the
+task.** The 7B is also the best calibrated of the four, predicting entailed 353 times against a
+true 350.
+
+**This falsifies a claim written earlier today** and caught before the email went out. "Every model
+misses about 42 percent of entailed claims" was true of the 3B and both cloud models and is false
+of the 7B, which misses 26.6%.
+
+**Two consequences.** The 7B beats cloud on FDV-KNOW and its whole remaining deficit is FDV-MATH,
+68.0 against 79.2. **Arithmetic is what is left, which is precisely what Tier 1's code execution
+builds to fix.** And the speed argument does not survive at 7B: 13.7 s per claim against flash's
+12.7. Only the 3B at 6.8 s is faster than the cloud.
+
+### Routing: the oracle is large, every rule we can actually implement is a tie
+
+Raised as an objection, and the right one: you cannot route on entailed versus refuted because you
+do not know which it is. Measured rather than argued.
+
+**Oracle bounds, neither reachable.** Routing by true label gives 595/700 = 85.0%. The standard
+per-claim oracle, whichever model is right, gives **636/700 = 90.9%**. An earlier line in this
+session quoted 85% as "the oracle" without distinguishing the two.
+
+**Disagreement carries almost no information.** Where the 7B says entailed and pro says refuted,
+179 claims, **49% are truly entailed. A coin flip exactly.** The reverse case is 38 claims at 16%.
+
+**One asymmetry is strong and nothing anticipated it:**
+
+    pro says entailed   203/213 right   95.3%
+    pro says refuted    338/485 right   69.7%
+    7B  says entailed   257/353 right   72.8%
+    7B  says refuted    250/334 right   74.9%
+
+**When the cloud model says entailed it is right 95 times in 100; when it says refuted, 70.** The
+pipeline should spend its effort on claims the cloud calls refuted.
+
+**Rules actually scored:** subset routing 78.0%, pro-entailed-else-7B 76.3%, 7B-refuted-else-pro
+73.9%, against pro alone at 77.3%. **Only subset routing wins, by 0.7 points, which is inside the
+one-claim-in-ten noise floor. It is a tie.** And it is **test-set selection**: "FDV-KNOW goes
+local" was chosen after seeing which subset the 7B won, on the same claims it is scored on, which
+is the ground §1.6 used to reject the tuned fusion gain. Not a result.
+
+**The usable reframing.** The two models **agree on 468 claims and are 88.0% accurate there**, and
+**disagree on 232, where pro gets 55.6%**. **Condition 4's job is not routing. It is beating 55.6%
+on those 232 claims.** Agreement settles the rest. That is a fifth of the benchmark and a concrete
+target, and it is a better statement of the pipeline's job than "match condition 3."
+
+Recorded in paper numbers §2.6.3 and §2.6.4.
+
+### A false alarm worth recording, because it cost two minutes and could have cost a night
+
+The four-way table showed the 7B with 1.9% unparseable but **zero** claims in the `none` extraction
+bucket, which looked like a counting bug. It is not. `label_extractor.py:56` returns
+`(None, "hedged")` deliberately: when a verdict word appears behind a hedge, the extractor refuses
+to guess rather than coercing a default. **`hedged` and `none` are both unparseable, for different
+reasons**, and the accuracy numbers were never affected. Only the report's presentation is
+misleading, since it lists `hedged: 13` in a row that reads like successes. Worth a column split in
+`analyse_condition1.py`.
+
 ### Housekeeping
 
 - `results/` backed up to `~/findver_results_20260810.tgz`, 14 MB. It is gitignored and
-  `condition1_3b_full700` exists in exactly one place.
+  `condition1_3b_full700` exists in exactly one place. **Re-run the backup, it predates the 7B.**
 - The 9 August "Owed, carried forward" note above is **stale**: `test_scripts/analyse_condition1.py`
   does exist and produced every table in this entry. It was written later the same night.
 - `qwen2.5-coder:7b` is **already on the GPU box**, 4.7 GB, pulled on 10 August. The plan's

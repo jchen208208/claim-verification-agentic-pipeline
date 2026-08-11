@@ -604,6 +604,94 @@ At n=700 the cloud models predict entailed **30.4%** and **31.0%** of the time a
 
 **Regenerating command:** `python3 test_scripts/analyse_condition1.py condition1_3b_full700 condition2_deepseek_pro_full700 condition2_deepseek_flash_full700`. The confusion and evidence-split tables are not in that script yet and were computed inline; folding them in is owed under rule 1.
 
+### 2.6.3 **[NEW 10 Aug 2026] CONDITION 1 AT 7B, n=700 — the local model closes two thirds of the gap, and the strengths are opposite**
+
+`configs/condition1_7b_full700.json`, `qwen2.5-coder:7b`, BM25 k=10, identical prompts to the 3B run. **700 ok, 0 failed, 160.1 minutes, 13.7 s per claim, exactly 2.0x the 3B.**
+
+| | 3B | **7B** | pro | flash |
+|---|---|---|---|---|
+| **strict accuracy** | 61.4% | **72.4%** | 77.3% | 77.0% |
+| FINDVER-compatible | 62.1% | 73.3% | 77.6% | 77.0% |
+| unparseable | 1.1% | 1.9% | 0.3% | 0.0% |
+| predicted True | 324/700 | **353/700** | 213/700 | 217/700 |
+| output tokens, mean | 416 | 452 | 1,446 | 1,463 |
+| seconds per claim | 6.8 | 13.7 | 23.2 | 12.7 |
+
+**The 7B closes 11.0 of the 15.9 point gap.** It remains significantly behind cloud, but only just: **p = 0.027 against pro and p = 0.040 against flash**, against p < 0.001 for the 3B.
+
+#### The strengths are opposite, and this is the most useful thing measured on 10 August
+
+| correct on (of 350) | 3B | **7B** | pro | flash |
+|---|---|---|---|---|
+| entailed claims | 204 | **257** | 203 | 203 |
+| refuted claims | 226 | 250 | **338** | 336 |
+| false positives | 120 | 96 | 10 | 14 |
+| false negatives | 142 | 84 | 147 | 147 |
+
+**The 7B beats both frontier cloud models on entailed claims by 54 claims**, 73.4% against 58.0%. It loses on refuted, 250 against 338. **Supportable: "the local and cloud models fail on disjoint parts of the task."**
+
+**This falsifies a claim written earlier the same day.** "Every model misses about 42 percent of entailed claims" was true of the 3B and both cloud models and is **false of the 7B**, which misses 26.6%.
+
+**The 7B is also the best calibrated of the four.** It predicts entailed 353 times against a true 350. The cloud models predict 213 and 217.
+
+#### Per subset: the remaining gap is almost entirely arithmetic
+
+| subset | 3B | **7B** | pro |
+|---|---|---|---|
+| FDV-IE | 60.8% | 76.4% | 80.8% |
+| FDV-KNOW | 59.0% | **73.0%** | 70.5% |
+| FDV-MATH | 64.0% | **68.0%** | 79.2% |
+
+**The 7B beats cloud on FDV-KNOW.** Its deficit is FDV-MATH, 68.0 against 79.2. **Arithmetic is what is left, and code execution is exactly what Tier 1 builds to fix it.** This is the strongest argument the project has produced for the pipeline being worth building.
+
+#### The speed argument does not survive at 7B
+
+**13.7 s per claim against flash's 12.7.** A 7B-based pipeline is not faster than the cloud. Only the 3B at 6.8 s is. Any latency claim in §3.5 is a 3B claim, not a local-model claim.
+
+### 2.6.4 **[NEW 10 Aug 2026] ROUTING: the oracle is large, every implementable rule tested is a tie, and the real target is the disagreement set**
+
+Prompted by the correct objection that you cannot route on the label because you do not know it. Measured on the 7B and pro runs over the same 700 claims.
+
+**Two oracle bounds, neither reachable.** Routing by true label, entailed to the 7B and refuted to pro, gives 595/700 = **85.0%**. The standard per-claim oracle, taking whichever model is right, gives 636/700 = **90.9%**. Quote 90.9% and say plainly that it requires knowing the answer.
+
+#### Disagreement carries almost no information
+
+| disagreement | claims | truth |
+|---|---|---|
+| 7B entailed, pro refuted | 179 | **49% truly entailed** |
+| 7B refuted, pro entailed | 38 | 16% truly refuted |
+
+**49% is a coin flip exactly.** The intuitive rule, believe whichever model is better at the verdict it gave, does not work on the large disagreement class.
+
+#### One asymmetry is strong and was not anticipated
+
+| | says entailed | says refuted |
+|---|---|---|
+| **pro** | **95.3% right** (203/213) | 69.7% right (338/485) |
+| 7B | 72.8% right (257/353) | 74.9% right (250/334) |
+
+**When the cloud model says entailed, it is right 95 times in 100. When it says refuted, only 70.** Nothing in the plan anticipated this. **Design consequence: the pipeline should spend its verification effort on claims the cloud calls refuted, and can largely accept the entailed ones.**
+
+#### What implementable rules actually score
+
+| rule | accuracy | share done locally |
+|---|---|---|
+| pro alone | 77.3% | 0% |
+| route by subset, FDV-KNOW to the 7B | 78.0% | 29% |
+| trust pro's entailed verdict, else 7B | 76.3% | — |
+| trust the 7B's refuted verdict, else pro | 73.9% | — |
+| per-claim oracle | 90.9% | — |
+
+**Only subset routing beats pro, by 0.7 points, which is inside the one-claim-in-ten noise floor (§2.3.2). It is a tie.**
+
+**[TEST-SET SELECTION WARNING] The 78.0% is not a legitimate result.** "FDV-KNOW goes local" was chosen *after* seeing which subset the 7B won, on the same 700 claims it is scored on. That is the ground §1.6 used to reject the tuned fusion gain. **Treat it as a hypothesis requiring a held-out test, not a number for the paper.**
+
+#### The reframing, and this is the usable finding
+
+The two models **agree on 468 claims and are 88.0% accurate there**. They **disagree on 232**, where pro gets 129 right, **55.6%**.
+
+**The pipeline does not need to route. It needs to beat 55.6% on the 232 claims where the two models disagree.** Agreement settles the rest. That is a concrete target, it is a fifth of the benchmark, and it is where code execution, table lookups and decomposition would have to earn their place. **This is a better framing of condition 4's job than "match condition 3."**
+
 ### 2.6.2 **[NEW 10 Aug 2026] The bar condition 4 has to clear, and how to write the sentence if it clears it**
 
 Beating 77.0% **is** worth reporting. This section fixes what it would mean so the claim is written correctly the first time.
@@ -794,12 +882,16 @@ Full statement of the goal in architecture plan §5.3.1. This section holds the 
 
 #### Two comparisons, two different axes. Do not mix them.
 
-| comparison | what differs | the axis | number available? |
-|---|---|---|---|
-| **cond 4 vs cond 3** | how much cloud is used | cloud **calls and tokens per claim**, as a ratio | not yet, needs the pipeline |
-| **ours vs MACE** | what must be resident on the device | **resident parameters** | yes: 27B vs 3B + API |
+| comparison | the axis | resident params | runs on a laptop | verdict |
+|---|---|---|---|---|
+| **cond 4 vs cond 3** | cloud calls and tokens per claim | **cond 3 = 0, cond 4 = 3B** | both do | **memory runs the WRONG way** |
+| **ours vs MACE** | resident parameters | ours 3B, MACE 27B | only ours | **solid** |
 
-Condition 3 and condition 4 both use cloud, so resident memory does not separate them. MACE's smallest configuration is 27B of weights held in memory (§3.3); ours is 3B local plus an API call. **That is the on-device claim, and it is the strong one.**
+**[SHARPENED 10 Aug 2026.] Against condition 3, memory is not neutral, it is against us.** Condition 3 keeps **zero** model parameters on the device, because the cloud plays every role and the laptop only orchestrates. Condition 4 must hold 3B resident. Both run on a laptop. **So condition 3 wins on memory and ties on portability.** What remains is cloud calls and tokens per claim, which converts to money (under $3 across the project) and to data sent to a third party (unasked-for). **This is the weakest point in the contribution statement and belongs in front of the professor, not written around.**
+
+**Against MACE the claim is solid and untouched by the above**, precisely because MACE uses no cloud at all. Its smallest configuration needs 27B of weights resident (§3.3), which this machine cannot hold; ours is 3B plus an API call. **Resident parameters and laptop feasibility are both legitimate here.**
+
+**Fallback if the condition 3 comparison stays empty.** Report **beating condition 2 at 77.0% as a headline result in its own right**, since a pipeline doing part of its work with a 3B model on a laptop beating a frontier cloud model used the obvious way is a real finding for this venue. Then present the rest as a study of **where the line between the two models can be drawn**. §9.2's "beating condition 2 is a bonus" governs what leads the abstract; **it is not a reason to omit the result**, and this document previously read it that way.
 
 #### Latency reverses with the machine, so it cannot be the headline
 
