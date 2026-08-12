@@ -1539,7 +1539,7 @@ Post-processing was never tried. About an hour to find out, if the sandbox lands
 ### The mapping question is closed, and the scale rule is decided
 
 **Ordinal.** Table count equals `len(html_tables)` on 255/255 reports, and numeric content aligns
-at 0.940 against 0.191 for the neighbouring table. §7.1 step 1 is one line.
+at 0.946 against 0.195 for the neighbouring table. §7.1 step 1 is one line.
 
 **Scale is metadata, never multiplication.** Across 9,432 real data tables the phrase is findable
 44.6% of the time, almost always inside the table itself. **19.5% of those carry a carve-out**,

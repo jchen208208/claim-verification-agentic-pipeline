@@ -4045,8 +4045,8 @@ instead of k=20 at 700**, which only re-answers at n=700 what n=102 already answ
 ### The mapping question is closed: it is ordinal
 
     count of type=="table" == len(html_tables)      255 / 255 reports
-    numeric content, context[i] vs html_tables[i]   0.940
-    same, vs html_tables[i+1]  (control)            0.191
+    numeric content, context[i] vs html_tables[i]   0.946
+    same, vs html_tables[i+1]  (control)            0.195
 
 The shifted control is what rules out coincidence. §7.1 step 1 called this "the first task of the
 module" and it collapses to one line:

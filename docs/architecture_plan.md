@@ -1064,7 +1064,7 @@ Positions FINDVER/FISCAL as classification-framed. Useful for related-work posit
 > data tables round-trip their numbers perfectly**, so about a third lose data silently.
 >
 > **Step 1 is confirmed and is trivial.** The mapping is ordinal: the table count equals
-> `len(html_tables)` on 255/255 reports, and numeric content aligns at 0.940 against 0.191 for the
+> `len(html_tables)` on 255/255 reports, and numeric content aligns at 0.946 against 0.195 for the
 > neighbouring table. One line, not a task.
 >
 > **Step 2's scaling trap is confirmed and its remedy is decided.** The phrase is findable on 44.6%

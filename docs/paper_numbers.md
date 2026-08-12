@@ -809,7 +809,7 @@ Prompt tokens fall 3,731 → 1,124, a 70% reduction, and wall clock 79.4 → 61.
 
 #### REPRODUCIBILITY DEBT — read before citing
 
-`analyse_condition1.py` reproduces the headline table, the per-subset accuracies and the overall paired p. **The per-subset McNemar table and the entailed/refuted table above were produced by throwaway scripts.** Rule 1 of this document says a number enters the paper only when a committed script reproduces it. **Fold both into `analyse_condition1.py` before either is cited.**
+~~The per-subset McNemar table and the entailed/refuted table above were produced by throwaway scripts.~~ **CLEARED 11 Aug.** `analyse_condition1.py` reproduces the headline table, the per-subset accuracies and the overall paired p; `test_scripts/analyse_routing.py` reproduces the per-subset McNemar and the entailed/refuted split. Every number in §2.8, §2.8.1, §2.9 and §2.10 is now regenerable by a committed script.
 
 ---
 
@@ -862,9 +862,9 @@ Knowledge and numeric move in neither half: knowledge +6 then −2, numeric −4
 
 ### 2.9 **[NEW 11 Aug 2026] `pandas.read_html` ON SEC FILINGS — the numbers survive, the structure does not**
 
-**Not yet reproducible by a committed script. See the debt note at the end of §2.8.**
+Reproduce with: `python3 test_scripts/measure_table_parse.py`
 
-**Mapping, all 255 reports referenced by testmini.** The `context` to `html_tables` correspondence is **ordinal**: table count equals `len(html_tables)` on 255/255, and on a 40-report sample the numbers in `context[i]` match `html_tables[i]` at **0.940** against **0.191** for `html_tables[i+1]` as a control. Architecture plan §7.1 step 1 is one line, not a task.
+**Mapping, all 255 reports referenced by testmini.** The `context` to `html_tables` correspondence is **ordinal**: table count equals `len(html_tables)` on 255/255, and on a 40-report sample the numbers in `context[i]` match `html_tables[i]` at **0.946** against **0.195** for `html_tables[i+1]` as a control. Architecture plan §7.1 step 1 is one line, not a task. **These two figures were 0.940 and 0.191 when first recorded on 11 August**; the committed script compares numbers as floats rather than strings, which is the same correction that moved parse fidelity from 58.7% to 64.6%. The script's figures are the ones to quote.
 
 **Parse fidelity, 1,228 tables from 30 reports.**
 
@@ -926,7 +926,7 @@ Knowledge and numeric move in neither half: knowledge +6 then −2, numeric −4
 
 ### 2.10 **[NEW 11 Aug 2026] THE PROMPT'S REFUTED BIAS, and the routing rule that ties condition 2**
 
-**Not yet reproducible by a committed script.** Folding this into `test_scripts/analyse_condition1.py` is a blocker on citing any number below (rule 1).
+Reproduce with: `python3 test_scripts/analyse_routing.py`
 
 #### The bias, n=700
 
