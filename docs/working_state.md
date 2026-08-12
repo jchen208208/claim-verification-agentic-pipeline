@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 11 August 2026.
+Last updated: 12 August 2026.
 
 ---
 
@@ -1870,7 +1870,62 @@ held-out split rather than the 700 being reported.
    this exists** (`paper_numbers.md` rule 1).
 3. Rebuild the routing table on whichever prompt wins.
 4. If time: self-consistency gate (~3 h), k=5 (~1 h).
-5. Deferred, no compute: read the 49 knowledge failures.
+5. ~~Deferred, no compute: read the 49 knowledge failures.~~ **Read 11 Aug night; the labelling was
+   spot-checked 12 Aug, see below.**
+
+---
+
+## Where things stand, 12 August
+
+`condition1_3b_v2_full700` is running on the GPU box. Everything below is Mac daytime work off
+result files already on disk. No nights spent, no cloud calls. Full detail in the build log for
+12 August.
+
+### The morning was lost to a machine that was not signed in
+
+The run failed on every claim with `URLError: [Errno 60] Operation timed out`. The PC was powered
+on but sitting at the lock screen. **Ollama on Windows is a per-user tray app, not a service**, so
+it does not start until someone signs in, and Windows drops the connection silently instead of
+refusing it. From the Mac that looks identical to the machine being switched off.
+
+Two things not to rediscover. **Kill the run before deleting its results folder** — it was still
+alive and kept recreating the folder with fresh failed records. And **deleting was never needed**:
+`logger.has_result` returns true only for `status == "ok"`, so resume re-runs failed claims by
+itself, which three harness tests already cover.
+
+### §2.11 HAD NO REPRODUCER, AND THE SPOT-CHECK MOVED A NUMBER
+
+§2.11 pointed at `analyse_routing.py`, which has no phrase matching in it and cannot produce any
+number in that section. The figures came from throwaway code never saved, and the phrase list
+survived only as prose ending in "and so on". **Under rule 1 every §2.11 number was unusable**,
+including the model-level table the "routing cannot fix it" negative result rests on.
+
+`test_scripts/analyse_missing_info.py` is the reproducer. **It still needs to be applied — the file
+does not exist yet.**
+
+**The spot-check found a defect in the matcher, not in the reading.** A bare `lack` matches the
+subject matter rather than the model's reasoning: "a lack of authorized shares" is a fact in the
+filing, not the model reporting absent evidence. Five of seven control-group hits were this.
+Anchoring absence words to the document leaves 2 of 51, both genuine.
+
+    separation, entailed-wrong vs entailed-right     28-fold  ->  15-fold
+    diagnostic set, cites missing                    28/49    ->  29/49  (59.2%)
+    control group                                     1/51    ->   2/51  (3.9%)
+
+**The 11 August read and its conclusion stand.** The mechanism is unaffected. What moved is a
+headline ratio, and it moved in the direction that had made the finding look stronger.
+
+**The four base refutation rates reproduce exactly**, which is what confirms the loading and scoring
+were right. **One row is unexplained: pro's cites-missing count goes 79 to 133.** Its ratios hold,
+so the conclusion holds, but the count is flagged and should not be cited yet.
+
+**Also corrected: the 49 is 48 refuted plus one unparseable**, `knowledge-val-0`.
+
+### Still owed
+
+§9 wants a four-category error taxonomy. This is one category, labelled by one reader. And claim
+words and clauses, 42.9 / 3.8 against 41.9 / 3.6, are still throwaway figures the script does not
+regenerate.
 
 ---
 

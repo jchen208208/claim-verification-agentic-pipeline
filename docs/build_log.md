@@ -4527,3 +4527,95 @@ and Limitations has to say so.
 **The rule: v2 stands and is reported. Before any v3, move reporting to test.json or hold out a
 stratified split. And decide nothing before the 3B v2 run**, since the routing gate rests entirely
 on local model behaviour and would be recomputed if the fix transfers.
+
+## 12 August 2026 - §2.11 could not be reproduced, and the spot-check moved a number
+
+Daytime work on the Mac while `condition1_3b_v2_full700` ran on the GPU box. No nights spent, no
+cloud calls, no new model runs. Everything below comes from result files already on disk.
+
+### The morning was lost to a machine that was not answering
+
+The 3B v2 run was started against `10.0.0.26` and every claim failed with
+`URLError: [Errno 60] Operation timed out`. 29 result files were written, all `status: failed`,
+all holding a network traceback and no model output. The PC was powered on but not signed in.
+
+**Ollama on Windows is a per-user tray application, not a Windows service.** A service starts at
+boot. A tray app starts when a user signs in. A machine sitting at the lock screen has nothing
+listening on 11434, and Windows drops the connection silently rather than refusing it, so the Mac
+sees a timeout that looks identical to the machine being off. **Sign in, do not just power on.**
+
+Two things worth not rediscovering. **The run was still alive while the results folder was being
+deleted**, so the folder kept reappearing with fresh failed records; kill the process first,
+`ps aux | grep run.py`. And **deleting the folder was never necessary**: `logger.has_result`
+returns true only when a record says `status == "ok"`, so resume re-runs every failed claim by
+itself. That path is covered by three harness tests.
+
+### §2.11 had no reproducer at all
+
+`paper_numbers.md` §2.11 said *"Reproduce with: `python3 test_scripts/analyse_routing.py`."*
+**That script contains no phrase matching and cannot produce any number in that section.** The
+figures came from throwaway code typed into a terminal on 11 August and never saved. The only
+record of the phrase list was prose in this log: *"does not provide", "no information",
+"not stated", and so on.* The "and so on" means the list was not recoverable.
+
+Under `paper_numbers.md` rule 1 every number in §2.11 was unusable, including the 28 of 49 and the
+model-level table the "routing cannot fix it" negative result rests on. This is the same gap that
+was closed for §2.8 to §2.10 the day before; §2.11 was written later that night and never got the
+same treatment.
+
+`test_scripts/analyse_missing_info.py` now holds the phrase list as a named constant, reuses
+`load_run` from `analyse_condition1.py`, and prints both §2.11 tables plus a `--show` mode that
+prints every matched sentence in context.
+
+### The 49 is 48 refuted plus one unparseable
+
+100 FDV-KNOW claims are gold-entailed. In `gold_alone_3b_full700` the model called 48 of them
+refuted, got 51 right, and produced one unparseable response, `knowledge-val-0`. Strict scoring
+counts unparseable as wrong, so the group of 49 is correct, but §2.11's wording, *"were still
+called refuted"*, was wrong for one claim.
+
+### The spot-check found a real defect, and it was in the matcher
+
+The owed spot-check was not another read of the 49. The read was done on 11 August and its
+conclusion stands. What was owed was a check on **how the 28 were labelled**, since the count came
+from a regex nobody had inspected.
+
+A first rebuilt list scored 29 of 49 against 7 of 51, where the doc claimed 28 and 1. Printing the
+matched sentence for each of the 7 found the cause immediately. **A bare `lack` matches the subject
+matter rather than the model's reasoning:**
+
+    knowledge-val-16   "an inability to secure additional capital due to a lack of authorized shares"
+    knowledge-val-34   "this lack of cash flow generation is described as a potential issue"
+    knowledge-val-39   "MCX Technologies shows a lack of internal alignment"
+
+Those are facts stated in the filing. They are not the model reporting missing evidence. Five of
+the seven control hits were this. Anchoring every absence word to the document or to the
+information leaves 2 of 51, both genuine on reading.
+
+**The separation is 15-fold, not 28-fold.** The mechanism is unaffected and the sub-cases are
+unaffected. The headline ratio was inflated by an unanchored regex, and it was inflated in the
+direction that made the finding look stronger, which is the direction to be most suspicious of.
+
+### What regenerated, and what did not
+
+    base refutation rates, all four models     exact
+    flash then-refutes / those-wrong           99.3% / 51.8%   against 98% / 52%
+    3B those-wrong                             43.8%           against 45%
+    7B those-wrong                             29.1%           against 29%
+    correctly-refuted knowledge citing missing 63.4%           against an unreproducible 54%
+
+**The four base refutation rates reproducing exactly is what confirms the loading and scoring were
+right**, and it is why the count differences read as a slightly broader phrase list rather than a
+different measurement.
+
+**One row is not explained. Pro's cites-missing count goes 79 to 133**, where the other three moved
+by 8 to 28. Its ratios are unchanged so the conclusion holds, but the count is flagged in §2.11 and
+should be checked before it is cited.
+
+**Claim words and clauses, 42.9 / 3.8 against 41.9 / 3.6, are still throwaway figures.** The script
+does not regenerate them and they may not enter the paper until it does.
+
+### Still owed
+
+§9 requires a four-category error taxonomy. This is one category, labelled by one reader. The regex
+is now reviewable and every match can be printed, but nothing sorts the failures into four kinds.
