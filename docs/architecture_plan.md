@@ -1144,6 +1144,29 @@ That is a bulleted list, and a DataFrame buys nothing for it. **State the Tier 1
 **One thing a schema cannot carry.** Row and column labels do not encode magnitude. A nearby "(in thousands)" changes the true value by 10^3 and produces no error (data trap 7), so units and period must be captured as table metadata alongside the schema, which is what §7.3's "header/unit/period metadata" means.
 
 ### 7.2 Code Sandbox
+
+> **[DROPPED ON MEASUREMENT 11 Aug 2026.]** This skill is not being built. Measured from stored
+> responses on the 250 numeric claims, no new run:
+>
+>     gold value present in the response   161  64.4%
+>     correct verdict                      160  64.0%
+>     both                                  87  34.8%     (41% expected under independence)
+>     correct verdict WITHOUT the value     73  29.2%
+>     magnitude errors (x10^3 or x10^6)      8   3.2%
+>
+> Three things kill it. **Prose arithmetic already produces the correct value 64.4% of the time**,
+> so the headroom is 36 points, not the near-total gap §8 implies. **The magnitude trap fires on
+> 3.2% of numeric claims**, so the `numeric-val-242` example this section is built on is a one-in-
+> thirty event. And **computed-value correctness barely predicts verdict correctness**, which
+> breaks the tier's premise that fixing computation fixes verdicts.
+>
+> **A correction to this section's own argument.** `numeric-val-242`'s first error, treating
+> $0.015 million as $15, is a *transcription* error. A model that writes `b = 15` into Python gets
+> the same wrong answer. The sandbox fixes only the second error, the false equality. This section
+> claimed it fixed both.
+>
+> Full detail in the build log for 11 August, evening.
+
 Extract fenced Python from model output; execute with whitelisted builtins (pandas/math only), no filesystem/network, ~10 s timeout; return stdout **or the traceback** to the model; retry on exceptions (feeding the error back lets the model self-correct). ~30 lines. Never execute model code unrestricted.
 
 **[NEW]** Validate against `execution_result` (§2.5): for every `numeric` example, the sandbox's computed value can be compared directly to the gold figure. This is a free correctness signal on the code-execution skill in isolation, independent of the final label.
@@ -1203,6 +1226,20 @@ No fine-tuning or pretraining (no compute; MACE proves it unnecessary). No agent
 
 ## 8. Build Order — One Module at a Time (the ablation IS the paper)
 
+> **[REVISED ON MEASUREMENT 11 Aug 2026.]** **Tier 1 is not being built.** Both halves were
+> measured and both failed: `read_html` loses table structure on 100% of tables (§7.1), and prose
+> arithmetic already produces the correct value on 64.4% of numeric claims with computed value
+> barely predicting verdict (§7.2). **Tier 2 retrieval is measured and its end-to-end value is
+> small** — perfect recall is worth +3.6 points on FDV-IE alone and nothing elsewhere. **Tier 3
+> glossary is unmotivated** until the 49 knowledge failures are read.
+>
+> **What replaces them, in priority order:** (1) fix the refuted bias in the prompt, worth up to
+> 21% of the benchmark; (2) the 3B/7B agreement gate, which already ties condition 2 at 36% of the
+> cloud calls; (3) always escalate numeric; (4) test self-consistency as a cheaper gate; (5) test
+> k=5. Full list, with the evidence for each, in `working_state.md` under "THE PLAN FROM 11 AUGUST,
+> EVENING."
+
+
 Rationale: (a) build everything at once and you cannot attribute any change; (b) "baseline 71% → +code exec 76% → +decomposed retrieval 79% → +glossary 80%" is a publishable result structure — one undifferentiated system is not; (c) each module maps to a named FINDVER error category, so the ablations align with the original taxonomy.
 
 | Tier | Module(s) | Error category attacked | Status | Payoff / risk |
@@ -1253,6 +1290,21 @@ Agreed with the professor at the 30 July meeting. Re-running the 16 models the a
 **Error analysis protocol:** every iteration, sample ≥25 failures, hand-label with the taxonomy, track the distribution over time — the evidence for "module X fixed category Y."
 
 ### 9.2 **[NEW 3 Aug 2026]** The baseline design: four conditions, not three
+
+> **[CONDITION 3 HAS COLLAPSED INTO CONDITION 2, 11 Aug 2026.]** Condition 3 is defined below as
+> the cloud model in **every pipeline role**. With tables-as-DataFrames (§7.1) and the code sandbox
+> (§7.2) both dropped on measurement, **the pipeline has no roles left**: it is one model call plus
+> an escalation decision. Condition 3 is therefore condition 2, already measured at 77.0% (flash)
+> and 77.3% (pro).
+>
+> **Consequence for §5.3.** "Match condition 3 at a fraction of the cost" no longer names a
+> condition that exists separately. The replacement is the fallback §5.3.1 recorded on 10 August:
+> **condition 2 at 77.0% is the bar**, and the routed rule matches it (76.6%, p = 0.858) while
+> calling the cloud on 36% of claims.
+>
+> **This is a live question for the professor, not a settled rewrite.** Raise it with the §5.2
+> verifier-row problem at the next meeting.
+
 
 The obvious three-condition design — edge alone, cloud alone, ours — has a hole in it. It cannot support the claim in §5.3.
 

@@ -1547,17 +1547,152 @@ comparison was on strings. Comparing as numbers gives 64.6%. And an alternative 
 for `(000)` reported 32.7% while actually matching the digits inside any number like `1,000`.
 Discarded.
 
-### What to do next, revised
+### ~~What to do next, revised~~ — SUPERSEDED the same evening, see the section below
 
-1. ~~Read gold-padded.~~ **DONE, above.**
-2. ~~Install pandas and lxml.~~ **DONE.** pandas 3.0.5, lxml 6.1.1, bs4, html5lib.
-3. ~~Measure the `html_tables` mapping.~~ **DONE, ordinal.**
-4. **Build the code sandbox (§7.2).** The remaining half of Tier 1 and now the whole of it.
-5. Fold the per-subset McNemar and entailed/refuted tables into `analyse_condition1.py`, and add a
-   committed script for the table-parsing measurements. **Neither set of numbers may be cited until
+Item 4 was "build the code sandbox." **That is withdrawn.** A free baseline measured an hour
+later showed prose arithmetic already produces the correct value on 64.4% of numeric claims, the
+magnitude trap fires on 3.2%, and computed-value correctness barely predicts verdict correctness.
+The current plan is in **"THE PLAN FROM 11 AUGUST, EVENING"** below.
+
+
+---
+
+## THE PLAN FROM 11 AUGUST, EVENING — what actually raises condition 4
+
+Written after a day in which two proposals, table parsing and the code sandbox, were proposed for
+building and then killed by measurement. **The order was wrong both times: build first, measure
+second.** Everything below was measured first, from the six n=700 runs already on disk. No new run
+produced any number in this section.
+
+### 1. THE PROMPT CARRIES A REFUTED BIAS, AND IT COSTS 21% OF THE BENCHMARK
+
+`prompts/baseline_v1.txt` step 4 tells the model to answer refuted if the claim *"contradicts the
+document **or partially contradicts** the document."* Under RAG the model sees ten chunks, so
+partial information is the normal case, and that clause turns "I only see part of it" into
+"refuted."
+
+                predicts entailed   acc entailed   acc refuted
+    gold                     50%
+    flash                    31%          58.0%         96.0%
+    pro                      30%          58.0%         96.6%
+    7B                       50%          73.4%         71.4%
+    3B                       46%          58.3%         64.6%
+
+**147 claims, 21% of the benchmark, are true claims flash calls refuted** — knowledge 59, ie 46,
+numeric 42. This is the largest single error pool in the project, and the 10 August entry already
+noted no tier addresses it. **The cause was found in our own prompt file, not in the models.**
+
+**It is inherited, not our bug.** The phrase appears in FINDVER's own shipped output files, so all
+16 published baselines carry it. **That makes the fix a paper finding as well as an accuracy
+lever:** the benchmark's standard prompt induces a refuted bias that costs frontier models a fifth
+of the benchmark.
+
+**Action: `prompts/baseline_v2.txt`**, one intervention — drop the "partially contradicts" clause,
+state the criterion symmetrically, and add that incomplete evidence is not by itself a
+contradiction. **The `{entailment_label}` brace bug is deliberately NOT fixed in v2**, so the run
+that decides this moves one variable. It goes in v3.
+
+**Test order: flash first** (~2.5 h, ~10 CNY of the 115.42 remaining), then the 3B (~80 min GPU).
+
+**Success criteria, fixed in advance:** predicted-entailed moving from 31% toward 50%, accuracy on
+entailed rising from 58.0%, refuted accuracy not falling below ~85%, and a McNemar p against the v1
+run. **DeepSeek ignores `seed` and `temperature`**, so the entailed-rate shift is the trustworthy
+signal — a 20-point swing cannot be resampling noise.
+
+### 2. CONDITION 4 ALREADY EXISTS IN THE DATA, AND IT MATCHES CONDITION 2
+
+Run the 3B and the 7B on every claim. Agree, keep it. Differ, escalate to flash.
+
+    routed        536/700 = 76.6%     cloud on 251/700 = 36% of claims
+    flash alone   539/700 = 77.0%     cloud on 100%
+    McNemar p = 0.858  ->  a tie
+
+    subset       routed   flash
+    ie            82.4%   80.4%
+    knowledge     73.0%   70.5%
+    numeric       73.6%   78.8%   <- the only loss
+
+**The 3B is not answering. It is a second opinion that says whether to trust the 7B.** When they
+agree the 7B is 76.8% right; when they differ, 64.5%.
+
+**No new run is needed to report this.** It requires only that the analysis be folded into a
+committed script.
+
+**Caveats for the paper.** It holds 3B and 7B resident, about 7.5 GB, and runs both on every claim,
+20.5 s local per claim on the GPU box. **The saving is cloud calls, not local compute.**
+
+### 3. ALWAYS ESCALATE THE NUMERIC SUBSET
+
+The one subset the rule loses on. Three independent measurements say numeric is arithmetic-bound
+and local models cannot fix it: the 7B's entire remaining deficit is FDV-MATH; perfect evidence
+made 3B numeric *worse*, 64.0% to 62.0%; and prose arithmetic already gets the value right 64.4% of
+the time. **A principled prior backed by three measurements, not a threshold tuned on the test
+set.**
+
+### 4. SELF-CONSISTENCY AS THE GATE — one run needed
+
+    three 3B runs unanimous   n=401   3B accuracy 72.3%
+    three 3B runs split       n=299   3B accuracy 46.8%   <- worse than chance
+
+Local self-disagreement predicts local error hard. If it survives a clean test it **replaces the
+7B**, taking the local side back to 3B alone: lighter, cheaper, and a far better on-device story.
+
+**This measurement is contaminated** — the three runs used different retrieval, two of them oracle.
+It shows the mechanism is real, not that a deployable version works.
+
+**Test: 3B at n=700, three samples, temperature 0.7, ~3 h GPU, no cloud cost.** After items 1 to 3.
+
+### 5. k=5 — the direction never tried
+
+k was frozen at 10 and tested upward to 20, which was worse. Never downward. Today's decomposition
+put **two thirds** of the oracle gain on removing distractors, and gold-alone's advantage came with
+2.8 chunks. **Test: condition 1 at k=5, n=700, ~1 h GPU.**
+
+### WHAT IS OFF THE LIST, WITH THE EVIDENCE THAT KILLED IT
+
+| dropped | evidence |
+|---|---|
+| Tables as DataFrames | `read_html` loses headers on 100% of 1,079 tables, inflates columns 1.95x, 35% silently lose numbers. 11 Aug. |
+| Code sandbox | Prose arithmetic already correct on 64.4% of numeric claims; magnitude trap 3.2%; value correctness barely predicts verdict correctness, 34.8% overlap against 41% under independence. 11 Aug. |
+| Claim decomposition, retrieval | Closed 5 Aug. Best variant 57.53% against a 57.88% bar. |
+| Claim decomposition, reasoning | `prompts/decompose_v1.txt` exists, never tested end to end. Two calls per claim, the same price as the sandbox, and **no offline test exists to price it first.** Same bucket as the sandbox. |
+| Glossary, Tier 3 | Knowledge is not retrieval-bound (perfect evidence moved it 2.0 points, p = 0.728) but the cause is unknown. §7.4 rates it the smallest expected gain. Read the 49 knowledge failures before spending a run. |
+
+### CONDITION 3 HAS COLLAPSED INTO CONDITION 2 — take this to the professor
+
+Condition 3 is defined in §9.2 as "the cloud model in **every pipeline role**." With tables and the
+sandbox dropped, **the pipeline has no roles left.** It is one model call plus an escalation
+decision, so condition 3 is condition 2.
+
+**§5.3's contribution statement, "match condition 3 at a fraction of the cost", no longer names a
+condition that exists separately.** The 10 August entry already recorded the fallback and it is now
+the main line: **condition 2 at 77.0% is the bar, and we match it using the cloud on 36% of
+claims.**
+
+This is the first thing to raise at the next meeting, alongside the §5.2 verifier-row problem
+already carried from 10 August.
+
+### MACE, restated against the new numbers
+
+**Memory still favours us and the argument survives, weakened.** Their smallest configuration needs
+27B resident; the routed rule needs 3B + 7B, about 10B. Still far below. **Another reason item 4
+matters** — self-consistency would take the local side back to 3B alone.
+
+**Accuracy is parity, and must be written carefully.** MACE reports 0.76 on FINDVER with Qwen-235B.
+Our routed rule is 76.6% strict. **Those are two different scorings and may not sit in one table**
+(§9.1). Report FINDVER-compatible or not at all.
+
+**Speed: still do not claim it.** The 3 August finding stands — we are slower.
+
+### ORDER OF WORK
+
+1. `baseline_v2`, then flash at n=700, then the 3B at n=700.
+2. Fold the routing rule, the per-subset McNemar, the entailed/refuted split and the
+   table-parsing measurements into committed scripts. **None of those numbers may be cited until
    this exists** (`paper_numbers.md` rule 1).
-6. GPU, when free: **condition 1 at k=5, n=700**, about an hour.
-7. Deferred, no compute: read the 49 knowledge failures.
+3. Rebuild the routing table on whichever prompt wins.
+4. If time: self-consistency gate (~3 h), k=5 (~1 h).
+5. Deferred, no compute: read the 49 knowledge failures.
 
 ---
 

@@ -4173,3 +4173,131 @@ caught before they reached a conclusion.**
 **The sandbox is still not built.** The afternoon produced the measurements that killed a planned
 approach before it was written, which is a good outcome for a day of measurement and is still not
 a pipeline module.
+
+## 11 August 2026, evening - the sandbox is dropped too, and the prompt is the real bug
+
+Third proposal of the day, and the second killed by a measurement that should have come first.
+**The pattern is recorded because it is the lesson: two features were proposed for building before
+being measured, and one of them (`src/table_parser.py`) was written and deleted the same day.**
+Everything in the evening's analysis came from the six n=700 runs already on disk.
+
+### The sandbox is dropped, on a free baseline
+
+The motivating example for Tier 1 was the trial run's `$15,800,000 + $0.015 million = $15,800,015`.
+**A challenge from the user broke it:** that is a *transcription* error, not a computation error. If
+the model writes `b = 15` into Python, Python returns 15800015 and the sandbox changes nothing. It
+fixes only the second error in that example, the false equality.
+
+Measured from stored responses, no new run, on the 250 numeric claims:
+
+    run                          value correct   x10^3   x10^6   absent
+    condition1_3b_full700          161  64.4%       5       3   81  32%
+    gold_alone_3b_full700          163  65.2%       6       2   79  32%
+
+    condition 1, numeric, n=250
+      gold value present in the response   161  64.4%
+      correct verdict                      160  64.0%
+      both                                  87  34.8%
+      correct verdict WITHOUT the value     73  29.2%
+
+**Three findings, each of which weakens the tier.** Prose arithmetic already produces the correct
+value 64.4% of the time, so the headroom is 36 points, not the near-total gap §8 implies. **The
+magnitude trap fires on 8 of 250 responses, 3.2%** — the failure this whole tier was justified by
+occurs on one numeric claim in thirty. And **computed-value correctness barely predicts verdict
+correctness**: 34.8% overlap against 41% expected under independence, with 73 claims reaching the
+right verdict having never produced the right number.
+
+**Perfect evidence does not help the arithmetic either**, 65.2% against 64.4%.
+
+**Caveat on the detector, in both directions.** "Value present" means the gold number appears
+anywhere in the response, so the model may have copied it from the evidence, or computed correctly
+and rounded when writing it out. A proxy, not a measurement of reasoning.
+
+### THE PROMPT IS THE BUG: a refuted bias worth 21% of the benchmark
+
+`prompts/baseline_v1.txt` step 4: refuted if the claim *"contradicts the document **or partially
+contradicts** the document."* Under RAG the model sees ten chunks, so partial information is the
+normal case, and that clause converts "I only see part of it" into "refuted."
+
+                predicts entailed   acc entailed   acc refuted
+    gold                     50%
+    flash                    31%          58.0%         96.0%
+    pro                      30%          58.0%         96.6%
+    7B                       50%          73.4%         71.4%
+    3B                       46%          58.3%         64.6%
+
+**147 claims are true claims flash calls refuted** — knowledge 59, ie 46, numeric 42. 21% of the
+benchmark. The 10 August entry named the entailed miss rate the largest error pool in the project
+and said no tier addressed it. **The cause is in our own prompt file.**
+
+**Inherited, not ours.** The phrase appears in FINDVER's own shipped output files, so all 16
+published baselines carry it. That makes it a paper finding as well as a fix.
+
+`prompts/baseline_v2.txt` changes step 4 only. The `{entailment_label}` brace bug owed since
+2 August is **deliberately left alone**, so the deciding run moves one variable. It goes in v3.
+
+### CONDITION 4 IS ALREADY IN THE DATA, AND IT TIES CONDITION 2
+
+Run the 3B and 7B on every claim; agree, keep it; differ, escalate to flash.
+
+    routed        536/700 = 76.6%     cloud on 251/700 = 36%
+    flash alone   539/700 = 77.0%     cloud on 100%
+    McNemar p = 0.858  ->  a tie
+
+    subset       routed   flash
+    ie            82.4%   80.4%
+    knowledge     73.0%   70.5%
+    numeric       73.6%   78.8%
+
+**The 3B is not answering. It is a second opinion telling us whether to trust the 7B.** Agreement
+puts the 7B at 76.8%; disagreement drops it to 64.5%.
+
+**Also measured: the 7B carries real signal about the cloud's worst error pool.** Of flash's 147
+false refutations the 7B says entailed on 92, and across all of flash's refuted calls a 7B
+"entailed" raises the probability of the claim being true from a 30.4% base rate to 51.1%. The
+10 August entry called this a coin flip; against the base rate it is a **lift**, though not large
+enough to flip decisions profitably on its own — a flash + 7B override scores 77.6% against 77.0%,
+inside noise.
+
+**Two cloud models are nearly redundant.** pro and flash agree on 660 of 700 at 78.8%. Only 40
+disagreements, where the 7B as tiebreak scores 72.5% against pro's 52.5% — high yield, tiny pool.
+
+**No logprobs are logged**, so confidence-based routing is not available from stored data.
+
+### Self-disagreement predicts error, and it may replace the 7B
+
+    three 3B runs unanimous   n=401   3B accuracy 72.3%
+    three 3B runs split       n=299   3B accuracy 46.8%
+
+**Contaminated** — the three runs used different retrieval and two were oracles — so this shows the
+mechanism is real, not that a deployable version works. A clean test is 3B at n=700, three samples,
+temperature 0.7, about 3 hours of GPU. **If it holds, the local side goes back to 3B alone**, which
+restores the on-device story and the MACE memory argument to their strongest form.
+
+### CONDITION 3 HAS COLLAPSED INTO CONDITION 2
+
+§9.2 defines condition 3 as the cloud model in **every pipeline role**. With tables and the sandbox
+dropped, **there are no roles.** The pipeline is one model call plus an escalation decision, so
+condition 3 is condition 2.
+
+**§5.3's "match condition 3 at a fraction of the cost" no longer names a condition that exists
+separately.** The 10 August fallback becomes the main line: condition 2 at 77.0% is the bar, and
+the routed rule matches it using the cloud on 36% of claims. **Raise this with the professor at the
+next meeting**, with the §5.2 verifier-row problem.
+
+### What is off the list
+
+Tables as DataFrames, the code sandbox, claim decomposition for retrieval, claim decomposition for
+reasoning, and the glossary. Each with the measurement that killed it, in `working_state.md` under
+"THE PLAN FROM 11 AUGUST, EVENING."
+
+Claim decomposition for reasoning deserves one note, because it was never formally closed: it costs
+two calls per claim, the same price as the sandbox, and **no offline test exists to price it
+first.** It goes in the same bucket until something cheap justifies it.
+
+### What did not happen today
+
+**No pipeline module was built.** The day produced three measurement rounds, two abandoned
+approaches, one deleted file, and a plan grounded in data rather than in the architecture plan's
+assumptions. The measurements were cheap and the assumptions were expensive, which is the argument
+for reversing the order tomorrow.

@@ -924,6 +924,73 @@ Knowledge and numeric move in neither half: knowledge +6 then −2, numeric −4
 
 ---
 
+### 2.10 **[NEW 11 Aug 2026] THE PROMPT'S REFUTED BIAS, and the routing rule that ties condition 2**
+
+**Not yet reproducible by a committed script.** Folding this into `test_scripts/analyse_condition1.py` is a blocker on citing any number below (rule 1).
+
+#### The bias, n=700
+
+`prompts/baseline_v1.txt` step 4 instructs: refuted if the claim *"contradicts the document **or partially contradicts** the document."* Under RAG the model sees k=10 chunks, so partial information is the normal case.
+
+| | predicts entailed | acc on entailed | acc on refuted |
+|---|---|---|---|
+| gold | 50% | — | — |
+| flash | **31%** | **58.0%** | 96.0% |
+| pro | **30%** | 58.0% | 96.6% |
+| 7B | 50% | 73.4% | 71.4% |
+| 3B | 46% | 58.3% | 64.6% |
+
+**147 claims (21.0% of the benchmark) are entailed claims flash labels refuted** — knowledge 59, ie 46, numeric 42. §2.6.1 named the entailed miss rate the largest single error pool in the project; this locates its cause in the prompt.
+
+**The phrase is FINDVER's own**, present in their shipped output files, so all 16 published baselines carry it. **The supportable sentence:** *"the benchmark's standard prompt instructs models to refute on partial contradiction, and under retrieval-augmented evaluation this costs frontier models 21% of the benchmark in false refutations."*
+
+#### The routing rule — condition 4's first implementable policy
+
+Run the 3B and 7B on every claim; keep the shared verdict when they agree, escalate to flash when they differ.
+
+| | accuracy | cloud calls |
+|---|---|---|
+| 3B alone (condition 1) | 61.4% | 0% |
+| **routed (3B/7B gate → flash)** | **76.6%** | **36%** |
+| flash alone (condition 2) | 77.0% | 100% |
+
+**McNemar against flash: 64 flash-only-right, 61 routed-only-right, p = 0.858 — a tie.**
+
+| subset | routed | flash |
+|---|---|---|
+| ie | 82.4% | 80.4% |
+| knowledge | 73.0% | 70.5% |
+| numeric | 73.6% | 78.8% |
+
+**Supportable:** *"the routed system matches the cloud-only baseline (p = 0.858) while calling the cloud on 36% of claims."* **Not supportable:** that it beats condition 2, or any per-subset claim without its own test.
+
+**The gate's mechanism:** where 3B and 7B agree (449 claims) the 7B scores 76.8%; where they differ (251) it drops to 64.5%.
+
+**Cost caveat for the paper:** 3B + 7B resident, ~7.5 GB, both run on every claim, 20.5 s local per claim on the GPU box. The saving is cloud calls, not local compute.
+
+#### Self-disagreement predicts local error
+
+| | n | 3B accuracy |
+|---|---|---|
+| three 3B runs unanimous | 401 | 72.3% |
+| three 3B runs split | 299 | **46.8%** |
+
+**Contaminated** — the three runs used different retrieval, two of them oracle. **Do not cite this as a result.** It motivates a clean test: 3B at n=700, three samples, temperature 0.7.
+
+#### Other signals measured and found weak
+
+**7B override of flash's refuted calls:** 77.6% vs 77.0%, inside noise. But the 7B saying entailed lifts the probability from a 30.4% base rate to 51.1%, so §2.6.4's "disagreement carries no information" understates it — it is a lift, just not a profitable one alone.
+
+**Two cloud models are redundant:** pro and flash agree on 660/700 at 78.8%; only 40 disagreements.
+
+**No logprobs are logged**, so confidence-based routing cannot be evaluated from stored data.
+
+#### CONDITION 3 NO LONGER EXISTS SEPARATELY
+
+§9.2 defines condition 3 as the cloud model in **every pipeline role**. With tables-as-DataFrames (§2.9) and the code sandbox both dropped on measurement, the pipeline has no roles: it is one call plus an escalation decision. **Condition 3 is condition 2.** §5.3's "match condition 3 at a fraction of the cost" must be restated against condition 2, which is exactly the fallback §3.5 recorded on 10 August.
+
+---
+
 ## 3. Deployment cost
 
 **The MacBook is the device of record.** Never print a GPU-derived number under a MacBook label; never mix machines in one table (§9.2).
