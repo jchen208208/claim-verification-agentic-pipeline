@@ -4301,3 +4301,114 @@ first.** It goes in the same bucket until something cheap justifies it.
 approaches, one deleted file, and a plan grounded in data rather than in the architecture plan's
 assumptions. The measurements were cheap and the assumptions were expensive, which is the argument
 for reversing the order tomorrow.
+
+## 11 August 2026, night - the knowledge gap has a mechanism, and routing cannot fix it
+
+The 49 knowledge claims that are **true, had every gold element in the prompt, and were still
+called refuted** were read. This was the diagnostic the evening plan deferred, and it costs no
+compute. It produced a mechanism, and then a decisive negative result about how to fix it.
+
+### THE MECHANISM: the model refutes on perceived absence, not on contradiction
+
+    group                        n    says INFO MISSING   claim words   clauses
+    entailed, model WRONG       49        28    57%          42.9        3.8
+    entailed, model RIGHT       51         1     2%          41.9        3.6
+
+**A 28-fold separation.** On 57% of the failures the model declares the information absent and
+refutes on that basis; on the claims it gets right, 2%. **The evidence was gold on all 49**, so the
+information was in the prompt by construction.
+
+Claim length and clause count are **identical** between the two groups, 42.9 words against 41.9,
+so this is not "the hard claims are longer or more compound." It is one specific behaviour.
+
+**Two sub-cases, from reading the responses.**
+
+1. **Literally present and unseen.** `knowledge-val-13` states *"the report does not provide
+   information about the company's cash flow from operating activities or revenue growth."* Both
+   are in its prompt, revenue in the opening line.
+2. **Facts present, interpretation not restated.** The larger half. `knowledge-val-72` writes
+   *"While the financial report confirms that Alphabet repurchased Class C shares for $12.7 billion
+   in Q1 2024 and paid dividends…"* and refutes anyway. FDV-KNOW claims state facts plus an
+   interpretation — "demonstrates poor working capital management", "illustrating how dividend
+   policy impacted liquidity" — and the document supports the facts while never restating the
+   interpretation in those words. **The model reads that as missing, and missing as refuted.**
+
+**`knowledge-val-24` is the cleanest single case.** It computes both differences correctly,
+$1,891,000 and $1,252,000, which is exactly what the claim asserts, then writes *"However, our
+calculations show that the cash flow from operating activities actually increased by $1,252,000"*
+and refutes. Correct evidence, correct arithmetic, conclusion contradicting its own reasoning.
+
+**This is the same mechanism as the prompt bias found earlier the same evening, reached from a
+different direction.** `baseline_v1` instructs the model to refute if the claim "partially
+contradicts" the document. A model that confirms the facts but cannot locate the interpretation
+lands squarely on "partial."
+
+**The glossary hypothesis gets no support.** Nothing in the 49 turns on an undefined accounting
+term. §7.4's assessment as the smallest expected gain stands, and the 9 August question of what
+FDV-KNOW actually needs now has a better answer than "unknown."
+
+### IT IS NOT A SMALL-MODEL PROBLEM. FRONTIER MODELS DO IT WORSE.
+
+    model    cites missing    then says refuted    those refutations WRONG
+    3b        145   21%          106   73%              48   45%
+    7b        158   23%          106   67%              31   29%
+    flash     132   19%          130   98%              68   52%
+    pro        79   11%           76   96%              40   53%
+
+    base rate: how often is a "refuted" verdict wrong at all
+      3b     368 refuted, 142 wrong = 38.6%
+      7b     334 refuted,  84 wrong = 25.1%
+      flash  483 refuted, 147 wrong = 30.4%
+
+**When flash cites missing information it refutes 98% of the time, and 52% of those are wrong**,
+against a 30.4% base rate for its refutations generally. The phrase identifies frontier models'
+worst decisions. **The 7B is the least affected of the four at 29%.**
+
+### AND THAT KILLS ROUTING AS A REMEDY
+
+The obvious rule was tested: escalate to cloud when the 3B refutes *and* cites missing information.
+
+    3b + escalate-on-missing  -> flash    64.6%    cloud calls 106/700 = 15%
+    3b + escalate-all-refuted -> flash    71.0%    cloud calls 368/700 = 53%
+    the 3B/7B agreement gate              76.6%    cloud calls 251/700 = 36%
+    3b alone                              61.4%    0%
+    flash alone                           77.0%    100%
+
+**Both are worse than the gate we already have.** The reason is in the table above: escalating a
+claim because the 3B said "information missing" hands it to a model that gets exactly those claims
+wrong 52% of the time.
+
+**The general statement, and it is the useful one: you cannot route around a failure mode that the
+escalation target shares.** Routing works on the 3B/7B gate because disagreement is uncorrelated
+with the cloud's errors. It fails here because the bias is common to every model measured.
+
+### CONSEQUENCE: the prompt is the only lever that touches this
+
+That is now measured rather than assumed. **`baseline_v2` was written for the cloud's label
+skew and turns out to target this failure directly**, without having been designed for it:
+
+> *"Evidence that is incomplete is not by itself a contradiction: judge the claim on what the
+> document states, not on what is absent from it."*
+
+**This makes the v2 runs a test of a specific hypothesis rather than a general prompt tidy-up, and
+it sharpens the success criteria set earlier.** If the mechanism is right, v2 should show:
+
+    responses citing missing information     down from 19% (flash)
+    predicted entailed                       up from 31% toward 50%
+    accuracy on entailed claims              up from 58.0%
+    the gain concentrated on FDV-KNOW
+
+**If those three move and accuracy still does not rise, the hypothesis is wrong and we will know
+cleanly.** Recorded before the run finishes so it cannot be fitted afterwards.
+
+### Scope and honesty
+
+28 of 49 is the **dominant** failure mode, not the only one. `knowledge-val-86` refutes because it
+believes it found a real contradiction, which is a different error. And **54% of the correctly
+refuted knowledge claims also cite missing information**, so the phrase alone does not separate
+good refutations from bad ones — it is diagnostic only among claims that are actually true.
+
+The categorisation was done by reading the responses and by a regex over the phrase family
+("does not provide", "no information", "not stated", and so on). It is one person's labelling of
+one failure mode, not the four-category taxonomy §9 calls for. Worth a spot-check before it goes in
+the paper.

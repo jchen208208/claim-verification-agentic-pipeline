@@ -1293,8 +1293,12 @@ the account usage page, which would replace all three.
   IP moves, edit `ollama_host` in the affected configs. The address held all day on 10 August. The
   risk accepted is losing one overnight run to a silent failure at claim 1.
 - `run.py` prints the `client` line after the blank line that ends the banner. Cosmetic.
-- **No tier addresses the 42% of entailed claims every model misses.** Not a task yet, but it
-  should become one before the ablation is designed.
+- ~~**No tier addresses the 42% of entailed claims every model misses.**~~ **ANSWERED 11 Aug,
+  night.** The mechanism is now measured: models declare information absent, with the evidence
+  present, and refute on that basis. It is universal across all four models and **routing cannot
+  repair it**, because the escalation target shares the bias. `baseline_v2` is the only lever
+  identified that touches it. See "THE KNOWLEDGE GAP HAS A MECHANISM" above and
+  `paper_numbers.md` §2.11.
 - **Cloud spend is only exactly knowable from balance deltas.** Record a reading before and after
   every cloud run. Add the 10 Aug reading of 115.42 CNY to `api_cost_tally.py:147`. Check
   DeepSeek's current CNY price list. Ask the professor for read access to the account usage page,
@@ -1666,7 +1670,7 @@ put **two thirds** of the oracle gain on removing distractors, and gold-alone's 
 | Code sandbox | Prose arithmetic already correct on 64.4% of numeric claims; magnitude trap 3.2%; value correctness barely predicts verdict correctness, 34.8% overlap against 41% under independence. 11 Aug. |
 | Claim decomposition, retrieval | Closed 5 Aug. Best variant 57.53% against a 57.88% bar. |
 | Claim decomposition, reasoning | `prompts/decompose_v1.txt` exists, never tested end to end. Two calls per claim, the same price as the sandbox, and **no offline test exists to price it first.** Same bucket as the sandbox. |
-| Glossary, Tier 3 | Knowledge is not retrieval-bound (perfect evidence moved it 2.0 points, p = 0.728) but the cause is unknown. §7.4 rates it the smallest expected gain. Read the 49 knowledge failures before spending a run. |
+| Glossary, Tier 3 | ~~cause unknown, read the 49 failures first~~ **CAUSE FOUND 11 Aug, night, and it is not vocabulary.** Knowledge is not retrieval-bound (p = 0.728) and **nothing in the 49 failures turns on an undefined accounting term.** The failure is refusal-on-perceived-absence (§2.11). The glossary does not address it. |
 
 ### CONDITION 3 HAS COLLAPSED INTO CONDITION 2 — take this to the professor
 
@@ -1693,6 +1697,72 @@ Our routed rule is 76.6% strict. **Those are two different scorings and may not 
 (§9.1). Report FINDVER-compatible or not at all.
 
 **Speed: still do not claim it.** The 3 August finding stands — we are slower.
+
+
+### THE KNOWLEDGE GAP HAS A MECHANISM, AND ROUTING CANNOT FIX IT
+
+The 49 knowledge claims that are true, had perfect gold evidence, and were still refuted were read
+tonight. Full detail in the build log for 11 August, night, and `paper_numbers.md` §2.11.
+
+    group                        n    says INFO MISSING
+    entailed, model WRONG       49        28    57%
+    entailed, model RIGHT       51         1     2%
+
+**The model declares the information absent, with the gold evidence in front of it, and refutes on
+that basis.** Claim length and clause count are identical between the groups, so it is not claim
+complexity. Two sub-cases: information literally present and unseen, and — more often — the facts
+present but the interpretation not restated, which the model reads as missing.
+
+**This closes the 9 August question about FDV-KNOW.** It is not a retrieval problem (measured this
+morning), and it is not a vocabulary problem — **nothing in the 49 turns on an undefined accounting
+term, so the glossary hypothesis gets no support.**
+
+**It is not a small-model problem.** All four models do it, and the cloud does it worse:
+
+    model    cites missing    then refutes    those refutations WRONG
+    3b        145   21%        106   73%           48   45%
+    7b        158   23%        106   67%           31   29%
+    flash     132   19%        130   98%           68   52%
+    pro        79   11%         76   96%           40   53%
+
+**ROUTING CANNOT REPAIR IT, and this is a reportable negative result.**
+
+    3b + escalate when it refutes AND cites missing info    64.6%   15% cloud
+    3b + escalate on any refuted verdict                    71.0%   53% cloud
+    the 3B/7B agreement gate we already have                76.6%   36% cloud
+
+Both targeted rules are worse than the existing gate, because escalating hands the claim to a model
+that gets those same claims wrong 52% of the time. **You cannot route around a failure mode the
+escalation target shares.** The 3B/7B gate works because local disagreement is uncorrelated with
+cloud error; this fails because the bias is universal.
+
+**So the prompt is the only lever that touches this, and that is measured rather than assumed.**
+
+**`baseline_v2` targets it directly without having been designed for it.** Predictions recorded
+before the runs finish, so they cannot be fitted afterwards:
+
+    responses citing missing information   down from 19% (flash)
+    predicted entailed                     up from 31% toward 50%
+    accuracy on entailed claims            up from 58.0%
+    the gain concentrated on FDV-KNOW
+
+**If those move and accuracy still does not rise, the hypothesis is wrong and we learn that
+cleanly.**
+
+**Scope:** 28 of 49 is the dominant mode, not the only one. 54% of *correctly* refuted knowledge
+claims also cite missing information, so the phrase is diagnostic only among claims that are true.
+The labelling is one reader's over one failure mode and needs a spot-check before the paper.
+
+### Both reproducibility blockers are cleared
+
+`test_scripts/analyse_routing.py` and `test_scripts/measure_table_parse.py` exist and every number
+in §2.8, §2.8.1, §2.9, §2.10 and the model-level table of §2.11 regenerates from them. Both import
+`load_run` and `two_sided_binomial` from `analyse_condition1.py` rather than copying them.
+
+**One figure moved when the throwaway code was replaced.** The mapping alignment is **0.946 against
+0.195**, not 0.940 / 0.191. Same cause as the parse-fidelity correction earlier today: the
+throwaway compared numbers as strings, the committed script compares them as floats. Docs updated.
+
 
 ### ORDER OF WORK
 

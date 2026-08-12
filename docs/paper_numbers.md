@@ -991,6 +991,69 @@ Run the 3B and 7B on every claim; keep the shared verdict when they agree, escal
 
 ---
 
+### 2.11 **[NEW 11 Aug 2026] WHY MODELS REFUTE TRUE CLAIMS — the mechanism behind the largest error pool**
+
+Reproduce with: `python3 test_scripts/analyse_routing.py` for the model-level table; the 49-claim read is recorded in the build log for 11 August, night.
+
+**The diagnostic set.** 49 FDV-KNOW claims that are **true, had every gold element in the prompt, and were still called refuted** (`results/gold_alone_3b_full700`). Retrieval is excluded by construction, so the failure is visible in the response text.
+
+| group | n | says INFO MISSING | claim words | clauses |
+|---|---|---|---|---|
+| entailed, model wrong | 49 | **28 — 57%** | 42.9 | 3.8 |
+| entailed, model right | 51 | **1 — 2%** | 41.9 | 3.6 |
+
+**A 28-fold separation, with claim length and clause count identical.** The failure is not that hard claims are longer or more compound. **The model declares the information absent — with the gold evidence in front of it — and refutes on that basis.**
+
+**Two sub-cases.** Information literally present and unseen (`knowledge-val-13` says cash flow is not provided; the line is in its prompt). And, more commonly, the *facts* present but the *interpretation* not restated: `knowledge-val-72` writes *"While the financial report confirms that Alphabet repurchased Class C shares for $12.7 billion…"* and refutes anyway. FDV-KNOW claims assert facts plus a reading of them; the document supports the facts and never restates the reading.
+
+#### It is not a small-model problem
+
+| model | cites missing | then refutes | those refutations wrong | base rate for any refutation |
+|---|---|---|---|---|
+| 3B | 145 — 21% | 106 — 73% | 48 — 45% | 38.6% |
+| 7B | 158 — 23% | 106 — 67% | 31 — **29%** | 25.1% |
+| flash | 132 — 19% | 130 — **98%** | 68 — **52%** | 30.4% |
+| pro | 79 — 11% | 76 — 96% | 40 — 53% | — |
+
+**When flash cites missing information it refutes 98% of the time and is wrong on 52% of those**, against a 30.4% base rate. The phrase identifies frontier models' worst decisions. The 7B is least affected.
+
+#### ROUTING CANNOT FIX IT — a negative result worth reporting
+
+| policy | accuracy | cloud calls |
+|---|---|---|
+| 3B + escalate when it refutes *and* cites missing info | 64.6% | 15% |
+| 3B + escalate on any refuted verdict | 71.0% | 53% |
+| **3B/7B agreement gate (§2.10)** | **76.6%** | **36%** |
+| 3B alone | 61.4% | 0% |
+| flash alone | 77.0% | 100% |
+
+Both targeted rules are **worse** than the gate already in hand. The reason is in the table above: escalating because the 3B saw information missing hands the claim to a model that gets those same claims wrong 52% of the time.
+
+**The general statement, and it is the transferable one: routing cannot repair a failure mode the escalation target shares.** The 3B/7B gate works because local disagreement is uncorrelated with cloud error; this fails because the bias is common to all four models measured. **This belongs in the paper — it is a real constraint on edge-cloud routing, not a null result.**
+
+#### Consequence: the prompt is the only lever, and v2 now has a falsifiable prediction
+
+`baseline_v2` was written for the label skew in §2.10 and targets this failure directly without having been designed for it: *"Evidence that is incomplete is not by itself a contradiction: judge the claim on what the document states, not on what is absent from it."*
+
+**Predictions, recorded before the v2 runs finish so they cannot be fitted afterwards:**
+
+```
+responses citing missing information   down from 19% (flash)
+predicted entailed                     up from 31% toward 50%
+accuracy on entailed claims            up from 58.0%
+the gain concentrated on FDV-KNOW
+```
+
+**If those move and accuracy still does not rise, the mechanism hypothesis is wrong.**
+
+#### Scope, and what this is not
+
+28 of 49 is the **dominant** failure mode, not the only one — `knowledge-val-86` refutes on a believed contradiction, a different error. **54% of correctly refuted knowledge claims also cite missing information**, so the phrase does not separate good refutations from bad ones; it is diagnostic only among claims that are true. And **the glossary hypothesis gets no support**: nothing in the 49 turns on an undefined accounting term, which answers the 9 August question about what FDV-KNOW needs.
+
+The labelling is one reader's, over one failure mode, supported by a regex over the phrase family. **It is not the four-category taxonomy §9 requires and should be spot-checked before it reaches the paper.**
+
+---
+
 ## 3. Deployment cost
 
 **The MacBook is the device of record.** Never print a GPU-derived number under a MacBook label; never mix machines in one table (§9.2).
