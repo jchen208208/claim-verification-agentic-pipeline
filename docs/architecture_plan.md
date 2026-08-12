@@ -1435,6 +1435,41 @@ Three comparisons, in descending order of rigour:
 
 ---
 
+### 9.4 **[NEW 11 Aug 2026] THE OVERFITTING LIMIT, and the split that fixes it**
+
+**This became a live constraint the moment prompt v2 worked.** It is a protocol decision, not a status note, and it should be settled before any further prompt iteration.
+
+#### The problem, stated plainly
+
+**All 700 testmini claims are simultaneously our development data and our reported result.** Prompt v2 was written by reading failures drawn from those 700 (§2.11), tested on those 700, and its 79.9% is reported from those 700.
+
+**One edit is defensible and disclosable.** It was motivated by a mechanism found in the data and it changed one clause; the result stands with a sentence in Limitations saying the prompt was developed on the evaluation set.
+
+**Three or four rounds of "try a wording, check the 700" is not.** That fits noise. With a per-run noise floor of roughly one claim in ten (§2.3.2) and 700 claims, a few points of apparent gain can be manufactured by iteration alone, and **every number in the paper becomes optimistic by an unknown amount that we cannot estimate or bound.**
+
+**This is a sharper version of a limit already recorded.** The plan already notes that the 102-claim slice functions as a development set and that ~15% of any final 700 number comes from examples we optimised against. **Doing it at n=700 is worse, because the overlap is 100%.**
+
+#### The way out, and it is available today
+
+**`test.json` ships 1,700 examples WITH REAL LABELS.** The original plan's assumption that test labels are withheld is wrong and was corrected on 29 July (§2.6); two independent counts, ours and MACE's Table 2, agree on the size.
+
+    testmini    700 claims     development. Read failures here, iterate prompts here.
+    test      1,700 claims     report here. Touched once, at the end.
+
+**That makes the paper substantially harder to attack**, and it costs one larger run at the end rather than any change to how we work now.
+
+**Cost, from measured throughput.** 1,700 claims is 2.43x a testmini run: about 195 minutes for the 3B on the GPU, and roughly 12 CNY for flash against the 110.24 remaining. Both are affordable. The 7B at 1,700 is about 390 minutes, which is one overnight job.
+
+**What it does not fix.** The retriever, `k`, and the local model were all chosen against testmini too. Reporting on test does not undo that; it only protects the numbers reported. Say so in Limitations rather than implying the whole pipeline is untouched by the development set.
+
+#### The decision rule
+
+1. **v2 stands as-is and is reported.** One motivated edit, disclosed.
+2. **Before any v3**, either move final reporting to `test.json`, or hold out a stratified split of testmini and iterate only on the remainder. **Do not iterate further against the same 700 that the paper reports.**
+3. **Nothing is decided before the 3B v2 run.** The routing gate is built entirely on local model behaviour (§2.10), so if v2 helps the 3B as it helped flash, every routing number is recomputed on v2 outputs. **Iterating the prompt before that is optimising against half the picture.**
+
+---
+
 ## 10. What If the 2026 Baseline Is Already Very High? (Backup Plans)
 
 Why full saturation is unlikely: (1) the recall ceiling caps RAG accuracy regardless of model intelligence; (2) FDV-KNOW needs niche accounting knowledge; (3) our headline setting uses a 3B local model, which will certainly not saturate anything.

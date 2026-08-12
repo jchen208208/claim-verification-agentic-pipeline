@@ -1240,13 +1240,20 @@ list at spot rate. **Proportions inside the table hold, absolute dollars do not.
     exact, from balance readings
       9 Aug, after the two n=102 runs        142.38 CNY
       10 Aug, after both n=700 runs          115.42 CNY
-      11 Aug, no cloud calls that day        115.14 CNY   (the 0.28 is settlement lag)
+      11 Aug, before the v2 run              115.14 CNY   (the 0.28 is settlement lag)
+      11 Aug, after flash v2 at n=700        110.24 CNY   delta 4.90, exact
 
-    TOTAL SPEND, updated 11 Aug:
-      exact, 9 Aug onward                     27.24 CNY   ~3.78 USD
-      estimated, before 9 Aug                 ~4    CNY   ~0.56 USD   NOT RECOVERABLE
-      estimated total                        ~31    CNY   ~4.3  USD
-      remaining, exact                       115.14 CNY   ~16.0 USD
+    TOTAL SPEND, updated 11 Aug after the v2 run:
+      exact, 9 Aug onward                     32.14 CNY   ~4.5 USD
+      estimated, before 9 Aug                 ~4    CNY   ~0.6 USD   NOT RECOVERABLE
+      estimated total                        ~36    CNY   ~5.0 USD
+      remaining, exact                       110.24 CNY   ~15.3 USD
+
+    CORRECTED: the USD-to-CNY discrepancy is MODEL-SPECIFIC, not systematic.
+      flash   6.94 CNY per attributed USD    ~= the 7.2 nominal spot rate
+      pro    ~11.8 CNY per attributed USD    ~1.65x its USD list
+    Pro is roughly 5x flash per run in real billing, not the 3x the USD table
+    implies. A fourth argument for flash as the cloud tier.
 
     The starting balance was never recorded, so everything before 9 August is
     attribution and can never be measured. Label it as an estimate wherever it appears.
@@ -1762,6 +1769,97 @@ in §2.8, §2.8.1, §2.9, §2.10 and the model-level table of §2.11 regenerates
 **One figure moved when the throwaway code was replaced.** The mapping alignment is **0.946 against
 0.195**, not 0.940 / 0.191. Same cause as the parse-fidelity correction earlier today: the
 throwaway compared numbers as strings, the committed script compares them as floats. Docs updated.
+
+
+
+### PROMPT v2 WORKS: 77.0% -> 79.9%, p = 0.002. First significant intervention.
+
+`results/condition2_flash_v2_full700/`, **700 ok, 0 failed, 187.0 min, 4.90 CNY exact.**
+Full detail in the build log for 11 August, late, and `paper_numbers.md` §2.12.
+
+                            flash v1   flash v2
+    strict accuracy            77.0%      79.9%
+    predicted True           217/700    239/700    (gold 350)
+    entailed accuracy          58.0%      64.3%
+    refuted accuracy           96.0%      95.1%
+    ie / knowledge / numeric   80.4 / 70.5 / 78.8   ->   84.0 / 74.0 / 80.4
+
+**Every previous intervention was a tie.** Model variants p = 1.000, oracle retrieval p = 0.116,
+the routing gate p = 0.858. **This one is p = 0.002.**
+
+**79.9% is above the best published 2024 RAG figure of 75.0%.** Report FINDVER-compatible, and as a
+2026 model against a 2024 table.
+
+**Three of four pre-recorded predictions met. The fourth was wrong and is reported as a miss:** the
+gain is NOT concentrated on FDV-KNOW, it is spread evenly across ie and knowledge. The mechanism
+was diagnosed on knowledge failures but is not specific to that subset.
+
+**Reduced, not solved.** 26 of v1's 147 false refutations corrected, 3 new false acceptances
+introduced, **121 false refutations survive**, and v2 still cites missing information on 16.3% of
+claims.
+
+**Costs of the fix:** output tokens +25%, wall clock 147.7 to 187.0 min, and four claims truncated
+at the 16,000 cap against zero in v1. **Worth it by an enormous margin** — under one yuan and 40
+minutes for the only significant gain measured.
+
+**One network failure**, `numeric-val-25`, an SSL read timeout repaired by resume. The run read
+79.7% with it scored wrong and 79.9% after.
+
+### NEXT: the 3B on v2, and it gates everything downstream
+
+**The routing gate is built entirely on local model behaviour.** If v2 helps the 3B the way it
+helped flash, every number in §2.10 has to be recomputed. `configs/condition1_3b_v2_full700.json`
+is the run, ~80 min GPU, no cloud cost. **Nothing else should be decided before it.**
+
+### WE ARE NOW TUNING ON THE EVALUATION SET. Read this before writing a v3.
+
+Full protocol version in architecture plan **§9.4**, which is where the decision belongs.
+
+**All 700 testmini claims are both our development data and our reported result.** Prompt v2 was
+written by reading failures from those 700, tested on those 700, and its 79.9% is reported from
+those 700.
+
+**One prompt edit is defensible and disclosable.** It was motivated by a mechanism found in the
+data, it changed one clause, and it stands with a sentence in Limitations.
+
+**Three or four rounds of "try a wording, check the 700" is not.** That is fitting noise. With a
+per-run noise floor of about one claim in ten and 700 claims, a few points of apparent gain can be
+manufactured by iteration alone, and **every number in the paper becomes optimistic by an amount we
+cannot estimate or bound.**
+
+**The docs already flag this for the n=102 slice — roughly 15% of any final 700 number comes from
+examples we optimised against. Doing it at n=700 is worse, because the overlap is 100%.**
+
+### THE CLEAN WAY OUT, and it exists today
+
+**`test.json` ships 1,700 examples WITH REAL LABELS.** The original plan's "labels are withheld"
+assumption is wrong and was corrected on 29 July; our count and MACE's Table 2 agree on the size.
+
+    testmini    700 claims     development. Read failures here, iterate prompts here.
+    test      1,700 claims     report here. Touched once, at the end.
+
+**That makes the paper substantially harder to attack**, and it costs one larger run at the end
+rather than any change to how we work now. From measured throughput, 1,700 is 2.43x a testmini run:
+about **195 min for the 3B on the GPU**, roughly **12 CNY for flash** against the 110.24 remaining,
+and about **390 min for the 7B**, which is one overnight job. All affordable.
+
+**What it does not fix:** the retriever, k, and the local model were all chosen against testmini
+too. Reporting on test protects the reported numbers, not the pipeline's design. Say that in
+Limitations rather than implying otherwise.
+
+### THE DECISION RULE
+
+1. **v2 stands as-is and is reported.** One motivated edit, disclosed.
+2. **Before any v3**, either move final reporting to `test.json`, or hold out a stratified split of
+   testmini and iterate only on the remainder. **Do not iterate further against the same 700 the
+   paper reports.**
+3. **Nothing is decided before the 3B v2 run.** The routing gate is built entirely on local model
+   behaviour, so if v2 helps the 3B as it helped flash, every routing number is recomputed on v2
+   outputs. **Iterating the prompt before that is optimising against half the picture.**
+
+**So: run the 3B on v2 tomorrow, then decide.** If the fix transfers, rebuild the routing table on
+v2 and that is a strong result. If a v3 still looks worth trying afterwards, run it against a
+held-out split rather than the 700 being reported.
 
 
 ### ORDER OF WORK

@@ -147,6 +147,13 @@ def main():
         print("  Readings, CNY:  9 Aug 142.38 (after the two n=102 runs)")
         print("                 10 Aug 115.42 (after both n=700 runs, delta 26.96)")
         print("                 11 Aug 115.14 (no cloud calls that day; the 0.28 is settlement lag)")
+        print("                 11 Aug 110.24 (after flash v2 at n=700, delta 4.90)")
+        print()
+        print("  The USD column above is MODEL-SPECIFIC in its error, not uniformly off:")
+        print("    flash   6.94 CNY per attributed USD  ~= the 7.2 nominal rate")
+        print("    pro    ~11.8 CNY per attributed USD  ~1.65x its USD list")
+        print("  So pro costs roughly 5x flash per run in real billing, not the 3x")
+        print("  the USD column implies. Derived from the 10 and 11 Aug deltas.")
 
     return 0
 

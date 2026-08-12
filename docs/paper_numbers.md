@@ -1054,6 +1054,75 @@ The labelling is one reader's, over one failure mode, supported by a regex over 
 
 ---
 
+### 2.12 **[NEW 11 Aug 2026] PROMPT v2 — the first significant intervention, +2.9 points at p = 0.002**
+
+Reproduce with: `python3 test_scripts/analyse_condition1.py condition2_deepseek_flash_full700 condition2_flash_v2_full700`
+
+**The change.** `prompts/baseline_v2.txt` alters step 4 of `baseline_v1` only: it drops the "or partially contradicts the document" clause, states the criterion symmetrically, and adds *"Evidence that is incomplete is not by itself a contradiction: judge the claim on what the document states, not on what is absent from it."* Everything else — model, retriever, k, seed, sample — is identical.
+
+| | flash v1 | flash v2 |
+|---|---|---|
+| strict accuracy | 77.0% | **79.9%** |
+| FINDVER-compatible | 77.0% | 80.0% |
+| unparseable | 0.0% | 0.6% |
+| predicted True | 217/700 | 239/700 |
+| output tokens, mean | 1,463 | 1,856 |
+| wall clock | 147.7 min | 187.0 min |
+| exact cost | ~4.4 CNY | **4.90 CNY** |
+| ie | 80.4% | 84.0% |
+| knowledge | 70.5% | 74.0% |
+| numeric | 78.8% | 80.4% |
+
+**Paired: agree on 660/700, v1 right on 9, v2 right on 29, McNemar p = 0.002.**
+
+**This is the only statistically significant accuracy improvement in the project.** For contrast: three local model variants p = 1.000 (§2.5), oracle retrieval p = 0.116 (§2.8), the routing gate against flash p = 0.858 (§2.10).
+
+#### Predictions were recorded before the run. Three of four met, and the fourth is reported as a miss.
+
+| prediction | v1 | v2 | outcome |
+|---|---|---|---|
+| 1. cites missing information | 18.9% | 16.3% | MET |
+| 2. predicted entailed (gold 50%) | 31.0% | 34.1% | MET |
+| 3. accuracy on **entailed** claims | 58.0% | **64.3%** | MET, +6.3 |
+| guard: accuracy on refuted | 96.0% | 95.1% | safe, floor 85% |
+| 4. gain concentrated on FDV-KNOW | — | — | **WRONG** |
+
+**Prediction 4 failed.** ie +3.6, knowledge +3.5, numeric +1.6 — evenly spread. The mechanism was diagnosed on FDV-KNOW failures (§2.11) but the fix helps extraction claims equally, so **refusal-on-perceived-absence is not specific to the subset it was found in.**
+
+#### The mechanism moved as predicted, and is reduced rather than solved
+
+```
+v1: cites missing 132 -> refutes 130 -> wrong 68  (52%)
+v2: cites missing 114 -> refutes 106 -> wrong 51  (48%)
+
+of v1's 147 false refutations, v2 corrects   26  (18%)
+new false acceptances introduced by v2        3
+```
+
+**26 fixed against 3 broken** is where the gain comes from. **121 of the 147 false refutations survive**, and v2 still cites missing information on 16.3% of claims.
+
+#### What may be written
+
+**Supportable.** *"Removing an instruction to refute on partial contradiction improved a frontier model's accuracy by 2.9 points (p = 0.002), driven by a 6.3-point gain on entailed claims, at a cost of 0.9 points on refuted claims."* And, separately, that **79.9% exceeds the best published 2024 RAG figure of 75.0%** — FINDVER-compatible scoring only, and noting it is a 2026 model against a 2024 table (§9.1).
+
+**Not supportable.** That the bias is fixed: 121 false refutations remain. That the gain is a FDV-KNOW result: it is not.
+
+#### Two defects, both recorded
+
+`numeric-val-25` failed on an SSL read timeout in `call_model` — network, not model. Repaired by resume; the run read 79.7% with the failure scored wrong and **79.9%** after. **Four claims truncated at the 16,000-token cap** (`ie-val-206`, `ie-val-225`, `numeric-val-98`, `numeric-val-10`) against zero in v1, because v2 makes flash reason 25% longer.
+
+#### THE METHODOLOGICAL LIMIT THAT NOW BINDS
+
+All 700 testmini claims are simultaneously the development set and the reported result. Prompt v2 was written by reading failures from those 700 (§2.11), tested on those 700, and its 79.9% is reported from those 700.
+
+**One prompt edit is defensible and must be disclosed in Limitations. Repeated iteration against the same 700 would fit noise** — at a per-run noise floor of ~1 claim in 10 (§2.3.2), a few points of apparent gain can be manufactured by iteration alone — **and would make every number optimistic by an amount we cannot bound.**
+
+**The clean route exists.** `test.json` ships **1,700 examples with real labels** (§4): iterate on testmini, report finals on test. Cost is 2.43x a testmini run — ~195 min for the 3B on the GPU, ~12 CNY for flash, ~390 min for the 7B. **It does not undo that the retriever, k and the local model were also chosen against testmini**; it protects the reported numbers, not the design. Say so in Limitations.
+
+**Full protocol and decision rule in architecture plan §9.4. Decide before writing a v3, and not before the 3B v2 run.**
+
+---
+
 ## 3. Deployment cost
 
 **The MacBook is the device of record.** Never print a GPU-derived number under a MacBook label; never mix machines in one table (§9.2).
@@ -1165,10 +1234,12 @@ Projected over 102 claims, at the pricing published on 8 August 2026:
 |---|---|---|
 | 9 Aug 2026, after the two n=102 condition 2 runs | 142.38 | `api_cost_tally.py` |
 | 10 Aug 2026, after both n=700 condition 2 runs | **115.42** | live balance |
-| 11 Aug 2026, no cloud calls that day | **115.14** | live balance |
-| **delta, the two n=700 runs** | **26.96** | exact |
-| **delta, 10 to 11 Aug** | **0.28** | exact — settlement lag, nothing ran |
-| remaining on the professor's key | **115.14** | live balance, 11 Aug |
+| 11 Aug 2026, before the v2 run | **115.14** | live balance |
+| 11 Aug 2026, after `condition2_flash_v2_full700` | **110.24** | live balance |
+| **delta, the two n=700 runs (pro + flash)** | **26.96** | exact |
+| **delta, 10 to 11 Aug, nothing ran** | **0.28** | exact — settlement lag |
+| **delta, flash v2 at n=700** | **4.90** | exact — 700 claims + 1 resume call |
+| remaining on the professor's key | **110.24** | live balance, 11 Aug |
 
 **The two n=700 condition 2 runs cost 26.96 CNY.** That is the largest precisely known spend figure in the project, and it is the one to quote.
 
@@ -1178,16 +1249,25 @@ Projected over 102 claims, at the pricing published on 8 August 2026:
 
 | | CNY | USD, rough | basis |
 |---|---|---|---|
-| **exact, 9 Aug onward** | **27.24** | **~3.78** | two balance deltas, 26.96 + 0.28 |
-| estimated, before 9 Aug | ~4 | ~0.56 | attribution only, see below |
-| **estimated total spent** | **~31** | **~4.3** | the two rows above |
-| remaining, exact | 115.14 | ~16.0 | live balance, 11 Aug |
+| **exact, 9 Aug onward** | **32.14** | **~4.5** | three balance deltas: 26.96 + 0.28 + 4.90 |
+| estimated, before 9 Aug | ~4 | ~0.6 | attribution only, see below |
+| **estimated total spent** | **~36** | **~5.0** | the two rows above |
+| remaining, exact | 110.24 | ~15.3 | live balance, 11 Aug, after the v2 run |
 
 **Everything before the first balance reading is unrecoverable.** The starting balance was never recorded, so the two n=102 condition 2 runs and the seven ad-hoc probe calls can only ever be *attributed*, never *measured*. Attribution puts them at 0.397 USD; applying the 10.63 CNY-per-attributed-USD ratio that the 10 August delta revealed gives roughly 4 CNY. **That figure is an estimate and must be labelled as one wherever it appears.**
 
 **USD figures here are rough**, converted at the script's nominal 7.2 CNY/USD. The account is denominated in CNY and CNY is the billed currency, so **quote CNY and treat USD as a convenience.**
 
-**A consistency check that holds.** Our whole-history USD attribution is 2.934, which at 7.2 is 21.1 CNY, against roughly 31 CNY actually spent — a ratio of about 1.47. That matches the 1.48 measured on the two n=700 runs alone. **The discrepancy is systematic rather than a one-off**, which supports the CNY-list explanation over a transient billing artefact.
+**[CORRECTED 11 Aug 2026, after the v2 run.] The discrepancy is NOT uniform. It is model-specific, and this was previously written as though it were systematic across the account.**
+
+| run | attributed USD | actual CNY | CNY per attributed USD |
+|---|---|---|---|
+| 10 Aug, pro + flash together | 2.537 | 26.96 | 10.63 |
+| 11 Aug, **flash alone** | 0.706 | **4.90** | **6.94** |
+
+**Flash bills at about 6.9 CNY per attributed USD, which is essentially the nominal 7.2 spot rate.** The 10 August ratio was dominated by pro, which carried 75% of that attribution. Backing flash out at ~7 CNY/USD leaves roughly 22.6 CNY for pro's 1.911 USD, so **pro bills at roughly 11.8 CNY per attributed USD — about 1.65x its USD list — while flash tracks spot.**
+
+**Planning consequence: pro is far more expensive relative to flash than the USD table implies — roughly 5x per run in real billing, not the 3x attribution suggests.** This is a fourth independent argument for the 10 August decision to make flash the cloud tier, alongside the accuracy tie (p = 0.875), the 1.8x speed, and the token count.
 
 **Our USD attribution predicted $2.537 for those same two runs, which is 18.27 CNY at the script's rough 7.2 rate. Actual billing is 1.48x that.** The docstring already warns the two will not match; 48% is larger than "not exactly" implies, and the cause is **unverified**. Three candidates, in any combination: the CNY list not tracking the USD list, the rates being stale (§3.4 records an announced increase, unconfirmed), and cache-miss input pricing, since our probe showed `cached_tokens: 0`.
 

@@ -4412,3 +4412,118 @@ The categorisation was done by reading the responses and by a regex over the phr
 ("does not provide", "no information", "not stated", and so on). It is one person's labelling of
 one failure mode, not the four-category taxonomy §9 calls for. Worth a spot-check before it goes in
 the paper.
+
+## 11 August 2026, late - PROMPT v2 WORKS. First significant intervention in the project.
+
+`results/condition2_flash_v2_full700/`, **700 ok, 0 failed, 187.0 minutes, 4.90 CNY exact.**
+
+                            flash v1   flash v2
+    strict accuracy            77.0%      79.9%
+    FINDVER-compatible         77.0%      80.0%
+    unparseable                 0.0%       0.6%
+    predicted True           217/700    239/700    (gold 350)
+    output tokens, mean         1,463      1,856
+    wall clock               147.7 min  187.0 min
+
+    ie                         80.4%      84.0%
+    knowledge                  70.5%      74.0%
+    numeric                    78.8%      80.4%
+
+**Paired on the same 700 claims: agree on 660, v1 right on 9, v2 right on 29. p = 0.002.**
+
+**This is the first statistically significant accuracy improvement any intervention has produced in
+this project.** Every previous one came back a tie: the three local model variants at p = 1.000,
+k=10 against k=20, oracle retrieval at p = 0.116, the routing gate against flash at p = 0.858.
+
+**79.9% also sits above the best published 2024 RAG figure**, Claude-3.5-Sonnet at 75.0%. Report it
+FINDVER-compatible and as a 2026 model against a 2024 table, per §9.1.
+
+### The predictions were recorded before the run. Three of four met.
+
+    prediction                              v1       v2      outcome
+    1. cites missing information         18.9%    16.3%      MET
+    2. predicted entailed (gold 50%)     31.0%    34.1%      MET
+    3. accuracy on ENTAILED claims       58.0%    64.3%      MET, +6.3 points
+       guard: accuracy on REFUTED        96.0%    95.1%      safe, floor was 85%
+    4. gain concentrated on FDV-KNOW       --       --       WRONG
+
+**Prediction 4 failed and it should be recorded as a miss rather than quietly dropped.** The gain
+is spread evenly, ie +3.6 and knowledge +3.5, with numeric +1.6. The mechanism was diagnosed on
+FDV-KNOW failures, but the fix helps extraction claims just as much, so **refusal-on-perceived-
+absence is not specific to the subset where it was found.** That is a more interesting result than
+the prediction would have been.
+
+### The mechanism moved in exactly the way the hypothesis said
+
+    v1: cites missing 132 -> refutes 130 -> wrong 68  (52%)
+    v2: cites missing 114 -> refutes 106 -> wrong 51  (48%)
+
+    of v1's 147 false refutations, v2 corrects        26   (18%)
+    new false ACCEPTANCES introduced by v2             3
+
+**26 fixed against 3 broken.** That is the predicted trade: loosen the refusal criterion, recover
+true claims, pay a little on the refuted side.
+
+**It is reduced, not solved.** v2 still cites missing information on 16.3% of claims and is still
+wrong on 48% of those refutations. **121 of the 147 false refutations survive the prompt fix.**
+
+### Two defects, one repaired
+
+**`numeric-val-25` failed on an SSL read timeout** inside `call_model` — a network error, not a
+model error. Repaired by resume, one API call. It was scored as wrong before the repair, which is
+why the run first read 79.7% and now reads **79.9%**. Nothing else changed.
+
+**Four claims truncated at the 16,000-token cap**, against zero in v1: `ie-val-206`, `ie-val-225`,
+`numeric-val-98`, `numeric-val-10`. v2 makes flash reason 25% longer, output tokens 1,463 to 1,856,
+so the cap now binds occasionally where it never did before. Worth watching if a v3 is written.
+
+### Cost, and a correction to what was recorded this morning
+
+**Exact: 4.90 CNY**, balance 115.14 to 110.24.
+
+**The USD-to-CNY discrepancy is model-specific, not systematic, and this file said otherwise
+earlier today.**
+
+    run                       attributed USD   actual CNY   CNY per attributed USD
+    10 Aug, pro + flash              2.537        26.96            10.63
+    11 Aug, flash alone              0.706         4.90             6.94
+
+**Flash bills at essentially the nominal 7.2 spot rate.** The 10 August ratio was dominated by pro,
+which carried 75% of that attribution. Backing flash out leaves roughly 22.6 CNY for pro's 1.911
+USD, so **pro bills at about 11.8 CNY per attributed USD, roughly 1.65x its USD list.**
+
+**Pro therefore costs about 5x flash per run in real billing, not the 3x the USD table implies.**
+A fourth independent argument for the 10 August choice of flash as the cloud tier, alongside the
+accuracy tie, the 1.8x speed and the token count.
+
+### What this does and does not settle
+
+**Settles:** the prompt was a real defect, the fix is worth its cost by an enormous margin, under
+one yuan and 40 minutes for the only significant gain measured, and the refusal-on-absence
+mechanism is confirmed rather than merely plausible.
+
+**Does not settle:** whether the fix transfers to the 3B. **The entire routing gate is built on
+local model behaviour**, so if v2 helps the 3B as much as it helped flash, every routing number in
+§2.10 has to be recomputed. That run needs the GPU and is the next thing to happen.
+
+**A methodological warning that now binds, written up as a protocol in architecture plan §9.4.**
+
+All 700 testmini claims are simultaneously our development data and our reported result. v2 was
+written by reading failures from those 700, tested on those 700, and reported from those 700.
+
+**One edit is defensible and disclosable. Three or four rounds of "try a wording, check the 700" is
+fitting noise** — the per-run noise floor is about one claim in ten, so a few points of apparent
+gain can be manufactured by iteration alone — **and every number in the paper would become
+optimistic by an amount we cannot bound.** The docs already flag this for the n=102 slice; at n=700
+the overlap is 100%, which is worse.
+
+**The clean way out exists today.** `test.json` ships **1,700 examples with real labels** — the
+original plan's "labels are withheld" assumption was wrong. Iterate on testmini, report finals on
+test. That costs 2.43x a testmini run: ~195 min for the 3B on the GPU, ~12 CNY for flash against
+110.24 remaining, ~390 min for the 7B. All affordable. **It does not undo that the retriever, k and
+the local model were also chosen on testmini** — it protects the reported numbers, not the design,
+and Limitations has to say so.
+
+**The rule: v2 stands and is reported. Before any v3, move reporting to test.json or hold out a
+stratified split. And decide nothing before the 3B v2 run**, since the routing gate rests entirely
+on local model behaviour and would be recomputed if the fix transfers.
