@@ -45,6 +45,11 @@ RUNS = {
     "pro":   "condition2_deepseek_pro_full700",
     "gold":  "gold_alone_3b_full700",
     "pad":   "gold_padded_3b_full700",
+    # prompt v2 runs, added 12 Aug. The local arm stays on v1 because v2 did not
+    # help the 3B (p = 0.378), so these exist to price a v2 cloud arm under the
+    # gate, not to replace the local baselines.
+    "3bv2":    "condition1_3b_v2_full700",
+    "flashv2": "condition2_flash_v2_full700",
 }
 
 SUBSETS = ("ie", "knowledge", "numeric")

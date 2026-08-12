@@ -52,15 +52,21 @@ FINDVER report 67.91% and MACE repeat it; our 68.01% reproduces it to within rou
 
 **Why it beats upstream's BM25, fully accounted for.** Applying all three of upstream's implementation choices to our own code gives **66.72%** against their published 65.16%; the 1.6 residual is our approximation of NLTK and Porter, neither installed here.
 
-| ablation, n=700, k=10 | macro |
-|---|---|
-| ours as written | 74.60% |
-| classic IDF, can go negative | 72.09% |
-| `rank_bm25`'s exact IDF, negatives floored | 73.33% |
-| punctuation kept as tokens, NLTK-like | 72.58% |
-| suffix stemming applied | 74.67% |
-| tokenizer without inner-comma stripping | 74.78% |
-| all three upstream choices combined | 66.72% |
+Ablation reproduce with: `python3 test_scripts/measure_bm25_ablation.py`. **[12 Aug 2026] Built during the audit; this table had no reproducer before.** Four of seven rows reproduce exactly. Three differ, and all three are rows where the 4 August code's exact choice was not written down and cannot be recovered: which stemmer, and how `rank_bm25`'s epsilon is scoped. **Every conclusion the table supports survives.**
+
+| ablation, n=700, k=10 | macro, 4 Aug | macro, regenerated 12 Aug |
+|---|---|---|
+| ours as written | 74.60% | **74.60%** exact |
+| classic IDF, can go negative | 72.09% | **72.09%** exact |
+| `rank_bm25`'s exact IDF, negatives floored | 73.33% | 74.14% |
+| punctuation kept as tokens, NLTK-like | 72.58% | **72.58%** exact |
+| suffix stemming applied | 74.67% | 74.54% |
+| tokenizer without inner-comma stripping | 74.78% | **74.78%** exact |
+| all three upstream choices combined | 66.72% | 65.45% |
+
+**The three causes price the same.** Lucene IDF is worth 2.51 points (74.60 − 72.09), dropping punctuation 2.02 (74.60 − 72.58), and **stemming nothing** (−0.06, where 4 August said +0.07; both are noise around zero). Inner-comma stripping still costs a little rather than helping, 74.78 without it, which is what killed the leading explanation on 4 August.
+
+**The combined row reconstructs upstream better than before.** Applying all three upstream choices gives **65.45% against their published 65.16%**, where 4 August's 66.72% left a larger residual. The reconstruction argument is therefore stronger, not weaker, after regeneration.
 
 **The mechanism, and the paper sentence it supports.** Keeping punctuation as tokens inflates measured element length **1.81x for tables against 1.13x for paragraphs**. BM25's length normalisation then penalises tables disproportionately and pushes them out of the top k. Tables are ~18% of elements and carry much of this benchmark's evidence.
 
@@ -1139,6 +1145,69 @@ All 700 testmini claims are simultaneously the development set and the reported 
 
 ---
 
+### 2.13 **[NEW 12 Aug 2026] PROMPT v2 ON THE 3B — it does not transfer. A tie.**
+
+Reproduce with: `python3 test_scripts/analyse_condition1.py condition1_3b_full700 condition1_3b_v2_full700`
+
+`results/condition1_3b_v2_full700/`, 700 ok, 0 failed, 80.6 min on the GPU box. Same model, retriever, k, seed and sample as §2.3.1. The only change is `prompts/baseline_v2.txt`.
+
+| | 3B v1 | 3B v2 |
+|---|---|---|
+| strict accuracy | 61.4% | 63.3% |
+| FINDVER-compatible | 62.1% | 63.6% |
+| unparseable | 1.1% | **0.3%** |
+| predicted True | 324/700 | **309/700** (gold 350) |
+| prompt tokens, mean | 3,731 | 3,762 |
+| wall clock | 79.4 min | 80.6 min |
+
+**Paired: agree 513/700, v1 right 86, v2 right 99, McNemar p = 0.378. A TIE.** The +1.9 points may not be written as an improvement.
+
+| subset | v1 | v2 |
+|---|---|---|
+| ie | 60.8% | 65.6% |
+| knowledge | 59.0% | 61.0% |
+| numeric | 64.0% | **62.8%** |
+
+#### The prediction was recorded before the run, and it was met
+
+Written the morning of 12 August from the label skew in §2.10, before the run finished: flash predicted entailed on 31% against gold's 50%, a 19-point skew, and gained 2.9 points. **The 3B was already at 46%, 4 points off balanced, so a de-biasing prompt had little to correct and the predicted outcome was a small gain or a tie.** It is a tie.
+
+#### The mechanism ran backwards, and this is the reportable part
+
+Flash under v2 moved predicted True 217 → 239, **toward** gold's 350. **The 3B moved 324 → 309, away from it.** The model became slightly *more* refuted-biased under a prompt written to remove refuted bias. So the +1.9 is not the intervention working.
+
+**v2 changes the 3B's behaviour heavily without changing accuracy.** Only 513/700 verdicts agree, 73.3%, against a measured run-to-run noise floor of about 90% (§2.3.2). The changes cancel.
+
+#### What may be written
+
+**Supportable:** "the benchmark's inherited refuted bias costs a frontier model 21% of the benchmark and is repairable there at p = 0.002, while the identical repair produces no measurable change at 3B." The defect and its fix are dependent on model scale.
+
+**Not supportable:** "v2 improves the 3B by 1.9 points." p = 0.378. **Not supportable:** that v2 is a general fix.
+
+### 2.13.1 **[NEW 12 Aug 2026] A v2 CLOUD ARM MAKES CONDITION 4 HARDER**
+
+Reproduce with: `python3 test_scripts/analyse_routing.py --cloud flashv2`
+
+Local arm stays v1, since v2 does not help the 3B. Cloud arm goes to v2. Priced under the existing §2.10 gate from result files already on disk, no new runs.
+
+| cloud arm | routed | cloud alone | cloud calls | p |
+|---|---|---|---|---|
+| flash v1 | 76.6% | 77.0% | 36% | 0.858 |
+| flash v2 | **76.9%** | **79.9%** | 36% | **0.066** |
+
+**Only 36% of claims reach the cloud, so v2's +2.9 dilutes to +0.3 on the routed system while the bar it must match rises the full +2.9.** The gap widens from 0.4 points to 3.0, and p falls from 0.858 to 0.066. **Still a tie, and it must be reported as one, but it is now one unlucky claim from a measurable loss.**
+
+| subset | routed | flash v2 |
+|---|---|---|
+| ie | 83.2% | 84.0% |
+| knowledge | 74.5% | 74.0% |
+| numeric | **72.4%** | **80.4%** |
+
+**Numeric carries the whole gap**, 8 points. "Always escalate numeric" (§2.11 consequence, 11 Aug plan item 3) is now worth 8 points rather than 6 and is the first thing to test against this.
+
+---
+
+
 ## 3. Deployment cost
 
 **The MacBook is the device of record.** Never print a GPU-derived number under a MacBook label; never mix machines in one table (§9.2).
@@ -1146,6 +1215,8 @@ All 700 testmini claims are simultaneously the development set and the reported 
 Hardware: 2017 Intel MacBook Pro, 16 GB RAM, macOS 13, CPU-only, Ollama pinned at 0.12.3.
 
 ### 3.1 Measured throughput
+
+**[12 Aug 2026] NOT REGENERABLE, AND THAT IS CORRECT.** Rule 1 asks for a committed script per number. **This section is exempt by nature**: every row records a physical measurement taken on a particular machine on a particular date, not a computation over stored data. No script can reproduce "12.8–23.2 tok/s on 5 August" without re-running the model on that hardware. **The honest standard here is provenance, not reproducibility**, so each row carries the date, the machine and the n it was measured on, and is quoted as a dated measurement rather than a current fact. Any row whose hardware has changed must be re-measured, not recomputed. The one row that IS a computation, per-example BM25 projection, is marked as a fit rather than an observation.
 
 | quantity | value | n | note |
 |---|---|---|---|
@@ -1161,6 +1232,8 @@ Hardware: 2017 Intel MacBook Pro, 16 GB RAM, macOS 13, CPU-only, Ollama pinned a
 **7B has never been re-measured.** The 11 m 46 s figure is one week-1 example and must be labelled an estimate or re-measured before use.
 
 ### 3.2 Prompt size and overflow, n=700, conservative 3.31 chars/token
+
+Reproduce with: `python3 test_scripts/measure_prompt_size.py`. **[12 Aug 2026] Built during the audit; this table had no reproducer before.** Regenerated values are mean 4,425 / 6,471 / 8,453 / 10,426 / 12,327 and p90 9,486 / 13,601 / 17,716 / 22,263 / 26,633. **Every overflow count below reproduces exactly**, and max is within 1 token. Means run 1 token low and p90 differs by up to 250 because the script uses a nearest-rank percentile where the 5 August code interpolated. **No decision this table supports is affected**, since all of them turn on the overflow columns.
 
 | k | mean tokens | p90 | max | over 14,384 | over 30,768 |
 |---|---|---|---|---|---|

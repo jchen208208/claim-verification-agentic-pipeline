@@ -1877,9 +1877,50 @@ held-out split rather than the 700 being reported.
 
 ## Where things stand, 12 August
 
-`condition1_3b_v2_full700` is running on the GPU box. Everything below is Mac daytime work off
-result files already on disk. No nights spent, no cloud calls. Full detail in the build log for
-12 August.
+### PROMPT v2 DOES NOT TRANSFER TO THE 3B. It is a tie, and the hold is lifted.
+
+`results/condition1_3b_v2_full700/`, **700 ok, 0 failed, 80.6 min on the GPU.**
+
+                            3b v1     3b v2
+    strict accuracy         61.4%     63.3%
+    unparseable              1.1%      0.3%
+    predicted True        324/700   309/700     gold 350
+
+    paired: agree 513/700, v1 right 86, v2 right 99, McNemar p = 0.378   TIE
+
+**The prediction recorded before the run was met.** Flash was 19 points off balanced and gained 2.9
+at p = 0.002. The 3B was only 4 points off, so there was little for a de-biasing prompt to fix.
+
+**The mechanism ran backwards.** Flash moved predicted True 217 to 239, toward gold's 350. **The 3B
+moved 324 to 309, away from it.** So the +1.9 is not the intervention working, and it is not
+significant regardless.
+
+**"Nothing is decided before the 3B v2 run" is now discharged. The routing table built on v1 local
+outputs stands and does not need recomputing.**
+
+**The paper claim is stronger this way:** the benchmark's inherited clause costs a frontier model
+21% of the benchmark and is repairable there at p = 0.002, and the same repair does nothing at 3B.
+The defect and its fix depend on model scale.
+
+### CONDITION 4 WITH A v2 CLOUD ARM IS HARDER, NOT EASIER
+
+Local arm stays v1. Cloud arm goes to v2. Priced under the existing gate from files already on disk:
+
+    gate = 3B/7B agree -> keep 7B, else escalate     routed   cloud alone       p
+    cloud arm = flash v1                             76.6%       77.0%      0.858
+    cloud arm = flash v2                             76.9%       79.9%      0.066
+
+**Only 36% of claims reach the cloud, so v2's +2.9 dilutes to +0.3 on the routed system while the
+bar rises the full +2.9.** The gap goes 0.4 to 3.0 points and p goes 0.858 to 0.066. Still a tie,
+one unlucky claim from a measurable loss.
+
+**Numeric carries all of it: routed 72.4% against 80.4%.** "Always escalate numeric" is now worth 8
+points rather than 6, and is the first thing to try.
+
+---
+
+Everything below is Mac daytime work off result files already on disk. No nights spent, no cloud
+calls. Full detail in the build log for 12 August.
 
 ### The morning was lost to a machine that was not signed in
 

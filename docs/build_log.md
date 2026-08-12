@@ -4619,3 +4619,67 @@ does not regenerate them and they may not enter the paper until it does.
 
 §9 requires a four-category error taxonomy. This is one category, labelled by one reader. The regex
 is now reviewable and every match can be printed, but nothing sorts the failures into four kinds.
+
+## 12 August 2026, afternoon - PROMPT v2 DOES NOT TRANSFER TO THE 3B
+
+`results/condition1_3b_v2_full700/`, **700 ok, 0 failed, 80.6 minutes on the GPU box.**
+
+    python3 test_scripts/analyse_condition1.py condition1_3b_full700 condition1_3b_v2_full700
+
+                            3b v1     3b v2
+    strict accuracy         61.4%     63.3%
+    FINDVER-compatible      62.1%     63.6%
+    unparseable              1.1%      0.3%
+    predicted True        324/700   309/700     gold 350
+    prompt tokens, mean     3,731     3,762
+    wall clock             79.4 m    80.6 m
+
+    paired: agree 513/700, v1 right 86, v2 right 99, McNemar p = 0.378   TIE
+
+    ie          60.8% -> 65.6%
+    knowledge   59.0% -> 61.0%
+    numeric     64.0% -> 62.8%
+
+**The prediction recorded before the run was met.** It was written this morning, from the label
+skew in §2.10: flash predicted entailed on 31% against gold's 50%, a 19-point skew, and gained 2.9
+points at p = 0.002. **The 3B was already at 46%, only 4 points off balanced, so there was little
+for a de-biasing prompt to correct, and the predicted result was a small gain or a tie.** It is a
+tie.
+
+**The mechanism ran backwards, which is the part worth reporting.** For flash, v2 moved predicted
+True 217 to 239, toward gold's 350. **For the 3B it moved 324 to 309, away from it.** The model
+became slightly more refuted-biased under a prompt written to remove refuted bias. So the +1.9
+points is not the intervention working, and it is not significant in any case.
+
+**v2 changes the 3B's behaviour a great deal without changing its accuracy.** Only 513 of 700
+verdicts agree, 73.3%. The measured run-to-run noise floor is about 90% agreement (§2.3.2), so this
+is far outside noise. The changes cancel.
+
+### What it settles, and what it costs
+
+**The hold is lifted.** Everything downstream was blocked on this, because the routing gate is
+built entirely on local model behaviour and would have needed recomputing on v2 outputs if the fix
+had transferred. It did not. **The routing table built on v1 local outputs stands.**
+
+**The paper claim is better than a second win would have been.** The benchmark's inherited "or
+partially contradicts" clause costs a frontier model 21% of the benchmark and is repairable there
+at p = 0.002. The identical repair does nothing for a 3B. **The defect and its fix are dependent on
+model scale**, which is a sharper statement than "we improved a prompt."
+
+### The consequence for condition 4, measured the same afternoon
+
+`analyse_routing.py` gained `3bv2` and `flashv2` entries so a v2 cloud arm could be priced under
+the existing gate. Local arm stays v1, since v2 does not help the 3B.
+
+    gate = 3B/7B agree -> keep 7B, else escalate     routed   cloud alone       p
+    cloud arm = flash v1                             76.6%       77.0%      0.858
+    cloud arm = flash v2                             76.9%       79.9%      0.066
+
+**Adopting v2 for the cloud makes the contribution harder to claim, not easier.** Only 36% of
+claims reach the cloud, so v2's +2.9 dilutes to +0.3 on the routed system, while the bar it has to
+match rises the full +2.9. The gap widens from 0.4 points to 3.0 and p falls from 0.858 to 0.066.
+**Still a tie, but one unlucky claim from being a measurable loss.**
+
+**Numeric carries all of it:** routed 72.4% against flash v2's 80.4%. That is the subset the
+11 August plan already named in "always escalate the numeric subset", now worth 8 points rather
+than 6. It is the first thing to try against this.
