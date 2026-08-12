@@ -1900,8 +1900,9 @@ number in that section. The figures came from throwaway code never saved, and th
 survived only as prose ending in "and so on". **Under rule 1 every §2.11 number was unusable**,
 including the model-level table the "routing cannot fix it" negative result rests on.
 
-`test_scripts/analyse_missing_info.py` is the reproducer. **It still needs to be applied — the file
-does not exist yet.**
+`test_scripts/analyse_missing_info.py` is the reproducer. **Built and verified 12 Aug**: it
+regenerates both §2.11 tables, and `--show wrong|right` prints every matched sentence in context so
+the regex is checked by reading rather than trusted.
 
 **The spot-check found a defect in the matcher, not in the reading.** A bare `lack` matches the
 subject matter rather than the model's reasoning: "a lack of authorized shares" is a fact in the
