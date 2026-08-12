@@ -1100,12 +1100,31 @@ Projected over 102 claims, at the pricing published on 8 August 2026:
 
 | reading | CNY | source |
 |---|---|---|
-| 9 Aug 2026, after the two n=102 condition 2 runs | 142.38 | `api_cost_tally.py:147` |
+| 9 Aug 2026, after the two n=102 condition 2 runs | 142.38 | `api_cost_tally.py` |
 | 10 Aug 2026, after both n=700 condition 2 runs | **115.42** | live balance |
+| 11 Aug 2026, no cloud calls that day | **115.14** | live balance |
 | **delta, the two n=700 runs** | **26.96** | exact |
-| remaining on the professor's key | **115.42** | live balance |
+| **delta, 10 to 11 Aug** | **0.28** | exact — settlement lag, nothing ran |
+| remaining on the professor's key | **115.14** | live balance, 11 Aug |
 
-**The two n=700 condition 2 runs cost 26.96 CNY.** That is the only precisely known spend figure in the project, and it is the one to quote.
+**The two n=700 condition 2 runs cost 26.96 CNY.** That is the largest precisely known spend figure in the project, and it is the one to quote.
+
+#### TOTAL SPEND: what is known exactly, and what can never be
+
+**[ADDED 11 Aug 2026.]** The distinction matters because the professor may ask, and half the answer is not recoverable.
+
+| | CNY | USD, rough | basis |
+|---|---|---|---|
+| **exact, 9 Aug onward** | **27.24** | **~3.78** | two balance deltas, 26.96 + 0.28 |
+| estimated, before 9 Aug | ~4 | ~0.56 | attribution only, see below |
+| **estimated total spent** | **~31** | **~4.3** | the two rows above |
+| remaining, exact | 115.14 | ~16.0 | live balance, 11 Aug |
+
+**Everything before the first balance reading is unrecoverable.** The starting balance was never recorded, so the two n=102 condition 2 runs and the seven ad-hoc probe calls can only ever be *attributed*, never *measured*. Attribution puts them at 0.397 USD; applying the 10.63 CNY-per-attributed-USD ratio that the 10 August delta revealed gives roughly 4 CNY. **That figure is an estimate and must be labelled as one wherever it appears.**
+
+**USD figures here are rough**, converted at the script's nominal 7.2 CNY/USD. The account is denominated in CNY and CNY is the billed currency, so **quote CNY and treat USD as a convenience.**
+
+**A consistency check that holds.** Our whole-history USD attribution is 2.934, which at 7.2 is 21.1 CNY, against roughly 31 CNY actually spent — a ratio of about 1.47. That matches the 1.48 measured on the two n=700 runs alone. **The discrepancy is systematic rather than a one-off**, which supports the CNY-list explanation over a transient billing artefact.
 
 **Our USD attribution predicted $2.537 for those same two runs, which is 18.27 CNY at the script's rough 7.2 rate. Actual billing is 1.48x that.** The docstring already warns the two will not match; 48% is larger than "not exactly" implies, and the cause is **unverified**. Three candidates, in any combination: the CNY list not tracking the USD list, the rates being stale (§3.4 records an announced increase, unconfirmed), and cache-miss input pricing, since our probe showed `cached_tokens: 0`.
 
@@ -1116,7 +1135,7 @@ Projected over 102 claims, at the pricing published on 8 August 2026:
 #### Owed, and cheap
 
 1. **Record a balance reading immediately before and immediately after every cloud run**, so the delta is always recoverable. Without it, no cloud cost after today is exactly knowable.
-2. **Add the 10 Aug reading of 115.42 CNY to `api_cost_tally.py`** beside the 9 Aug one at line 147.
+2. ~~**Add the 10 Aug reading of 115.42 CNY to `api_cost_tally.py`.**~~ **DONE 11 Aug.** All three readings are now printed by the script.
 3. **Check DeepSeek's current CNY price list** and either correct `PRICING` or convert it to CNY outright, which would remove the exchange-rate guess entirely.
 4. **Ask the professor for read access to the account's usage page.** A per-day, per-model usage export would give attribution and accuracy together and make items 1 to 3 unnecessary.
 

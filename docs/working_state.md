@@ -1240,6 +1240,16 @@ list at spot rate. **Proportions inside the table hold, absolute dollars do not.
     exact, from balance readings
       9 Aug, after the two n=102 runs        142.38 CNY
       10 Aug, after both n=700 runs          115.42 CNY
+      11 Aug, no cloud calls that day        115.14 CNY   (the 0.28 is settlement lag)
+
+    TOTAL SPEND, updated 11 Aug:
+      exact, 9 Aug onward                     27.24 CNY   ~3.78 USD
+      estimated, before 9 Aug                 ~4    CNY   ~0.56 USD   NOT RECOVERABLE
+      estimated total                        ~31    CNY   ~4.3  USD
+      remaining, exact                       115.14 CNY   ~16.0 USD
+
+    The starting balance was never recorded, so everything before 9 August is
+    attribution and can never be measured. Label it as an estimate wherever it appears.
       the two n=700 condition 2 runs          26.96 CNY   <- the only exact figure
       remaining on the professor's key       115.42 CNY
 
