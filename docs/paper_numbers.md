@@ -1208,6 +1208,50 @@ Local arm stays v1, since v2 does not help the 3B. Cloud arm goes to v2. Priced 
 ---
 
 
+### 2.13.2 **[NEW 12 Aug 2026] ALWAYS ESCALATE NUMERIC — the first routing rule that beats the gate**
+
+Reproduce with: `python3 test_scripts/analyse_routing.py --cloud flashv2`, which prints both the gate and the escalation curve.
+
+**One presentational difference to expect.** The script prints the dominated numeric-and-knowledge policy inside the curve, so its marginal column measures the final step from that row and reads `+0.3 pts / +21% calls`. **The curve table below measures the final step from the 61% operating point and reads `+0.1 pts / +39% calls`**, which is the comparison that matters, since numeric-and-knowledge is not an operating point anyone would choose. Same underlying numbers.
+
+No new runs. All four policies are re-derivations over result files already on disk.
+
+| cloud arm = flash v2 | accuracy | cloud calls | p vs gate |
+|---|---|---|---|
+| gate as-is (3B/7B agree → keep 7B) | 76.9% | 35.9% | — |
+| **+ always escalate numeric** | **79.7%** | **61.0%** | **0.005** |
+| + numeric and knowledge | 79.6% | 78.6% | 0.045 |
+| flash v2 alone | 79.9% | 100.0% | — |
+
+**This is the first routing rule in the project to beat the gate at p < 0.05.** Every earlier one tied: model variants p = 1.000, oracle retrieval p = 0.116, the gate itself against cloud-alone p = 0.858. **79.7% against cloud-alone's 79.9% is parity at 61% of the calls.**
+
+Adding knowledge on top buys nothing and costs 18 more points of call volume. **Numeric alone is the operating point.**
+
+With the v1 cloud arm the same rule gives 78.4% at 61% calls against flash v1's 77.0%, so the routed system *exceeds* the cloud baseline there. Marginal at p = 0.072 and it must be reported as a tie.
+
+#### The routing curve, which is what §3.5 says the deliverable is
+
+| policy | accuracy | cloud calls | USD/700 | marginal |
+|---|---|---|---|---|
+| 3B alone | 61.4% | 0% | 0.000 | — |
+| 7B alone | 72.4% | 0% | 0.000 | — |
+| gate | 76.9% | 35.9% | 0.253 | +4.4 pts / +36% calls |
+| gate + always numeric | 79.7% | 61.0% | 0.431 | +2.9 pts / +25% calls |
+| always cloud = condition 2 | 79.9% | 100% | 0.706 | **+0.1 pts / +39% calls** |
+
+**The first 36% and the next 25% buy accuracy at an identical rate, 0.12 points per percent of calls.** So 61% is not poorer value than 36%; they lie on one line. **The discontinuity is the final step: 39% more calls for 0.1 points.** Cloud-alone is dominated, and that is the cleanest form of the paper's argument.
+
+**Choosing between 36% and 61% is therefore not an efficiency question.** It is a claim about how much work stays on the device. Money does not decide it either, $0.25 against $0.43 per 700 claims.
+
+**[OPEN 12 Aug]** Raised for the meeting: whether doubling the escalation rate for 2.9 points is the right operating point. Not settled here.
+
+#### A caution that cuts against the on-device intuition
+
+On the MacBook, the device of record, a flash call is about 12.7 s and the local 3B+7B pair is several minutes per claim. **More escalation is faster there, not slower.** §3.5's rule stands: name the machine or do not make the latency claim.
+
+---
+
+
 ## 3. Deployment cost
 
 **The MacBook is the device of record.** Never print a GPU-derived number under a MacBook label; never mix machines in one table (§9.2).

@@ -4683,3 +4683,62 @@ match rises the full +2.9. The gap widens from 0.4 points to 3.0 and p falls fro
 **Numeric carries all of it:** routed 72.4% against flash v2's 80.4%. That is the subset the
 11 August plan already named in "always escalate the numeric subset", now worth 8 points rather
 than 6. It is the first thing to try against this.
+
+### Always escalate numeric, priced the same afternoon
+
+No new runs. Re-derivation over result files on disk, both cloud arms.
+
+    cloud arm = flash v1                acc     cloud calls    p vs gate
+    gate as-is                        76.6%        35.9%
+    + always escalate numeric         78.4%        61.0%         0.072
+    + numeric and knowledge           77.7%        78.6%         0.440
+    flash v1 alone                    77.0%       100.0%
+
+    cloud arm = flash v2
+    gate as-is                        76.9%        35.9%
+    + always escalate numeric         79.7%        61.0%         0.005
+    + numeric and knowledge           79.6%        78.6%         0.045
+    flash v2 alone                    79.9%       100.0%
+
+**The first routing rule in the project to beat the gate at p < 0.05.** Everything before it tied:
+model variants 1.000, oracle retrieval 0.116, the gate against cloud-alone 0.858. Knowledge on top
+buys nothing for 18 more points of call volume, so numeric alone is the operating point.
+
+### The curve, and the thing that was not expected
+
+    policy                          acc     cloud    USD/700    marginal
+    3B alone                      61.4%       0%      0.000
+    7B alone                      72.4%       0%      0.000
+    gate                          76.9%    35.9%      0.253    +4.4 pts / +36% calls
+    gate + always numeric         79.7%    61.0%      0.431    +2.9 pts / +25% calls
+    always cloud = condition 2    79.9%     100%      0.706    +0.1 pts / +39% calls
+
+**The first 36% of calls and the next 25% buy accuracy at exactly the same rate, 0.12 points per
+percent of calls.** The intuition that doubling escalation is poor value does not survive the
+arithmetic: the two operating points lie on one line. **The discontinuity is the last step, 39%
+more calls for 0.1 points**, which makes cloud-alone dominated and is the cleanest form of the
+paper's argument.
+
+So the choice between 36% and 61% is not an efficiency question. It is a claim about how much work
+stays on the device. Cost does not decide it either, $0.25 against $0.43 per 700 claims. **Raised
+for the meeting rather than settled here.**
+
+**A caution against the on-device intuition.** On the MacBook, the device of record, a flash call is
+about 12.7 s and the local 3B+7B pair is several minutes per claim. More escalation is *faster*
+there. §3.5's rule stands: name the machine or do not make the latency claim.
+
+### Rejected: baselining condition 2 at v1 while the pipeline runs v2
+
+Proposed and argued down the same afternoon. The idea was to report condition 2 at the v1 prompt,
+77.0%, run v2 only on escalation, and count the prompt change as part of the pipeline.
+
+**The objection is not that the prompt fix is not ours. It is that condition 2 at v2 has already
+been measured, 79.9%, and is sitting in `results/condition2_flash_v2_full700/`.** Baselining
+against a handicap we know how to remove invites one reviewer question, "what does the cloud model
+alone score with your prompt", whose answer erases the claim: 79.7% routed against 79.9% alone.
+
+**The version that survives review is also the stronger one.** Report the prompt defect as its own
+finding, since it is a property of FINDVER's shipped prompt that all 16 published baselines carry
+and it costs a frontier model 21% of the benchmark at p = 0.002. Then compare condition 4 against
+condition 2 **at the same prompt**. One disclosure travels with it: the pipeline runs v1 locally and
+v2 in the cloud, because v2 was measured not to help the 3B.

@@ -173,6 +173,49 @@ def print_gate(runs, ids, gold, subset_of, local_a, local_b, cloud_name):
         print(f"    {subset:12}{r:>9.1%}{accuracy(cloud, sel):>9.1%}")
 
 
+def print_escalation_curve(runs, ids, gold, subset_of, local_a, local_b, cloud_name):
+    """The routing curve in §2.13.2: accuracy against cloud call rate.
+
+    §3.5 says the deliverable is the curve rather than a single tuned ratio, so
+    this prints the operating points side by side with the marginal return of
+    each step. The finding it carries is that the first 36% of calls and the
+    next 25% buy accuracy at the same rate, while the final 39% buys almost
+    nothing, which is what makes cloud-alone dominated.
+    """
+    a, b, cloud = runs[local_a], runs[local_b], runs[cloud_name]
+
+    def score(decide):
+        calls = correct_n = 0
+        for i in ids:
+            use_cloud = decide(i)
+            label = cloud[i]["extracted_label"] if use_cloud else b[i]["extracted_label"]
+            calls += use_cloud
+            correct_n += (label == gold[i])
+        return correct_n / len(ids), calls / len(ids)
+
+    disagree = lambda i: a[i]["extracted_label"] != b[i]["extracted_label"]
+    policies = [
+        (f"{local_a} alone", accuracy(a, ids), 0.0),
+        (f"{local_b} alone", accuracy(b, ids), 0.0),
+        ("gate", *score(disagree)),
+        ("gate + always numeric", *score(lambda i: subset_of[i] == "numeric" or disagree(i))),
+        ("gate + numeric and knowledge",
+         *score(lambda i: subset_of[i] in ("numeric", "knowledge") or disagree(i))),
+        (f"always {cloud_name}", *score(lambda i: True)),
+    ]
+
+    print(f"\nESCALATION CURVE  (local {local_a}+{local_b}, cloud {cloud_name})")
+    print(f"  {'policy':32s} {'acc':>7s} {'cloud':>7s} {'marginal':>24s}")
+    previous = None
+    for name, acc, calls in policies:
+        marginal = ""
+        if previous and calls > previous[1]:
+            marginal = (f"{(acc - previous[0]) * 100:+.1f} pts /"
+                        f" {(calls - previous[1]) * 100:+.0f}% calls")
+        print(f"  {name:32s} {acc:6.1%} {calls:6.1%} {marginal:>24s}")
+        previous = (acc, calls)
+
+
 def print_self_disagreement(runs, ids, names):
     """Does a model contradicting itself predict that it is wrong?
 
@@ -223,6 +266,7 @@ def main():
     print_subset_pairs(runs, ids, subset_of,
                        [("3b", "pad"), ("pad", "gold"), ("3b", "gold")])
     print_gate(runs, ids, gold, subset_of, local_a, "7b", cloud)
+    print_escalation_curve(runs, ids, gold, subset_of, local_a, "7b", cloud)
     print_self_disagreement(runs, ids, ["3b", "pad", "gold"])
     print()
     return 0
