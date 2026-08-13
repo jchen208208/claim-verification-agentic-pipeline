@@ -1287,6 +1287,61 @@ The loose detector catches **99.2%** of numeric claims but flags **77.7%** of al
 ---
 
 
+### 2.14 **[NEW 13 Aug 2026] TWO UNCERTAINTY GATES TESTED. Neither beats the 3B/7B gate.**
+
+Reproduce with: `python3 test_scripts/pilot_logprob_margin.py 100` for the margin figures. The self-consistency counts are in the build log for 13 August; their result directories were deleted.
+
+Both ideas asked the same question: **can the local model's own uncertainty tell us when to escalate, instead of a second model's disagreement?**
+
+#### Self consistency — closed. The model is deterministic.
+
+Three runs at identical config, temperature 0. Two produced **byte-identical responses on all 700 claims**, including token counts.
+
+| | |
+|---|---|
+| unanimous | 696/700 = 99.4% |
+| split (the escalation rate) | **4/700 = 0.6%** |
+| predicted beforehand | 15-20% |
+| majority of 3, never escalate | 61.4%, same as one run |
+| unanimous keep, split → cloud | 61.7% at 0.6% calls |
+
+Three samples of a deterministic model are one sample repeated. **Seed is inert at temperature 0** (verified: seeds 0, 1, 2 give identical output), so a multi-seed version fails the same way.
+
+#### Logprob margin — the signal is real but loses to the gate
+
+The gap in log-probability at the verdict token between the chosen verdict and the best alternative meaning the opposite.
+
+| reading | result | |
+|---|---|---|
+| margin varies | min 0.023, median 7.269, max 13.873 | **pass** |
+| low-margin accuracy (n=50) | 54.0% | |
+| high-margin accuracy (n=50) | 70.0% | |
+| Fisher exact | **p = 0.149** | **not significant** |
+
+| policy, same 100 claims | accuracy | cloud calls |
+|---|---|---|
+| 3B alone | 65.0% | 0% |
+| **3B/7B gate, the bar** | **77.0%** | **39%** |
+| margin gate, low half | 72.0% | 51% |
+| margin gate, < 4.0 | 70.0% | 24% |
+| flash v2 alone | 79.0% | 100% |
+
+**Supportable:** *"a second model's disagreement predicts this model's errors better than its own token-level confidence does."* **Not supportable:** that the margin carries no signal — it does, at p = 0.149 on n=100, just not enough to beat the gate.
+
+**Two incidental measurements.** Enabling logprobs **changed 44 of 100 responses**, so a logprobs run cannot reuse `condition1_3b_full700`. And **43 of 100 were censored**, the opposite verdict absent from the top 20 alternatives, confirming the model is highly confident on nearly half of claims.
+
+#### **[OPEN]** Two variants never tested, both additive rather than competing
+
+The pilot compared the margin *against* the gate, which does not rule out it *adding* to one.
+
+1. **Margin inside the agreement set.** The 3B and 7B agree on 449/700 at 76.8%, so ~104 errors sit where no disagreement signal can reach. If low margin flags any, it is additive.
+2. **Margin inside the disagreement set**, to cut cloud calls where the 3B is confident.
+
+Both need one 12-minute re-run; the per-claim margins were deleted rather than saved. **Until these are measured, do not write that logprob margin was dropped** — only that it does not beat the gate as a replacement.
+
+---
+
+
 ## 3. Deployment cost
 
 **The MacBook is the device of record.** Never print a GPU-derived number under a MacBook label; never mix machines in one table (§9.2).

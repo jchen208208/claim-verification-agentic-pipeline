@@ -2024,6 +2024,33 @@ samples of a deterministic model are one sample repeated. **Closed, not "needs m
 Evidence, including the response hashes, is in the build log entry for 13 August; the two result
 directories were deleted to reclaim 28 MB and the counts are not regenerable from run files.
 
+### LOGPROB MARGIN: signal is real, but the 3B/7B gate beats it. NOT fully closed.
+
+12-minute pilot before committing an 80-minute run. Full detail in `paper_numbers.md` §2.14.
+
+    margin varies       min 0.023  median 7.269  max 13.873          PASS
+    low  margin  n=50   54.0% accurate
+    high margin  n=50   70.0% accurate     Fisher p = 0.149          NOT SIGNIFICANT
+
+    policy, same 100 claims        acc     cloud
+    3B alone                      65.0%      0%
+    3B/7B gate  <- the bar        77.0%     39%
+    margin gate, low half         72.0%     51%
+    margin gate, < 4.0            70.0%     24%
+    flash v2 alone                79.0%    100%
+
+**As a replacement the margin is dominated**: more calls, less accuracy. **A second model's opinion
+predicts this model's errors better than its own introspection does.**
+
+**Also: enabling logprobs changed 44 of 100 responses**, so a logprobs run could not have reused
+`condition1_3b_full700` and would have forced a full downstream recompute.
+
+**OPEN, and the reason not to write this off yet.** The pilot compared margin *against* the gate.
+Two additive variants were never tested: margin **inside the agreement set** (the 3B and 7B agree on
+449/700 at 76.8%, so ~104 errors hide where disagreement cannot see them), and margin **inside the
+disagreement set** to cut calls. Both need one 12-minute re-run, because the per-claim margins were
+deleted with the temp files instead of being saved to a small artefact.
+
 ### THE MACHINES RUN DIFFERENT OLLAMA VERSIONS. Act on this today.
 
     Mac   0.12.3      pinned, because 0.12.4 dropped macOS 13

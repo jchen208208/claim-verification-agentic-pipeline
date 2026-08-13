@@ -5013,3 +5013,60 @@ estimating the same thing and it cost four hours to learn nothing.
 **Caveat:** the Mac runs 0.12.3, where this may not exist. Experiments run on the PC, so it does not
 block anything, but a logprob-based gate could not be demonstrated on the device of record without
 upgrading the Mac, which macOS 13 forbids.
+
+### The logprob margin pilot: signal exists, but the 3B/7B gate beats it
+
+Written as a 12-minute go/no-go before committing an 80-minute run, after self consistency cost
+four hours to learn nothing. `test_scripts/pilot_logprob_margin.py`, 100 claims drawn with seed 0
+from `condition1_3b_full700`, prompts reused from the stored records so no retrieval ran.
+
+**The verdict-token locator was validated offline first, for free.** It imports
+`label_extractor`'s own compiled patterns rather than copying them, and reproduces the same two
+levels with `finditer` to recover a character position. Over all 700 stored responses it **agrees
+with the shipped extractor on 700/700** and locates a verdict on 692. The 8 misses are exactly the
+documented 1.1% unparseable, so they are responses with no verdict, not a matching failure.
+
+    READING 1  margin varies       min 0.023  q1 4.263  median 7.269  q3 8.534  max 13.873   PASS
+    READING 2  low margin  (n=50)  54.0% accurate
+               high margin (n=50)  70.0% accurate
+               Fisher exact p = 0.149                                                        FAIL
+
+**The signal is real and points the right way. It is not significant at n=100.**
+
+**The number that decided it**, same 100 claims, same cloud model:
+
+    policy                       acc     cloud
+    3B alone                    65.0%     0%
+    3B/7B gate  <- the bar      77.0%    39%
+    margin gate, low half       72.0%    51%
+    margin gate, < 4.0          70.0%    24%
+    flash v2 alone              79.0%   100%
+
+**As a replacement for the gate, the margin is dominated**: more cloud calls and lower accuracy.
+**A second model's opinion predicts this model's errors better than its own introspection does.**
+That is the reportable form of the result.
+
+**Two incidental findings worth keeping.** **44 of 100 responses changed** when logprobs were
+enabled, so a logprobs run would have replaced `condition1_3b_full700` as the canonical local run
+and forced every downstream number to be recomputed. And **43 of 100 were censored**, meaning the
+opposite verdict never appeared among the top 20 alternatives. The model is extremely confident on
+nearly half of all claims, which is the same fact that killed self consistency seen from a different
+angle.
+
+### NOT YET CLOSED: two variants that were never tested, both additive
+
+The pilot compared the margin **against** the gate. That was the wrong comparison and it does not
+rule out the margin **adding** to it.
+
+1. **Margin on top of the gate.** The gate is blind to claims where the 3B and 7B agree and are both
+   wrong: they agree on 449 of 700 at 76.8%, so roughly 104 errors sit inside the agreement set
+   where no disagreement signal can reach them. If low margin flags any of those, it is additive.
+2. **Margin to reduce cloud calls inside the disagreement set.** Where the two models differ but the
+   3B is very confident, keeping its answer trades a little accuracy for fewer calls.
+
+**Both need the same 12-minute pilot re-run**, because the per-claim margins were deleted with the
+temp files instead of being extracted to a small artefact first. The pilot should be amended to
+write its rows to a small JSON so the analysis can be repeated without touching the GPU.
+
+**Until those two are measured, "logprob margin is dropped" is premature.** What is established is
+only that it does not beat the gate as a replacement.

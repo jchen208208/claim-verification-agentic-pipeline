@@ -6,7 +6,13 @@ import urllib.request
 
 OLLAMA_URL = "http://{host}:11434/api/generate"
 TIMEOUT_SECONDS = 1800   # the 7B model measured at 11 minutes 46 seconds so this gives around 2.5x headroom
+VERSION_URL = "http://{host}:11434/api/version"
 
+
+def get_ollama_version(host):
+    request = urllib.request.Request(VERSION_URL.format(host=host))
+    with urllib.request.urlopen(request, timeout=10) as response:
+        return json.loads(response.read())["version"]
 
 def call_ollama(prompt, config):
     """POST one prompt, return Ollama's raw response dict.
