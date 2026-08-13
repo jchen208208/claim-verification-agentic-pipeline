@@ -27,6 +27,7 @@ Usage:
     python3 test_scripts/test_harness.py
 """
 
+import dataclasses
 import json
 import sys
 import tempfile
@@ -38,6 +39,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from run import RETRIEVERS
 from src.evidence_asserter import check_overflow
+from src.logger import Record
 from src.loader import load_claims
 from src.sampler import stratified_sample
 
@@ -52,13 +54,12 @@ CONFIG = {
     "prompt_version": "baseline_v1",
 }
 
-RECORD_FIELDS = {
-    "example_id", "subset", "gold_label", "gold_explanation", "prompt", "config",
-    "response", "extracted_label", "extraction_source", "prompt_eval_count",
-    "eval_count", "done_reason", "thinking", "served_model",
-    "system_fingerprint", "elapsed_seconds", "evidence_present",
-    "evidences_found", "context_overflow", "status", "traceback",
-}
+# Derived from the dataclass rather than typed out, so it cannot fall behind.
+# The hand-written list did: it named 21 fields while Record had gained
+# chunks_requested and chunks_kept on 5 Aug and ollama_version on 13 Aug, and
+# the check kept passing because it only tested that the listed names were
+# present, never that the list was complete.
+RECORD_FIELDS = {f.name for f in dataclasses.fields(Record)}
 
 GOOD_RESPONSE = ("The filing states the figure directly. Therefore, the claim "
                  "is refuted.")
@@ -181,7 +182,8 @@ def main():
 
         one = next(iter(recs.values()))
         missing = RECORD_FIELDS - set(one)
-        check("all 21 Record fields present", not missing, f"missing {missing}")
+        check(f"all {len(RECORD_FIELDS)} Record fields present", not missing,
+              f"missing {missing}")
 
         check("all status ok",
               all(r["status"] == "ok" for r in recs.values()))
