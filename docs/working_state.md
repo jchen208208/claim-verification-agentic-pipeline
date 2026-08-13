@@ -1862,7 +1862,67 @@ v2 and that is a strong result. If a v3 still looks worth trying afterwards, run
 held-out split rather than the 700 being reported.
 
 
-### ORDER OF WORK
+### ORDER OF WORK, revised 12 August after the meeting
+
+**Compute is no longer the constraint.** Everything outstanding is about 14 GPU hours, which is two
+nights of the ~11 left before the 23 August freeze. **Design work and writing are the constraint
+now.** Order accordingly.
+
+**A. Free, no compute, do first**
+
+1. **Build a better numeric detector.** The headline 79.7% currently leans on a benchmark label
+   (§2.13.3). A serious detector either recovers the result or tells us the honest number. No model
+   calls, and it de-risks the main claim.
+2. **Confirm the policy with the professor:** plain gate, or gate plus numeric escalation. He did not
+   give a direct answer and the label finding changes what it costs.
+3. **Write the model-choice justification** into the paper notes, using the measured version: three
+   candidates tie on accuracy, p = 1.000 pairwise, chosen on 3.5x speed.
+4. **Start the Overleaf project.** Owed since 7 August. This is now the schedule risk, not compute.
+
+**B. One GPU night, both fit together**
+
+5. **Self consistency, 3 samples of the 3B at TEMPERATURE 0, n=700, ~2.6 h.** Decided 12 Aug, see
+   the section below for why 0 rather than 0.7. **Sample 1 already exists**, so this is two more
+   runs, not three. The analysis yields three policies as free re-derivations: majority vote with no
+   escalation, escalate on any disagreement, and majority vote with escalation. **Read all three,
+   they cost nothing extra, and read the escalation rate before the accuracy.**
+6. **k=5, n=700, ~1.5 h.** k was frozen at 10 and only ever tested upward.
+
+**C. One GPU night plus an unattended cloud job**
+
+7. **`test.json`, 1,700 claims, as TWO runs and not three.** See the correction below: condition 4
+   is built and run, not derived.
+
+       run 1   the live pipeline on all 1,700, ~10 h GPU + ~7 CNY
+               logs the 3B verdict, the 7B verdict, the escalation decision, the cloud answer
+               and per-claim timings
+               -> yields condition 1 (3B), condition 1 (7B) and condition 4 from one run
+       run 2   flash alone on all 1,700, ~7.6 h unattended, ~12 CNY
+               -> yields condition 2, the bar
+
+   **Condition 1 comes out of the pipeline run**, because the gate has to compute both local
+   verdicts anyway. That is better than a separate condition 1: conditions 1 and 4 then share
+   byte-identical local outputs, so the comparison between them carries no run-to-run noise. Given
+   that identical reruns disagree on about one claim in ten (§2.3.2), that matters.
+
+   `src/loader.py:32` hardcodes `testmini.json` and needs one line changed. Verified 12 Aug that
+   test.json has 1,700 real labels, 439 filings all present locally, and no `explaination` typo.
+
+**D. Needs design before it is worth a night**
+
+8. **Sub-claim decomposition for reasoning.** He likes it. **It is the riskiest item**, because
+   unlike every other idea there is no offline way to price it first, which is exactly what killed
+   the code sandbox and the table parser. Design an offline proxy before committing a night.
+9. **Prompt skills.** Conditional prompting per model and possibly per subset. Blocked on how the
+   skill gets selected, since selection by subset label is not deployable.
+
+**E. If time**
+
+10. **Build condition 4 as a live pipeline** rather than an offline re-derivation. Accuracy is
+    identical either way, but it gives a real latency measurement and lets the system skip local
+    inference entirely on claims it already knows will escalate.
+
+### ~~ORDER OF WORK~~ superseded, kept for the record
 
 1. `baseline_v2`, then flash at n=700, then the 3B at n=700.
 2. Fold the routing rule, the per-subset McNemar, the entailed/refuted split and the
@@ -1952,6 +2012,149 @@ Cost does not decide it, $0.25 against $0.43 per 700. **OPEN, for today's meetin
 **Cuts against the on-device intuition:** on the MacBook a flash call is ~12.7 s and the local
 3B+7B pair is several minutes per claim, so more escalation is *faster* there. §3.5's rule: name the
 machine or do not make the latency claim.
+
+### DECIDED 12 Aug: the self-consistency run uses TEMPERATURE 0, not 0.7
+
+The three samples have to differ from each other or there is nothing to measure. Two ways to get
+that, and the cheap one is also the better experiment.
+
+**1. Sample 1 already exists.** `results/condition1_3b_full700/` is temperature 0, BM25 k=10,
+prompt v1, which is exactly the local arm's configuration. **So this is two more runs, not three**,
+about 2.6 h rather than 4. Prompt v1 is the right base because v2 did not help the 3B (§2.13).
+
+**2. Temperature-0 nondeterminism is a better uncertainty probe than it appears.** The variation
+comes from floating-point scheduling on the GPU (§2.3.2). That sounds like pure noise, but it
+**cannot flip a claim the model is confident about**: a wide margin between the two logits is immune
+to small arithmetic differences. It only flips claims that were nearly tied. That is exactly the
+signal the gate needs, obtained without asking the model to be deliberately random.
+
+**3. It keeps the convention.** Everything in this project runs at temperature 0. Making the local
+arm the one exception costs a paragraph and invites a question about whether the comparison is
+clean.
+
+**The argument against 0.7, stated plainly:** at 0.7 each sample is drawn from a wider distribution,
+so each individual answer is likely worse than the greedy one. **We would be degrading the answers
+to manufacture disagreement, then paying cloud calls to repair the degradation we introduced.**
+
+#### Prediction recorded BEFORE the run, so it cannot be fitted afterwards
+
+Two identical temperature-0 runs agree on 89.2% of verdicts (§2.3.2). If a flip means a claim was
+nearly tied, roughly 22% of claims are unstable, and an unstable claim comes out non-unanimous about
+three times in four.
+
+    predicted escalation rate    15% to 20%
+
+**That is LOWER than the 3B/7B gate's 36%, not higher.** If it holds and the accuracy holds with it,
+self consistency is cheaper than the gate on cloud calls *and* removes the 7B, taking the local side
+from ~7 GB resident to ~2 GB. That is the good outcome.
+
+**Read the escalation rate first, before the accuracy.** It is the cheaper quantity to trust: "how
+often do three samples disagree" is a per-claim binary property and 700 claims pin it tightly, where
+accuracy carries the usual noise. **If the rate comes back above about 60% the idea is dead on cost
+whatever the accuracy says.**
+
+**The failure mode, and what to do about it.** If the rate is under about 8%, too few claims escalate
+for the cloud to repair anything and the result collapses toward the 3B alone at 61.4%. **That is not
+a reason to drop the idea. It is the reason to rerun at 0.7.** Cheap version first; it tells you
+whether the expensive version is worth a night.
+
+**Standing caveat.** The 401 unanimous against 299 split that motivates all of this came from three
+runs with different retrieval, two of them supplied with gold evidence. **It has never been measured
+fairly at any temperature.** The mechanism is real; the effect size and the escalation rate are both
+unknown.
+
+### CORRECTED 12 Aug: condition 4 is BUILT AND RUN, not derived from three separate runs
+
+An earlier note in this file said condition 4 "falls out for free" from the three per-model runs.
+**That is true of the accuracy number and false of everything else, and it contradicted advice given
+the same afternoon.**
+
+**What is free:** the accuracy. 79.7% is mathematically identical whether the cloud is called live at
+the moment of disagreement or its stored answer is looked up afterwards, because the gate is
+deterministic given three verdicts.
+
+**What is not free: the system.** Three reasons to build it, and the third exists only in the live
+version.
+
+1. **A real latency measurement.** Derived, we can only add per-model numbers together. Built, it is
+   measured end to end.
+2. **We can say we ran it**, rather than that we simulated a policy over stored files. At a workshop
+   about real-world constraints that is not a cosmetic difference.
+3. **The live version can skip work the derivation cannot see.** Under numeric escalation those
+   claims are already known to be going to the cloud, so **neither local model should run on them.**
+   That removes about a third of the local compute. It is invisible in a re-derivation because
+   everything was run on everything.
+
+**Sequencing, per claim and not per batch:** 3B first, then 7B, compare the two verdicts, escalate on
+disagreement.
+
+**What it needs in code, which is not a new component.** `run_loop.py` already does retrieve, build
+prompt, call, record. `ollama_client.py` talks to both local models and the DeepSeek path is written.
+Missing is the control flow between them, and a record type storing three verdicts and a decision
+rather than one verdict. It lives in `src/`, so it is written block by block in chat.
+
+### THREE THINGS TO PUT TO HIM NEXT WEEK
+
+1. **The policy question is still open and must not be treated as settled.** The reading taken from
+   the meeting was that he prefers numeric escalation on accuracy. **That was before we knew the
+   79.7% uses a benchmark annotation** (§2.13.3).
+2. **"Only API cost is settled" is worth pushing on.** Graceful degradation is measurable now with no
+   compute: remove the network and the routed system still answers every claim at **72.4%**, where
+   pure cloud returns nothing. That is a stronger argument than cost and it is one afternoon of
+   analysis.
+3. **Keep the MacBook.** He is content for the Windows GPU box to carry the on-device claim. The
+   MacBook is what makes this a constraints paper rather than a small-model paper, so the final
+   latency night belongs on it.
+
+### MEETING, 12 AUGUST. What was decided, and the one thing still open.
+
+**Approved and now the agenda:** self consistency, k=5, and splitting claims into sub-claims for
+reasoning. He called the sub-claim split "a really good idea". Note it was closed for *retrieval* on
+5 August; this is the separate reasoning question.
+
+**Prompt optimisation approved, with a direction.** Not by training or fine-tuning a model. Iterate
+on testmini, report on `test.json`. His suggestion is a set of prompt-construction "skills", one per
+model and possibly one per subset.
+
+**On-device:** he is content for the Windows GPU box to carry it, since the edge models still run
+locally there. **Keep the MacBook anyway.** It is the harder constraint and the stronger claim.
+
+**On what we may claim over condition 2, only API cost is settled.** Graceful degradation and
+partial privacy need analysis before they can be argued.
+
+**He wants the model-choice justification written down**, expecting a reviewer to ask why this 3B,
+this 7B, this cloud model. The measured answer is stronger than the one given in the meeting: three
+3B-class candidates tie on accuracy at n=102, every pairwise McNemar p = 1.000, so the choice was
+made on cost. `coder:3b` is 3.5x faster per claim with 3.1x fewer output tokens. Also the professor
+named it himself, and neither Coder variant is in FINDVER's published 16.
+
+### STILL OPEN: which policy is the system?
+
+**Plain gate, or gate plus always-escalate-numeric?** The meeting did not settle it. The reading
+taken away was that he prefers the numeric version on accuracy. **Confirm rather than assume**, and
+the finding below changes what that choice costs.
+
+### THE NUMERIC RULE USES A BENCHMARK LABEL. The headline needs re-labelling.
+
+`always escalate numeric` reads `claim.subset`, an annotation FINDVER ships. **No deployed system
+has it.** Full detail in `paper_numbers.md` §2.13.3.
+
+    policy                          acc     cloud     deployable
+    gate only                     76.9%     35.9%     yes, model verdicts only
+    gate + numeric LABEL          79.7%     61.0%     NO, uses the annotation
+    gate + tight detector         77.9%     62.6%     yes, costs 1.8 points
+    gate + loose detector         80.0%     85.1%     yes, cost advantage gone
+    always cloud                  79.9%    100.0%     yes
+
+**79.7% at 61% is an oracle-assisted number.** Removing the label costs either 1.8 points or most of
+the call saving. Both detectors were written in minutes, so this is a flag rather than a verdict,
+and a better one is cheap.
+
+**The plain gate is unaffected and needs no annotation.** If the paper needs one number beyond this
+objection, that is the one.
+
+**It also constrains the skills idea:** a per-subset skill selected by the subset label inherits the
+same problem.
 
 ### REJECTED: baselining condition 2 at v1 while the pipeline runs v2
 

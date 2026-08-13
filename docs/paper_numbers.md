@@ -1252,6 +1252,33 @@ On the MacBook, the device of record, a flash call is about 12.7 s and the local
 ---
 
 
+### 2.13.3 **[NEW 12 Aug 2026] THE NUMERIC ESCALATION RULE USES A BENCHMARK LABEL**
+
+Reproduce with: the detector comparison is in the build log for 12 August, evening, and needs folding into `analyse_routing.py` before any of it is cited.
+
+**`always escalate numeric` reads `claim.subset`.** That field is an annotation FINDVER ships with the data. A deployed system does not have it, so §2.13.2's headline is an oracle-assisted number and must be labelled as one.
+
+Two label-free detectors over the claim text, no model calls, priced against it:
+
+| policy | accuracy | cloud calls | deployable |
+|---|---|---|---|
+| gate only | 76.9% | 35.9% | **yes**, uses only the two models' verdicts |
+| gate + numeric label | 79.7% | 61.0% | **no**, uses the annotation |
+| gate + tight detector | 77.9% | 62.6% | yes, costs 1.8 points |
+| gate + loose detector | 80.0% | 85.1% | yes, cost advantage mostly gone |
+| always cloud | 79.9% | 100.0% | yes |
+
+The loose detector catches **99.2%** of numeric claims but flags **77.7%** of all claims, precision 45.6%. High recall is easy here. Precision is the problem, because every false positive is a paid cloud call.
+
+**What may be written.** *"Escalating arithmetic claims is worth 2.8 points, but identifying them without the benchmark's own label costs either 1.8 of those points or most of the call saving."* **Not supportable:** 79.7% at 61% as a deployable operating point.
+
+**What is unaffected.** The plain gate at 76.9% and 35.9% uses only the two local models' verdicts and needs no annotation. **If the paper needs one number that is beyond this objection, it is that one.**
+
+**Status: flagged, not settled.** Both detectors were written in minutes and are not a serious attempt. A better one is cheap to build and needs no compute.
+
+---
+
+
 ## 3. Deployment cost
 
 **The MacBook is the device of record.** Never print a GPU-derived number under a MacBook label; never mix machines in one table (§9.2).

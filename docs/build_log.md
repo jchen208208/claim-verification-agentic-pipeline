@@ -4742,3 +4742,164 @@ finding, since it is a property of FINDVER's shipped prompt that all 16 publishe
 and it costs a frontier model 21% of the benchmark at p = 0.002. Then compare condition 4 against
 condition 2 **at the same prompt**. One disclosure travels with it: the pipeline runs v1 locally and
 v2 in the cloud, because v2 was measured not to help the 3B.
+
+## 12 August 2026, evening - meeting outcomes, and the numeric rule leans on a benchmark label
+
+### What the professor decided
+
+1. **The three untested ideas are approved and go on the agenda:** self consistency, k=5, and
+   splitting claims into sub-claims for reasoning. He called the sub-claim split "a really good
+   idea", which is worth noting because it was closed for *retrieval* on 5 August and this is the
+   separate reasoning question.
+2. **Prompt optimisation is approved, with a direction.** Not by training or fine-tuning a model,
+   which he said is far more complicated than it is worth here. Iterating the prompt on testmini and
+   reporting on `test.json` is fine.
+3. **The on-device argument may rest on the Windows GPU box.** His view is that the edge models are
+   still on-device there. **We should still carry the MacBook**, because it is the harder constraint
+   and the stronger version of the claim.
+4. **On what we can claim over condition 2, only API cost is settled.** The other advantages,
+   graceful degradation and partial privacy, need further analysis before they can be argued.
+
+### What he asked for, and it is a reviewer question
+
+**Why this 3B, why this 7B, why this cloud model.** He expects a reviewer to ask. The answer given
+in the meeting was memory and speed, which is true but weaker than what we measured. The full answer
+is on record and should be written into the paper:
+
+    three candidates at n=102, same claims, same seed, same GPU
+    qwen2.5-coder:3b   66.7%   413 output tokens   6.6 s/claim   102/102 anchored
+    qwen2.5:3b         67.6%   497                 7.9 s
+    qwen3:4b-instruct  67.6%   1,281              23.0 s        13 truncations
+
+    every pairwise McNemar p = 1.000, so all three tie on accuracy
+
+**They tie on accuracy, so the choice was made on cost:** 3.5x faster per claim and 3.1x fewer
+output tokens. A model needing a larger generation budget is a worse edge model, not a better one.
+Two further points: the professor named `qwen2.5-coder:3b` himself in an early email, and neither
+Coder variant appears in FINDVER's published 16, so both are genuinely new data points.
+
+### STILL OPEN, and it needs a direct answer
+
+**Which policy is the system: the plain gate, or the gate plus always-escalate-numeric?** The
+meeting did not settle it. The reading taken away was that he prefers the numeric version because
+it scores higher. **That should be confirmed rather than assumed**, and the finding below changes
+what the choice costs.
+
+### THE NUMERIC RULE USES A BENCHMARK ANNOTATION
+
+Found while writing up the meeting. **`always escalate numeric` reads `claim.subset`, which is a
+label FINDVER ships. No deployed system has it.** Priced two label-free detectors over the claim
+text, no model calls:
+
+    policy                                acc     cloud calls
+    gate only                           76.9%        35.9%     deployable, uses only model verdicts
+    gate + numeric LABEL                79.7%        61.0%     uses the annotation
+    gate + tight detector               77.9%        62.6%     deployable, costs 1.8 points
+    gate + loose detector               80.0%        85.1%     deployable, cost advantage gone
+    always cloud                        79.9%       100.0%
+
+The loose detector catches 99.2% of numeric claims but flags 77.7% of all claims, precision 45.6%.
+
+**So the headline 79.7% at 61% is partly an artefact of having the subset label.** A deployable
+version either gives up 1.8 points at the same call rate, or keeps the accuracy while escalating
+85%, which leaves almost nothing over pure cloud.
+
+**The detectors are crude first attempts written in minutes, so this is a flag rather than a
+verdict.** Better options exist and are cheap: more features, a learned threshold on claim text, or
+one 3B classification call. **The plain gate is unaffected**, since it uses only the two models'
+verdicts.
+
+**It also constrains the skills idea below.** A per-subset skill selected by the subset label
+inherits this exact problem.
+
+### The skills idea, and what it has to answer
+
+His proposal is a set of prompt-construction rules per model, a skill for the 3B and one for the 7B,
+possibly one per subset, so each model gets a prompt shaped for it. It is conditional prompting
+rather than training, so it is affordable and fits the direction he set.
+
+Three questions it has to answer before it is worth a night:
+
+1. **How is the skill selected?** By subset label is not deployable, per the finding above. By
+   inference costs a classification step, and its error rate then sits on top of everything.
+2. **How is it evaluated without tuning on the reported set?** Prompt v2 already used the one
+   defensible edit against testmini. More rounds need the held-out split or `test.json`.
+3. **What does it beat?** The bar is prompt v2 at 79.9% cloud and 63.3% for the 3B, not v1.
+
+### CORRECTED the same evening: condition 4 is built and run, not derived
+
+I had written that condition 4 "falls out for free" from the three per-model runs on `test.json`.
+**That is true of the accuracy number and false of everything else**, and it contradicted advice
+given a few messages earlier in the same session. Recorded because the error is instructive: a
+number being reproducible from stored files is not the same as a system existing.
+
+**Free:** the accuracy. The gate is deterministic given a 3B verdict, a 7B verdict and a cloud
+verdict, so 79.7% is identical whether the cloud is called live or its stored answer is looked up.
+
+**Not free:** the system, and three things follow from building it.
+
+1. **Latency becomes measured rather than summed.** Derived, all we can do is add 6.8 s and 13.7 s
+   and a round trip. Built, it is measured end to end on the machine of record.
+2. **We can say we ran it.** "We simulate a routing policy over stored per-model outputs" is a
+   materially weaker sentence at a workshop about real-world constraints.
+3. **The live version skips work the derivation cannot see.** Under numeric escalation those claims
+   are already known to be escalating, so **neither local model should run on them at all**, cutting
+   roughly a third of local compute. A re-derivation cannot notice this, because every model was run
+   on every claim to produce the files it reads.
+
+**Sequencing is per claim, not per batch:** 3B, then 7B, compare, escalate on disagreement.
+
+**The `test.json` design is therefore two runs, not three:**
+
+    run 1   live pipeline, all 1,700      ~10 h GPU + ~7 CNY
+            -> condition 1 (3B), condition 1 (7B), condition 4, from one run
+    run 2   flash alone, all 1,700        ~7.6 h unattended, ~12 CNY
+            -> condition 2, the bar
+
+**Condition 1 falling out of the pipeline run is better than running it separately**, because
+conditions 1 and 4 then share byte-identical local outputs and their comparison carries no
+run-to-run noise. With identical reruns disagreeing on about one claim in ten, that is worth having.
+
+**No new component is needed.** `run_loop.py` already does retrieve, build prompt, call, record, and
+`ollama_client.py` reaches both local models with the DeepSeek path written. What is missing is the
+control flow between them and a record type holding three verdicts and a decision rather than one.
+
+### DECIDED: the self-consistency run uses temperature 0, not 0.7
+
+The three samples must differ or there is nothing to measure. The cheap option turned out to be the
+better experiment, which is not usually how it goes.
+
+**Sample 1 already exists.** `results/condition1_3b_full700/` is temperature 0, BM25 k=10, prompt
+v1, which is exactly the local arm's configuration. **Two more runs, not three**, so about 2.6 hours
+instead of 4. Prompt v1 is the correct base because v2 did not help the 3B.
+
+**Temperature-0 nondeterminism is a better uncertainty probe than it looks.** The variation comes
+from floating-point scheduling on the GPU. That reads as pure noise, but it cannot flip a claim the
+model is confident about: a wide margin between the two logits is immune to small arithmetic
+differences. **It only flips claims that were nearly tied**, which is exactly the signal a
+confidence gate wants, obtained without asking the model to be deliberately random.
+
+**It also keeps the convention.** Everything else in the project runs at temperature 0. Making the
+local arm the sole exception costs a paragraph and invites a question about whether the comparison
+is clean.
+
+**The argument against 0.7:** each sample is drawn from a wider distribution, so each individual
+answer is likely worse than the greedy one. We would be degrading the answers to manufacture
+disagreement, then paying cloud calls to repair damage we caused.
+
+**Prediction recorded before the run.** Two identical temperature-0 runs agree on 89.2% of verdicts.
+If a flip means the claim was nearly tied, about 22% of claims are unstable, and an unstable claim
+is non-unanimous roughly three times in four. **Predicted escalation rate: 15% to 20%**, which is
+lower than the 3B/7B gate's 36%. If that holds with the accuracy, self consistency is cheaper than
+the gate *and* removes the 7B, taking the local side from ~7 GB resident to ~2 GB.
+
+**Read the escalation rate before the accuracy.** It is the cheaper quantity to trust: three samples
+disagreeing is a per-claim binary property that 700 claims pin tightly, where accuracy carries the
+usual noise. Above about 60% the idea is dead on cost regardless of accuracy. Under about 8% too
+few claims escalate to repair anything, and **that is the trigger to rerun at 0.7 rather than to
+drop the idea**.
+
+**Standing caveat, repeated because it keeps getting lost.** The 401 unanimous against 299 split
+motivating this came from three runs with different retrieval, two supplied with gold evidence. It
+has never been measured fairly at any temperature. The mechanism is real. The effect size and the
+escalation rate are both unknown.
