@@ -62,7 +62,7 @@ def build_prompt(claim, chunks, template, config):
 
 LABEL_TO_BOOL = {"entailed": True, "refuted": False}
 
-def run_one_claim(claim: Claim, config: dict, template: str, call_model: Callable[[str, dict], dict], retrieve: Callable[[Claim, dict], list[dict]]) -> Record:
+def run_one_claim(claim: Claim, config: dict, template: str, call_model: Callable[[str, dict], dict], retrieve: Callable[[Claim, dict], list[dict]], ollama_version: str | None = None) -> Record:
     """Fills in the Record for one claim. Doesn't raise any errors.
     
     function paramters:
@@ -79,6 +79,7 @@ def run_one_claim(claim: Claim, config: dict, template: str, call_model: Callabl
         gold_explanation=claim.explanation,
         prompt="",
         config=config,
+        ollama_version=ollama_version
     )
 
     try:
@@ -122,7 +123,7 @@ def run_one_claim(claim: Claim, config: dict, template: str, call_model: Callabl
     return record
 
 
-def run_sample(sample, config, results_dir, call_model, retrieve):
+def run_sample(sample, config, results_dir, call_model, retrieve, ollama_version=None):
     """Iterate through the sample, run each claim, write each Record the moment it finishes."""
 
     template = load_prompt_template(config["prompt_version"])
@@ -136,7 +137,7 @@ def run_sample(sample, config, results_dir, call_model, retrieve):
             skipped += 1
             continue
 
-        record = run_one_claim(claim, config, template, call_model, retrieve)
+        record = run_one_claim(claim, config, template, call_model, retrieve, ollama_version)
         write_result(record, results_dir)
 
         if record.status == "ok":

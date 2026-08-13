@@ -8,7 +8,7 @@ import random
 from pathlib import Path
 
 from src.loader import load_claims
-from src.ollama_client import call_ollama
+from src.ollama_client import call_ollama, get_ollama_version
 from src.deepseek_client import call_deepseek
 from src.bm25_retriever import retrieve as bm25_retrieve
 from src.placeholder_retriever import retrieve as placeholder_retrieve
@@ -80,8 +80,21 @@ def main():
     print(f"results       {results_dir}\n", flush=True)
     print(f"client        {config.get('client', 'ollama')}")
 
-    client = CLIENTS[config.get("client", "ollama")]
-    run_sample(sample, config, results_dir, client, retriever)
+    client_name = config.get("client", "ollama")
+    client = CLIENTS[client_name]
+
+    # Only Ollama has a version to read.
+    ollama_version = None
+    if client_name == "ollama":
+        ollama_version = get_ollama_version(config.get("ollama_host", "localhost"))
+        print(f"ollama        {ollama_version}", flush=True)
+
+        expected = config.get("expect_ollama_version")
+        if expected is not None and ollama_version != expected:
+            print(f"\nERROR: config expects Ollama {expected}, this server is {ollama_version}.")
+            return 1  # exit out of the run because the ollama version updated. shouldn't be an issue anymore sicne auto-update is now toggled off
+        
+    run_sample(sample, config, results_dir, client, retriever, ollama_version)
     return 0
 
 

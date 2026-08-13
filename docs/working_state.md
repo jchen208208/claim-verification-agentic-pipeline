@@ -2060,8 +2060,10 @@ deleted with the temp files instead of being saved to a small artefact.
 7-versus-9 August divergence that produced §2.3.2's 89.2%: only 56 of 102 responses were
 byte-identical across that pair, which is an engine change, not scheduling noise.
 
-1. **Turn auto-update off on the PC today.** If it updates again before the final runs, every number
-   in the results table moves.
+1. ~~**Turn auto-update off on the PC today.**~~ **DONE 13 Aug.** The PC is pinned at **0.32.9**,
+   which is the version every GPU result so far was produced with. The version assertion in `run.py`
+   is now a safety net rather than the only defence, but it stays: a setting that was turned off by
+   hand can be turned back on by an installer.
 2. **The 7 August cross-machine result, 5 of 6, is confounded.** It was attributed to CPU versus
    ROCm arithmetic. It is also a version difference, so that attribution is unsafe.
 3. **`Record` does not log the Ollama version.** That is why this took six days to find. Add it
