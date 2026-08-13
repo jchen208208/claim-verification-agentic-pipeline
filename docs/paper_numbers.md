@@ -320,7 +320,15 @@ The two runs agree to within one claim on shared claims. **The 102 sample was si
 
 ### 2.3.2 **[NEW 9 Aug 2026] Condition 1 is not reproducible run to run, on one machine**
 
+**[CONTRADICTED 13 Aug 2026 — the cause was an Ollama version change, not nondeterminism. Read this before quoting 89.2% as a noise floor.]**
+
 Same model, same GPU, same prompts, same seed, temperature 0, run twice. **Labels agreed on 91 of 102 claims, 89.2%.**
+
+**What 13 August found.** Three runs at identical config agree on **700/700 verdicts with byte-identical responses** between two of them. The machines were then checked: the **MacBook runs Ollama 0.12.3 and the GPU box runs 0.32.9**. The Windows box has been auto-updating; the pin in `CLAUDE.md` was written for the Mac only. Across the 7-to-9 August pair only 56 of 102 responses were byte-identical, which is an engine change rather than scheduling noise.
+
+**So the 89.2% is not a noise floor and must not be used as one.** The supportable statement is that **this model is deterministic on a fixed Ollama version and machine**, and that changing the version changes the outputs. The rule quoted elsewhere in this file, "a difference smaller than about one claim in ten between two of our own runs is noise", is **withdrawn**: it was too conservative, and comparisons previously dismissed as ties on that basis may deserve rechecking.
+
+**The unresolved part:** the 7 August version was never recorded, so the change cannot be dated precisely. `Record` does not log the Ollama version, which is why this took six days to find.
 
 Prompts were verified byte-identical on all 102, so retrieval, sampling, trimming and prompt building are perfectly deterministic. **The divergence is entirely in generation**, and the likely cause is floating-point reduction order varying with GPU scheduling between runs.
 

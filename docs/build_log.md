@@ -4903,3 +4903,113 @@ drop the idea**.
 motivating this came from three runs with different retrieval, two supplied with gold evidence. It
 has never been measured fairly at any temperature. The mechanism is real. The effect size and the
 escalation rate are both unknown.
+
+## 13 August 2026 - self consistency is dead at temperature 0, and the two machines run different Ollama versions
+
+### The run
+
+`selfcons_3b_s2_full700` and `selfcons_3b_s3_full700`, 700 ok each, plus
+`condition1_3b_full700` as sample 1. Identical config on all three. s3 was interrupted by an
+accidental power-off at claim 548 and resumed; nothing was corrupted and resume handled it.
+
+    unanimous            696/700 = 99.4%
+    split                  4/700 =  0.6%     <- the escalation rate
+    predicted                      15-20%    <- recorded before the run, badly wrong
+
+    policy                              acc     cloud
+    single 3B run                     61.4%      0%
+    majority of 3, never escalate      61.4%      0%
+    unanimous keep, split -> cloud     61.7%     0.6%
+    3B/7B gate, for comparison         76.9%    35.9%
+
+**The model is deterministic.** s1 and s2 produced **byte-identical responses on all 700 claims**,
+same text and same token counts. Three samples of a deterministic model are one sample repeated, so
+there is no uncertainty to gate on. s3 differs on 9 of 700 and 5 of those were generated after the
+power-off restart.
+
+**Self consistency at temperature 0 is closed.** Not "needs more work". There is no signal.
+
+**The evidence, kept here because the result directories were deleted to reclaim 28 MB and these
+counts are no longer regenerable from run files.** SHA-256 prefixes over the full response text,
+first six claims:
+
+    claim              s1                        s2                        s3
+    ie-val-0           6a46a76cf122829aadd0123b  6a46a76cf122829aadd0123b  6a46a76cf122829aadd0123b
+    ie-val-1           5b37d5f61403800e588fba74  5b37d5f61403800e588fba74  5b37d5f61403800e588fba74
+    ie-val-10          1c71d5e983da4af61e598a4f  1c71d5e983da4af61e598a4f  1c71d5e983da4af61e598a4f
+    ie-val-100         a810d95497d7b9d4f05635e5  a810d95497d7b9d4f05635e5  a810d95497d7b9d4f05635e5
+    ie-val-101         b75b63b102de589fcf5092a0  b75b63b102de589fcf5092a0  b75b63b102de589fcf5092a0
+    ie-val-102         ba3ea7b6591a29cd8825606a  ba3ea7b6591a29cd8825606a  ba3ea7b6591a29cd8825606a
+
+    s1 vs s2   byte-identical responses 700/700 (100.0%), same verdict 700/700
+    s1 vs s3   byte-identical responses 691/700  (98.7%), same verdict 696/700
+    s2 vs s3   byte-identical responses 691/700  (98.7%), same verdict 696/700
+
+All four claims where the three runs disagreed, and every one is s3, the interrupted run:
+
+    claim              s1     s2     s3     gold
+    ie-val-182         False  False  True   True
+    knowledge-val-140  False  False  True   False
+    knowledge-val-89   False  False  None   True
+    numeric-val-185    False  False  True   True
+
+### THE CAUSE OF THE 89.2% FIGURE: THE MACHINES RUN DIFFERENT OLLAMA VERSIONS
+
+The prediction came from §2.3.2, which recorded that two identical runs agree on only 89.2% of
+verdicts. Today's runs agree on 100%. Both cannot be true of one system, so the configs were checked
+and are identical in every field. Then the servers were checked:
+
+    Mac    /api/version    0.12.3
+    PC     /api/version    0.32.9
+
+**The PC has been auto-updating.** `CLAUDE.md`'s pin at 0.12.3 with auto-update off was written for
+the MacBook, because 0.12.4 dropped macOS 13 support. **Nothing was ever pinned on the Windows box.**
+
+That is almost certainly the 7-versus-9 August divergence: only 56 of 102 responses were byte
+identical across that pair, which is an engine change, not scheduling noise. Two runs four days
+apart this week are bit-exact, so the machine is stable now.
+
+**Three consequences, and the first is a live risk to the results table.**
+
+1. **If the PC updates again before the final runs, every number moves.** Auto-update has to be
+   turned off there, today.
+2. **Every GPU result came from 0.32.9 and every MacBook figure from 0.12.3.** The cross-machine
+   divergence measured on 7 August, 5 of 6, was attributed to CPU-versus-ROCm arithmetic. It is
+   confounded with a version difference and that attribution is now unsafe.
+3. **The Record does not log the Ollama version**, which is why this took six days to find. It logs
+   `served_model` and `system_fingerprint` for DeepSeek and leaves both None for Ollama. Add the
+   version.
+
+### Seed does nothing at temperature 0. Verified, not assumed.
+
+Three calls, same prompt, temperature 0, seeds 0, 1 and 2:
+
+    seed=0  eval=48  sha1=b6a8decd523a423f
+    seed=1  eval=48  sha1=b6a8decd523a423f
+    seed=2  eval=48  sha1=b6a8decd523a423f
+
+Greedy decoding takes the argmax and never draws a random number, so the seed is inert. **A
+temperature-0 experiment across three seeds would produce three identical runs.** This was checked
+because it was the obvious next idea and it would have wasted another 4 hours.
+
+### Logprobs ARE available on 0.32.9, and they replace the three-run experiment
+
+`"logprobs": true` with `"top_logprobs": N` in the request body, alongside `options`. Passing a
+number rather than a bool fails with an unmarshal error, which is what made the first check look
+like a lack of support.
+
+    {"token": "Ref", "logprob": -0.597,
+     "top_logprobs": [{"token":"Ref","logprob":-0.597},
+                      {"token":"ref","logprob":-0.972},
+                      {"token":"Ent","logprob":-3.312}]}
+
+**The model's confidence in its verdict is directly readable**: the margin between the top token and
+the first alternative that means the opposite. Here 2.72 nats, a confident refutation.
+
+**This is the replacement for self consistency.** One run capturing logprobs, about 80 minutes,
+gives a per-claim confidence score. The three-run sampling experiment was an indirect way of
+estimating the same thing and it cost four hours to learn nothing.
+
+**Caveat:** the Mac runs 0.12.3, where this may not exist. Experiments run on the PC, so it does not
+block anything, but a logprob-based gate could not be demonstrated on the device of record without
+upgrading the Mac, which macOS 13 forbids.

@@ -2013,6 +2013,51 @@ Cost does not decide it, $0.25 against $0.43 per 700. **OPEN, for today's meetin
 3B+7B pair is several minutes per claim, so more escalation is *faster* there. §3.5's rule: name the
 machine or do not make the latency claim.
 
+### 13 AUGUST: SELF CONSISTENCY IS DEAD AT TEMPERATURE 0, AND THE MACHINES RUN DIFFERENT OLLAMA VERSIONS
+
+    unanimous     696/700 = 99.4%
+    split           4/700 =  0.6%     <- escalation rate, against a predicted 15-20%
+
+**The model is deterministic.** Two runs produced byte-identical responses on all 700 claims. Three
+samples of a deterministic model are one sample repeated. **Closed, not "needs more work".**
+
+Evidence, including the response hashes, is in the build log entry for 13 August; the two result
+directories were deleted to reclaim 28 MB and the counts are not regenerable from run files.
+
+### THE MACHINES RUN DIFFERENT OLLAMA VERSIONS. Act on this today.
+
+    Mac   0.12.3      pinned, because 0.12.4 dropped macOS 13
+    PC    0.32.9      never pinned, has been auto-updating
+
+**`CLAUDE.md`'s auto-update rule was written for the MacBook only.** This is very likely the
+7-versus-9 August divergence that produced §2.3.2's 89.2%: only 56 of 102 responses were
+byte-identical across that pair, which is an engine change, not scheduling noise.
+
+1. **Turn auto-update off on the PC today.** If it updates again before the final runs, every number
+   in the results table moves.
+2. **The 7 August cross-machine result, 5 of 6, is confounded.** It was attributed to CPU versus
+   ROCm arithmetic. It is also a version difference, so that attribution is unsafe.
+3. **`Record` does not log the Ollama version.** That is why this took six days to find. Add it
+   before the next run.
+
+**§2.3.2's 89.2% is withdrawn as a noise floor.** The rule "a difference smaller than one claim in
+ten is noise" was too conservative, and ties dismissed on that basis may deserve rechecking.
+
+### Two things checked so they are not guessed at again
+
+**Seed is inert at temperature 0.** Verified with three calls at seeds 0, 1, 2: identical output,
+identical token counts. Greedy decoding never draws a random number. **A three-seed temperature-0
+experiment would produce three identical runs.**
+
+**Logprobs work on 0.32.9 and replace the self-consistency experiment.** Pass `"logprobs": true` and
+`"top_logprobs": 3` beside `options`; passing a number instead of a bool fails with an unmarshal
+error, which is what made the first check look like a lack of support. The response carries each
+token's logprob and its top alternatives, so **the model's confidence in its verdict is directly
+readable** as the margin between the top token and the first alternative meaning the opposite.
+
+**One run of about 80 minutes replaces the four-hour three-run experiment.** Caveat: 0.12.3 on the
+Mac may not support it, so a logprob gate could not be demonstrated on the device of record.
+
 ### DECIDED 12 Aug: the self-consistency run uses TEMPERATURE 0, not 0.7
 
 The three samples have to differ from each other or there is nothing to measure. Two ways to get
