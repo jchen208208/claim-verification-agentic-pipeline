@@ -25,6 +25,7 @@ class Record:
     thinking: str | None = None # shows model thinking trace text
     served_model: str | None = None # model name essentially
     system_fingerprint: str | None = None # for Deepseek
+    ollama_version: str | None = None 
     elapsed_seconds: float | None = None # total generation time
 
     # filled in by the evidence asserter
@@ -39,6 +40,8 @@ class Record:
     # filled in by the prompt trimmer, before the model call
     chunks_requested: int | None = None
     chunks_kept: int | None = None
+
+
 
 def write_result(record, results_dir):
     # one JSON file per claim and written as soon as the example finishes
