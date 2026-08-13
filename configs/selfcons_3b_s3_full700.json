@@ -1,0 +1,17 @@
+{
+  "experiment": "selfcons_3b_s3_full700",
+
+  "model": "qwen2.5-coder:3b",
+  "num_ctx": 32768,
+  "num_predict": 2000,
+  "temperature": 0,
+  "seed": 0,
+  "prompt_version": "baseline_v1",
+
+  "retriever": "bm25",
+  "top_k": 10,
+  "per_cell": null,
+  "sample_seed": 0,
+
+  "ollama_host": "10.0.0.26"
+}
