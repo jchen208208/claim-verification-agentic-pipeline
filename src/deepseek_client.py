@@ -20,7 +20,7 @@ def call_deepseek(prompt, config):
         "max_tokens": config["num_predict"],
     }
 
-    request = urllib.request.Request( #  builds the HTTP request but does not send it yet
+    request = urllib.request.Request(  # builds the HTTP request but does not send it yet
         DEEPSEEK_URL,
         data=json.dumps(payload).encode(),  # json.dumps turns the dict into a JSON string and .encode() turns that string into raw bytes
         headers={
