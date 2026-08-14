@@ -48,6 +48,10 @@ RUNS = {
     # prompt v2 runs, added 12 Aug. The local arm stays on v1 because v2 did not
     # help the 3B (p = 0.378), so these exist to price a v2 cloud arm under the
     # gate, not to replace the local baselines.
+    # k=5 3B, added 14 Aug. Same prompt v1 and same seed as "3b", so the pair
+    # isolates k. It exists to price a routed system whose two local models read
+    # different amounts of context, which is the only reason the gate could move.
+    "3bk5":  "condition1_3b_k5_full700",
     "3bv2":    "condition1_3b_v2_full700",
     "flashv2": "condition2_flash_v2_full700",
 }

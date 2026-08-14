@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 12 August 2026.
+Last updated: 14 August 2026.
 
 ---
 
@@ -1667,7 +1667,7 @@ It shows the mechanism is real, not that a deployable version works.
 
 k was frozen at 10 and tested upward to 20, which was worse. Never downward. Today's decomposition
 put **two thirds** of the oracle gain on removing distractors, and gold-alone's advantage came with
-2.8 chunks. **Test: condition 1 at k=5, n=700, ~1 h GPU.**
+2.8 chunks. ~~**Test: condition 1 at k=5, n=700, ~1 h GPU.**~~ **DONE 14 Aug and CLOSED. The prediction failed: 61.4% to 61.6%, p = 1.000. Fewer chunks neither helped nor hurt, and evidence presence turned out not to matter in either direction.**
 
 ### WHAT IS OFF THE LIST, WITH THE EVIDENCE THAT KILLED IT
 
@@ -1886,7 +1886,7 @@ now.** Order accordingly.
    runs, not three. The analysis yields three policies as free re-derivations: majority vote with no
    escalation, escalate on any disagreement, and majority vote with escalation. **Read all three,
    they cost nothing extra, and read the escalation rate before the accuracy.**
-6. **k=5, n=700, ~1.5 h.** k was frozen at 10 and only ever tested upward.
+6. ~~**k=5, n=700, ~1.5 h.** k was frozen at 10 and only ever tested upward.~~ **DONE 14 Aug, 67.5 min. Tie standing alone, 61.4% to 61.6%, p = 1.000. The local arm stays at k=10 because a k=5 arm forfeits the routed parity claim. See 14 August below.**
 
 **C. One GPU night plus an unattended cloud job**
 
@@ -2301,6 +2301,96 @@ words and clauses, 42.9 / 3.8 against 41.9 / 3.6, are still throwaway figures th
 regenerate.
 
 ---
+
+## Where things stand, 14 August
+
+### k=5 IS CLOSED. Free standing alone, but it forfeits the routed parity claim.
+
+`results/condition1_3b_k5_full700/`, **700 ok, 0 failed, 67.5 min on the GPU.** Everything except
+`top_k` matches `condition1_3b_full700`, so the pair isolates k.
+
+                            k=10      k=5
+    strict accuracy        61.4%    61.6%
+    unparseable             1.1%     0.3%
+    prompt tokens, mean     3,731    1,998
+    seconds per claim         6.8      5.8
+
+    paired: agree 453/700, 122 against 123, McNemar p = 1.000   TIE
+
+Per subset the deltas are +2.8 ie, +3.5 knowledge, -5.2 numeric, and **all three are ties**,
+p = 0.543, 0.489, 0.160. The numeric drop is 13 claims against a rerun noise floor of about one
+claim in ten, so it is a hypothesis at best. Sixth small-sample trap, avoided this time.
+
+**The routed re-derivation is what decided it.** From stored files, no new runs:
+
+    local arm = 3B at        k=10                    k=5
+    routed                 76.9% @ 36% calls     75.7% @ 37% calls
+    vs flashv2 alone       p = 0.066  TIE        p = 0.004  WORSE
+    + always numeric       79.7% @ 61% calls     78.9% @ 61% calls
+
+Two comparisons that are easy to confuse, both true. **k=5 routed against k=10 routed is a tie**,
+p = 0.422, so there is no evidence k=5 is worse in itself. **k=5 routed against cloud-alone is
+significantly worse**, where k=10 routed is a tie with it. The paper's central claim is parity with
+cloud-alone at a fraction of the calls, and a k=5 local arm loses that claim. k=5 also raises cloud
+calls, 35.9% to 37.4%, because the two local models now read different context and disagree more.
+
+**Decision: the local arm stays at k=10.** No standalone upside, no call saving, real risk to the
+one comparison the paper rests on.
+
+### THE REAL RESULT: evidence presence has now failed in both directions
+
+    evidence_present       52.0%    36.1%     -15.9 points
+    strict accuracy        61.4%    61.6%      +0.2 points
+
+And inside the k=5 run alone, claims where the gold evidence reached the prompt scored 62.5%
+against 61.1% for claims where it did not. **1.4 points.**
+
+On 11 August the model was handed perfect evidence and gained almost nothing, p = 0.116. Today it
+lost a third of its evidence and gave up almost nothing. **Two experiments pushing opposite ways
+and agreeing is a finding, where either alone could be a design artefact.**
+
+This is why the 74.06% fused recall has never converted into accuracy. On this model retrieval
+quality and answer quality are close to decoupled. **Report the recall number as a retrieval
+result. Do not sell it as an accuracy driver.** The negative result deserves a section of the paper
+rather than a sentence.
+
+### CONTRADICTION: prompt size is not the lever on wall clock on the GPU
+
+Four 3B runs, same model, same GPU box:
+
+    run                prompt tok   output tok   s/claim
+    gold_alone              1,124          389       5.3
+    k=5                     1,998          396       5.8
+    k=10                    3,731          416       6.8
+    gold_padded             3,711          418       6.9
+
+Prompt tokens rise 3.3x, wall clock rises 1.28x. Least squares over the four:
+
+    elapsed = 0.00060 s per prompt token + 4.6 s fixed      R2 = 0.996
+
+Linearity holds. The coefficient does not. The recorded law is **0.0641 s per prompt token**, fitted
+on 11 MacBook examples. **The GPU coefficient is 107x smaller**, and the 4.6 s fixed term is
+generation, since output sits at 389 to 418 tokens across all four runs. **So 70 to 85 percent of a
+claim on the GPU is generating the answer, not reading the prompt. The lever is output length.**
+
+**Neither fit is wrong on its own machine.** The MacBook is CPU-only, where ingestion genuinely
+dominates. It simply does not transfer, and GPU runs have been planned against a MacBook constant
+since 7 August. Same cross-machine trap as the Ollama version split found on 13 August, different
+variable.
+
+Marked in place above at the fit and at the "only real lever" claim. **Still to fix:**
+`architecture_plan.md` lines 782, 1004 and 1560, and the hard constraints in `CLAUDE.md`, which is
+the author's own file. Line 1560 is load-bearing: "tighter retrieval buys wall-clock and recall
+together, and it is the only thing in the project that does both" is false on the GPU box.
+
+### What is still open after today
+
+Item 6 of the 12 August agenda is closed. **Item 7, `test.json` at 1,700 claims, is now the
+priority**, and today added to its case: k=5 is the fourth configuration choice made against the
+same 700 the paper reports, after k=10 versus 20, prompt v1 versus v2, and always-escalate-numeric.
+
+---
+
 
 ## ~~What to do on 9 August, in order~~ — DONE, superseded by the 10 August list above
 
@@ -2771,7 +2861,7 @@ Carried since week 1, slipped three times, all three finished in one evening by 
 
 **What is defensibly ours, strongest first.** The hardware floor, since their smallest setup needs 27B resident and ours needs about 2.5 GB. Feasibility on genuinely constrained hardware, which is a deployment claim and not a speed claim. And being first to report deployment cost on FINDVER, phrased as "we found no other" rather than "nobody has."
 
-**No new speed workstream.** Prompt size is the only real lever on wall clock, and tighter retrieval cuts runtime and raises recall together. The retriever is the speed work. A separate effort would compete for the same nights and buy the same thing twice.
+**No new speed workstream.** ~~Prompt size is the only real lever on wall clock, and tighter retrieval cuts runtime and raises recall together.~~ **The premise is false on the GPU box, corrected 14 August: prompt tokens are ~107x cheaper there and generation is 70 to 85 percent of wall clock. Tighter retrieval buys recall and almost no wall clock on that machine. The conclusion, no separate speed workstream, still holds, but not for this reason.** The retriever is the speed work. A separate effort would compete for the same nights and buy the same thing twice.
 
 **This does not replace the core.** Retrieval recall and the extraction and imputation analysis are still the two results that carry the paper. Deployment cost is a third supporting leg.
 
@@ -3088,6 +3178,8 @@ All three are covered by the one MacBook night budgeted at the end, after the pi
 ~~Confirm the workshop mechanics.~~ **Done 1 August, from the workshop site rather than the professor.** It is a NeurIPS 2026 workshop in Sydney, 11 or 12 December. Five pages excluding references, NeurIPS 2026 LaTeX template, submitted through OpenReview. Review is **double blind**, so no author names and no identifying repository link in the PDF. The venue is **non archival**, so a fuller version can go elsewhere later and this paper does not have to be the final word. Deadline 29 August AoE. Full table in section 1.1 of the plan.
 
 ## Measured performance, for planning purposes
+
+**MACBOOK ONLY. Corrected 14 August, see "Where things stand, 14 August" above.** Everything in this section describes CPU-only inference on the MacBook. On the GPU box the coefficient is 0.00060 s per prompt token, **107x smaller**, plus a 4.6 s fixed generation cost per claim, so generation dominates and prompt size is nearly free. **Do not plan a GPU run with anything below.**
 
 **Superseded for the 3B model by the trial run, 2 August. Use these numbers.**
 

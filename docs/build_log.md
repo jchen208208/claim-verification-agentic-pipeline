@@ -5103,3 +5103,160 @@ and the local side keeps both models.**
 
 The 250 rows are kept at `results/pilot_logprob_margin.json`, so any further threshold question is a
 re-analysis with `--analyse` and needs no GPU. That file is the artefact round 1 failed to produce.
+
+---
+
+## 14 August 2026 - k=5 is free standing alone and costs the routed system its parity claim, and the wall-clock law does not transfer to the GPU
+
+### The run
+
+`configs/condition1_3b_k5_full700.json`, `qwen2.5-coder:3b`, BM25 at k=5, prompt `baseline_v1`,
+`num_ctx` 32768, seed 0, all 700 claims, GPU box on Ollama 0.32.9. **700 ok, 0 failed, 0 skipped,
+67.5 minutes.** Results in `results/condition1_3b_k5_full700/`, console in
+`logs/condition1_3b_k5_full700.txt`. `expect_ollama_version` was set to 0.32.9 and did not fire.
+
+Everything except `top_k` is identical to `condition1_3b_full700`, so the pair isolates k. k had
+only ever been moved upward, to 20, which was worse. This is the first time it moved down.
+
+### The headline is a dead tie
+
+                            k=10      k=5
+    strict accuracy        61.4%    61.6%
+    FINDVER-compatible     62.1%    61.6%
+    unparseable             1.1%     0.3%
+      of which truncated       1        0
+    predicted True       324/700  265/700     gold 350
+
+    paired: agree 453/700, k=10 right 122, k=5 right 123, McNemar p = 1.000   TIE
+
+**As flat as a result can be.** 122 against 123 is the closest split the project has produced.
+The FINDVER-compatible column runs the other way only because k=10 had more unparseable answers
+for the seeded coin flip to rescue. It is imputation, not accuracy, and should be ignored.
+
+### THE FINDING: evidence presence has now failed in both directions
+
+    evidence_present       52.0%    36.1%     -15.9 points
+    strict accuracy        61.4%    61.6%      +0.2 points
+
+Within the k=5 run alone, splitting its own claims by whether the gold evidence reached the prompt:
+
+    gold evidence in the prompt      n=253    62.5%
+    gold evidence missing            n=447    61.1%
+
+**1.4 points.** Having the right evidence in the prompt is worth almost nothing to this model.
+
+**This is the 11 August gold-evidence result arriving from the opposite direction.** On 11 August
+the model was given perfect evidence and barely improved: 61.4% to 65.0%, p = 0.116, a tie. Today
+it was given substantially less evidence and barely declined. One experiment pushing one way can be
+a design artefact. Two experiments pushing opposite ways and agreeing is a finding.
+
+**For a RAG paper this negative result is worth more than the couple of points k=5 was hoping to
+win.** It also explains why the 11 August recall work, 74.06% fused against the published 68.01%,
+has never converted into end-to-end accuracy: on this model retrieval quality and answer quality
+are close to decoupled. The recall number stands on its own as a retrieval result and must not be
+sold as an accuracy driver.
+
+Per subset, the evidence loss was even across the board, so nothing here is a subset artefact:
+
+    evidence_present      k=10     k=5    delta
+    ie                   54.8%   37.2%    -17.6
+    knowledge            32.5%   17.5%    -15.0
+    numeric              64.8%   50.0%    -14.8
+
+### Per subset accuracy: direction only, every one a tie
+
+                  k=10     k=5    delta        p
+    ie           60.8%   63.6%    +2.8    0.543
+    knowledge    59.0%   62.5%    +3.5    0.489
+    numeric      64.0%   58.8%    -5.2    0.160
+
+It is tempting to read this as k=5 helping the two prose subsets and hurting numeric, which would
+have a clean mechanism behind it, since numeric claims need specific table rows and k=5 drops more
+of them. **Do not. None of the three reaches p < 0.05.** The numeric drop is 13 claims, and §2.3.2
+established that identical reruns of the same config disagree on about one claim in ten from
+floating-point scheduling on the GPU. **Sixth small-sample trap avoided rather than walked into.**
+
+### The routed system: k=5 keeps the accuracy and loses the parity claim
+
+Re-derived offline from stored files, no new runs. `analyse_routing.py` gained a `3bk5` entry, and
+the k=10 baseline reproduced 76.9% at 35.9% calls exactly, which validates the comparison.
+
+    local arm = 3B at        k=10                    k=5
+    gate agree set         n=449, 7B 76.8%       n=438, 7B 77.9%
+    gate differ set        n=251, 7B 64.5%       n=262, 7B 63.4%
+    routed                 76.9% @ 36% calls     75.7% @ 37% calls
+    vs flashv2 alone       p = 0.066  TIE        p = 0.004  SIGNIFICANTLY WORSE
+    + always numeric       79.7% @ 61% calls     78.9% @ 61% calls
+
+**The precise statement, because two different comparisons are easy to confuse here.**
+
+1. **k=5 routed against k=10 routed is a tie.** Paired McNemar, 42 against 34, p = 0.422; with
+   always-escalate-numeric, 31 against 25, p = 0.504. There is **no positive evidence that k=5
+   harms the routed system.**
+2. **k=5 routed against cloud-alone is significantly worse, p = 0.004,** where k=10 routed against
+   cloud-alone is a tie, p = 0.066.
+
+Both are true at once because the two routed systems sit close together while only one of them sits
+close enough to the cloud bar to survive the test. **The paper's central claim is parity with
+cloud-alone at a fraction of the calls. A k=5 local arm forfeits that claim** without being
+measurably worse in itself.
+
+k=5 also **raises** cloud calls, 35.9% to 37.4%, because the 3B and 7B now read different amounts of
+context and disagree more often. The gate's separation actually sharpened slightly, agree-set 7B
+accuracy 76.8% to 77.9%, but eleven more claims escalate and the 7B was right on enough of them to
+cancel it.
+
+**Decision: the local arm stays at k=10.** No accuracy upside standing alone, no call saving, and a
+downside risk to the one comparison the paper is built on.
+
+### CONTRADICTION: prompt size is not the lever on wall clock on the GPU
+
+Four 3B runs on the GPU box, same model, same machine, differing mainly in prompt size:
+
+    run                prompt tok   output tok   s/claim
+    gold_alone              1,124          389       5.3
+    k=5                     1,998          396       5.8
+    k=10                    3,731          416       6.8
+    gold_padded             3,711          418       6.9
+
+**Prompt tokens rise 3.3x and wall clock rises 1.28x.** Least squares over those four points:
+
+    elapsed = 0.00060 s per prompt token + 4.6 s fixed      R2 = 0.996
+
+Linearity survives. **The coefficient does not.** The recorded law is 0.0641 s per prompt token,
+about 15.6 tokens per second ingestion, fitted on 11 examples on the MacBook. The GPU coefficient is
+**107x smaller**, and the fit now carries a 4.6 second fixed cost per claim that the MacBook fit did
+not need. That 4.6 seconds is generation: output is 389 to 418 tokens across all four runs and
+hardly varies, which works out near 85 tokens per second of decoding.
+
+**So on the GPU roughly 70 to 85 percent of a claim's wall clock is generating the answer, not
+reading the prompt.** The lever is output length, meaning `num_predict` and how verbose the prompt
+lets the model be. Prompt size is nearly free.
+
+**Both statements are true on their own machine.** The MacBook fit is not refuted; it was measured
+on CPU-only inference where ingestion genuinely dominates. It simply does not transfer, and every
+GPU result since 7 August has been planned against a MacBook constant. This is the same
+cross-machine trap as the Ollama version split found on 13 August, in a different variable.
+
+**Where the stale claim is recorded and needs correcting:**
+
+    docs/working_state.md:2774        "prompt size is the only real lever on wall clock"
+    docs/working_state.md:3094-3112   the fit itself and the 6,610-token planning numbers
+    docs/architecture_plan.md:782     the fit
+    docs/architecture_plan.md:1004    "no new optimisation workstream" rests on it
+    docs/architecture_plan.md:1560    "halving the mean prompt roughly halves every local run"
+    CLAUDE.md, hard constraints       same claim, needs the author's own edit
+
+`architecture_plan.md:1560` is the load-bearing one. "Tighter retrieval buys wall-clock and recall
+together, and it is the only thing in the project that does both" is false on the GPU box, where
+tighter retrieval buys recall and almost no wall clock.
+
+### What this run changes
+
+1. **Local arm stays k=10.** Closed on measurement.
+2. **The evidence-presence negative result is now a two-sided finding** and should carry a section
+   of the paper rather than a sentence.
+3. **The k=5 run survives as an efficiency data point:** same accuracy on 46% fewer prompt tokens,
+   which is a real on-device claim independent of the routing question.
+4. **Wall-clock planning for the GPU must be redone against output tokens.** Any estimate in the
+   docs derived from the 0.0641 constant is wrong for that machine.
