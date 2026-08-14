@@ -2045,11 +2045,17 @@ predicts this model's errors better than its own introspection does.**
 **Also: enabling logprobs changed 44 of 100 responses**, so a logprobs run could not have reused
 `condition1_3b_full700` and would have forced a full downstream recompute.
 
-**OPEN, and the reason not to write this off yet.** The pilot compared margin *against* the gate.
-Two additive variants were never tested: margin **inside the agreement set** (the 3B and 7B agree on
-449/700 at 76.8%, so ~104 errors hide where disagreement cannot see them), and margin **inside the
-disagreement set** to cut calls. Both need one 12-minute re-run, because the per-claim margins were
-deleted with the temp files instead of being saved to a small artefact.
+**CLOSED 13 Aug, round 2 at n=250 stratified.** Both additive variants tested and neither works.
+
+    ALL CLAIMS                  low 61.3%  high 60.2%   p = 0.897
+    VARIANT 1, agreement set    low 74.3%  high 66.2%   p = 0.369   direction REVERSED
+    VARIANT 2, disagreement set low 42.0%  high 51.0%   p = 0.423
+
+**Round 1's 16-point gap became 1.1 points**, so it was noise at n=100. Variant 1 runs backwards:
+inside the agreement set, low-margin claims are *more* accurate. Escalating the low-margin half
+would fix 13 and break 9, net +4 over 148 claims, for 50% more cloud calls.
+
+**Both uncertainty gates are now closed on measurement. The 3B/7B gate stands and the 7B stays.**
 
 ### THE MACHINES RUN DIFFERENT OLLAMA VERSIONS. Act on this today.
 

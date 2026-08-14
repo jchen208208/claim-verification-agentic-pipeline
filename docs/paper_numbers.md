@@ -1330,14 +1330,23 @@ The gap in log-probability at the verdict token between the chosen verdict and t
 
 **Two incidental measurements.** Enabling logprobs **changed 44 of 100 responses**, so a logprobs run cannot reuse `condition1_3b_full700`. And **43 of 100 were censored**, the opposite verdict absent from the top 20 alternatives, confirming the model is highly confident on nearly half of claims.
 
-#### **[OPEN]** Two variants never tested, both additive rather than competing
+#### **[CLOSED 13 Aug]** Both additive variants tested at n=250. Neither works.
 
-The pilot compared the margin *against* the gate, which does not rule out it *adding* to one.
+Round 1 compared the margin *against* the gate. Round 2 tested whether it *adds* to one, sampling 250 claims stratified by gate agreement so the agreement set was properly represented.
 
-1. **Margin inside the agreement set.** The 3B and 7B agree on 449/700 at 76.8%, so ~104 errors sit where no disagreement signal can reach. If low margin flags any, it is additive.
-2. **Margin inside the disagreement set**, to cut cloud calls where the 3B is confident.
+| test | low margin | high margin | Fisher p |
+|---|---|---|---|
+| all claims | 61.3% | 60.2% | 0.897 |
+| **variant 1**, inside the agreement set | **74.3%** | 66.2% | 0.369 |
+| **variant 2**, inside the disagreement set | 42.0% | 51.0% | 0.423 |
 
-Both need one 12-minute re-run; the per-claim margins were deleted rather than saved. **Until these are measured, do not write that logprob margin was dropped** — only that it does not beat the gate as a replacement.
+**Round 1's 16-point gap became 1.1 points.** It was noise at n=100. **Variant 1 runs backwards** — inside the agreement set the low-margin claims are *more* accurate, so the margin is not measuring "likely wrong."
+
+**The payoff, independent of significance:** escalating the low-margin half of the agreement set **fixes 13 claims and breaks 9, net +4 over 148**, for a 50% increase in cloud calls.
+
+**Supportable:** *"token-level confidence from the local model does not identify its own errors well enough to route on, at n=250."* **Not supportable:** any claim built on round 1's n=100 figures.
+
+**LOGPROB MARGIN IS CLOSED**, as is self consistency. The 3B/7B gate stands. Rows kept at `results/pilot_logprob_margin.json` for re-analysis without GPU.
 
 ---
 

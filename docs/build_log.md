@@ -5070,3 +5070,36 @@ write its rows to a small JSON so the analysis can be repeated without touching 
 
 **Until those two are measured, "logprob margin is dropped" is premature.** What is established is
 only that it does not beat the gate as a replacement.
+
+### Round 2, n=250 stratified: the margin effect does not replicate. CLOSED.
+
+Round 1's 54.0% against 70.0% at n=100 random looked like a real effect at p = 0.149. It was noise.
+Round 2 sampled 250 claims **stratified by gate agreement**, 150 from the agreement set and 100
+from the disagreement set, because variant 1 lives inside the agreement set and a random draw
+underfills it.
+
+    n=250, usable 247, no verdict 3, censored 115, responses changed vs stored 120
+
+    ALL CLAIMS                     low 61.3%   high 60.2%    p = 0.897
+    VARIANT 1, agreement set       low 74.3%   high 66.2%    p = 0.369   direction REVERSED
+    VARIANT 2, disagreement set    low 42.0%   high 51.0%    p = 0.423
+
+**The 16-point gap became 1.1 points.** And variant 1 does not merely fail, it runs backwards:
+inside the agreement set, low-margin claims are *more* accurate. Whatever the margin measures, it is
+not "this answer is probably wrong."
+
+**The payoff line settles it without reference to significance.** Taking the split at face value and
+escalating the low-margin half of the agreement set would **fix 13 claims and break 9, a net +4 over
+148**, bought with a 50% increase in cloud calls. That is a rounding error with a bill attached.
+
+**Fifth small-sample trap in this project**, after 5 Aug, 6 Aug and twice on 9 Aug. The pilot script
+printed its own warning that a few points at n=100 is not a result; 16 points looked like more than
+a few. It was not. **The rule that keeps being relearned: an effect measured on ~100 claims is a
+hypothesis, never a finding.**
+
+**LOGPROB MARGIN IS CLOSED.** With self consistency closed the same day, both uncertainty-gate ideas
+are dead on measurement rather than assumption. **The 3B/7B gate stands: 76.9% at 36% cloud calls,
+and the local side keeps both models.**
+
+The 250 rows are kept at `results/pilot_logprob_margin.json`, so any further threshold question is a
+re-analysis with `--analyse` and needs no GPU. That file is the artefact round 1 failed to produce.
