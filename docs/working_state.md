@@ -2369,9 +2369,16 @@ Prompt tokens rise 3.3x, wall clock rises 1.28x. Least squares over the four:
     elapsed = 0.00060 s per prompt token + 4.6 s fixed      R2 = 0.996
 
 Linearity holds. The coefficient does not. The recorded law is **0.0641 s per prompt token**, fitted
-on 11 MacBook examples. **The GPU coefficient is 107x smaller**, and the 4.6 s fixed term is
-generation, since output sits at 389 to 418 tokens across all four runs. **So 70 to 85 percent of a
-claim on the GPU is generating the answer, not reading the prompt. The lever is output length.**
+on 11 MacBook examples. **The GPU coefficient is 107x smaller.**
+
+**The 4.6 s fixed term is not decomposed and must not be quoted as a generation rate.** Output varies
+only 389 to 418 tokens across the four runs, so this data cannot separate generation from any other
+per-claim constant. `architecture_plan.md` §4.6 already hit that exact degeneracy on the MacBook and
+rejected the fit. What is safe: **4.6 s per claim does not scale with prompt size and is 67 to 87
+percent of wall clock.** Generation is the largest plausible component but is not measured here.
+Confirming it needs a run that varies `num_predict`, which has never been done.
+
+**The planning conclusion is unaffected: prompt size is nearly free on the GPU.**
 
 **Neither fit is wrong on its own machine.** The MacBook is CPU-only, where ingestion genuinely
 dominates. It simply does not transfer, and GPU runs have been planned against a MacBook constant
@@ -2863,7 +2870,7 @@ Carried since week 1, slipped three times, all three finished in one evening by 
 
 **No new speed workstream.** ~~Prompt size is the only real lever on wall clock, and tighter retrieval cuts runtime and raises recall together.~~ **The premise is false on the GPU box, corrected 14 August: prompt tokens are ~107x cheaper there and generation is 70 to 85 percent of wall clock. Tighter retrieval buys recall and almost no wall clock on that machine. The conclusion, no separate speed workstream, still holds, but not for this reason.** The retriever is the speed work. A separate effort would compete for the same nights and buy the same thing twice.
 
-**This does not replace the core.** Retrieval recall and the extraction and imputation analysis are still the two results that carry the paper. Deployment cost is a third supporting leg.
+**This does not replace the core.** Retrieval recall and the extraction and imputation analysis are still the two results that carry the paper, **joined 14 August by the evidence-presence finding, which is now measured in both directions and gets its own section**. Deployment cost is a supporting leg.
 
 **Their table 2 confirms our split sizes.** They list testmini at 700 claims and test at 1,700, not the paper's 600 and 1,500. Two independent counts now agree, so section 2.6's correction can be stated plainly rather than hedged.
 

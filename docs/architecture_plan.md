@@ -790,6 +790,12 @@ All 12 responses ended with terminal punctuation and `done_reason` was `stop` on
 | 102 examples (one ablation round) | **11.9 h** | ~20 h |
 | Full testmini, **700** examples | **81.6 h (≈3.4 days)** | ~137 h (≈5.7 days) |
 
+**[GPU CORRECTION 14 Aug 2026 — this whole subsection is MacBook-only.]** Every figure above is CPU-only inference on the 2017 MacBook. Measured across four 3B runs on the GPU box (`gold_alone`, `k=5`, `k=10`, `gold_padded`; prompt 1,124 to 3,731 tokens, output 389 to 418):
+
+    elapsed = 0.00060 s per prompt token + 4.6 s fixed       R² = 0.996   n=4 runs, 700 claims each
+
+Prompt tokens rise 3.3x, wall clock rises 1.28x. **The GPU ingestion coefficient is 107x smaller than the MacBook's 0.0641**, and the fit carries a 4.6 s per-claim constant the MacBook fit did not need. That constant is **67 to 87 percent of wall clock** and does not scale with prompt size. **It is not decomposed** — output varies only 389 to 418 tokens, the same degeneracy described in the next paragraph, so no generation rate may be quoted from it. **Consequence: on the GPU box, prompt size is nearly free and is not the lever on wall clock.** Do not plan a GPU run with the numbers above. See `build_log.md`, 14 August.
+
 **A two-parameter fit separating ingestion from generation was attempted and rejected as degenerate.** `eval_count` varies only from 261 to 496 across the sample, so the generation term is unidentifiable and returned a negative rate. That is a property of the sample, not a finding about the model. Do not report separated rates from this run; the 7B row above has not been re-measured at all.
 
 Four conclusions:
@@ -1001,9 +1007,9 @@ The two clauses contradict each other and the numbers side with the second. On T
 
   **What is defensibly ours, in descending strength.** (1) **The hardware floor** — their smallest configuration needs 27B of weights resident, ours needs ~2.5 GB for a 3B model (§4.6). That is a claim about what hardware is required, not how fast it runs, and it survives every objection. (2) **Feasibility on genuinely constrained hardware**, which is a deployment claim rather than a speed claim and is exactly topic 05's territory. (3) **First to report deployment cost on FINDVER** — true as far as the 3 Aug sweep goes, so phrase it "we found no other," never "nobody has" (§6.6).
 
-  **No new optimisation workstream.** §12.1 already established that prompt size is the only real lever on wall-clock, and tighter retrieval cuts runtime and raises recall at once. The retriever in Tier 2 **is** the speed work. A separate speed effort would compete for the same nights and buy the same thing twice.
+  **No new optimisation workstream.** ~~§12.1 already established that prompt size is the only real lever on wall-clock, and tighter retrieval cuts runtime and raises recall at once. The retriever in Tier 2 **is** the speed work.~~ **[PREMISE CORRECTED 14 Aug 2026]** That reasoning holds only on the MacBook. On the GPU box prompt tokens cost 107x less and tighter retrieval buys recall with almost no wall-clock (§4.6). **The conclusion survives on different grounds:** there are no spare nights for a speed workstream, and speed is not what the paper claims. A separate speed effort would still compete for the same nights.
 
-  **Do not let this displace the core.** §12.3 names retrieval recall and the extraction/imputation analysis as the two results that carry the paper. Deployment cost is a third supporting leg, not a replacement for either.
+  **Do not let this displace the core.** §12.3 names retrieval recall and the extraction/imputation analysis as the two results that carry the paper, **joined on 14 Aug 2026 by the evidence-presence finding (§12.3, `paper_numbers.md` §2.8.2)**. Deployment cost is a supporting leg, not a replacement for any of them.
 - **Weakness 1 — no code execution.** The Executor performs computations inside its natural-language output; their own published example sums seven six-digit figures in prose and contains an apparent transcription slip (1,099,107 vs 1,999,107 two lines apart). The computation-error category is unaddressed by the current best approach.
 - **Weakness 2 — retrieval untouched.** **[QUOTE VERIFIED VERBATIM 3 Aug 2026]** Their exact sentence is *"Since retrieval is not our primary focus, we adopt existing strategies."* They then adopt FINDVER's own configuration, `text-embedding-3` at *k* = 10, and report 67.91% / 69.53% recall — the ceiling sits unattacked, by their own written admission. This is the single most useful sentence in their paper for us (§6.6).
 - **Weakness 3 — tables still prose** (converted to HTML *text*; no structured querying).
@@ -1394,7 +1400,7 @@ The retrieval table splits into two halves that answer different questions and c
 
 **Cost.** Every retrieval variant needs a **full run**: about 12 h per variant at 102 examples on the MacBook, so comparing two retrievers is two nights. Cheap on the GPU server. This is why it sits in Band B while half one sits in Band A.
 
-**The risk this split manages.** §12.3 names the recall table as one of the two results that carry the paper if Band B never opens. The delta table is the stronger result and the one that depends on compute we do not yet have. Build and report half one first regardless of what happens with the server.
+**The risk this split manages.** §12.3 names the recall table as one of the results that carry the paper if Band B never opens. **[14 Aug 2026] The delta half is now measured and it is close to zero** (§2.8.1, §2.8.2), so the recall table carries the paper as a retrieval result and the delta table is a negative result rather than the stronger one. The delta table is the stronger result and the one that depends on compute we do not yet have. Build and report half one first regardless of what happens with the server.
 
 **There is no configuration in which the cloud model retrieves its own evidence.** A model behind an API has no access to the filing. Retrieval here is BM25 plus embeddings plus plain Python (§3.7), a mechanical step that runs before any model call.
 
@@ -1559,6 +1565,8 @@ Between 3 August and 23 August there are roughly **20 usable nights**, and resul
 
 **The corrective lever is prompt size, not scheduling.** §4.6 measures runtime as linear in prompt tokens at R² = 0.995, so halving the mean prompt roughly halves every local run. Tighter retrieval buys wall-clock and recall together, and it is the only thing in the project that does both.
 
+> **[FALSE ON THE GPU BOX — corrected 14 Aug 2026.]** The paragraph above is true of the MacBook only. Measured on the GPU (§4.6), halving the prompt does **not** halve the run: the k=5 run cut prompt tokens 46% and wall clock 15%, and gold-alone cut them 70% for 22%. **On that machine tighter retrieval buys recall and almost no wall-clock, so it is no longer the thing that does both.** Every night-budget figure in this section is a MacBook figure and stays valid for the MacBook.
+
 **Two asymmetries decide what is affordable, and neither is about the tier number.**
 
 - **Cloud runs are nearly free in wall-clock.** API-bound, hours not nights. Local runs are the scarce resource; cloud runs are not.
@@ -1640,6 +1648,12 @@ End-to-end accuracy delta from the winning retrieval variant. Full 700-example t
 **The compute appeared.** The brother's desktop measured **36.8x** faster than the MacBook on 7 August (§13 item 11), taking a 102-example run to ~20 min and the full 700 run to ~2–3 h. **Band B is now affordable and the paper may be designed to include it** — with two conditions. First, **everything compared must run on the same machine**, since verdicts were measured to diverge across CPU and ROCm at 5 of 6. Second, the **leaderboard submission stays out** for the unrelated reason in §13 item 4: there is nothing to submit to.
 
 **Band A does not become less important.** Retrieval recall and the extraction/imputation analysis still carry the paper if the desktop becomes unavailable — it is a family machine, not a guaranteed resource.
+
+> **[14 Aug 2026] A THIRD CARRYING RESULT, and it reframes the first.** The evidence-presence finding is now measured from both directions and belongs in its own results section, not a sentence in analysis. §2.8.1 gave the 3B *perfect* evidence: +3.6 on FDV-IE, p = 0.253, and a tie overall at p = 0.116. §2.8.2 then *removed* a third of its evidence via k=5: accuracy moved +0.2, p = 1.000, and within that run claims whose gold evidence reached the prompt beat claims whose did not by 1.4 points. **Retrieval quality and answer quality are close to decoupled for this model on this benchmark.**
+>
+> Either experiment alone is a design artefact. Two pushing opposite ways and agreeing is a finding, and it is the kind of negative result a workshop on real-world constraints should want: **the standard assumption that better retrieval yields better verification does not hold at 3B here.**
+>
+> **It also constrains how the recall result is written.** The 74.06% fused figure against the published 68.01% is a *retrieval* result and stands on its own. It may not be presented as raising verification accuracy, because our own data says it does not. See `paper_numbers.md` §1, §2.8.1 and §2.8.2.
 
 **Band C — stretch, only if Bands A and B land early.**
 Tier 3 glossary, Tier 4 faithfulness verifier, Tier 5 routing sweep. The faithfulness metric is the most novel piece in the plan and the natural centrepiece if accuracy saturates (§7.5), so it is the first thing to promote out of Band C if the schedule loosens.

@@ -5226,26 +5226,38 @@ Four 3B runs on the GPU box, same model, same machine, differing mainly in promp
 Linearity survives. **The coefficient does not.** The recorded law is 0.0641 s per prompt token,
 about 15.6 tokens per second ingestion, fitted on 11 examples on the MacBook. The GPU coefficient is
 **107x smaller**, and the fit now carries a 4.6 second fixed cost per claim that the MacBook fit did
-not need. That 4.6 seconds is generation: output is 389 to 418 tokens across all four runs and
-hardly varies, which works out near 85 tokens per second of decoding.
+not need.
 
-**So on the GPU roughly 70 to 85 percent of a claim's wall clock is generating the answer, not
-reading the prompt.** The lever is output length, meaning `num_predict` and how verbose the prompt
-lets the model be. Prompt size is nearly free.
+**What is identified here, and what is not. Corrected before this entry was finished.** The slope is
+identified: prompt tokens vary 3.3x across the four runs. **The 4.6 s fixed term is not decomposed,
+and must not be reported as a generation rate.** Output varies only 389 to 418 tokens, so this data
+cannot separate generation from any other per-claim constant. That is precisely the degeneracy
+`architecture_plan.md` §4.6 already recorded, where the same two-parameter fit was attempted on the
+MacBook, returned a negative generation rate, and was rejected. **Same trap, same cause, one machine
+over.** The first draft of this entry claimed roughly 85 tokens per second of decoding. That number
+was not measured and has been removed.
+
+**What is safe to say.** The 4.6 s per claim does not scale with prompt size, and it is **67 to 87
+percent of each run's wall clock**, from 67% at k=10 up to 87% on gold-alone. Generation is the
+largest plausible component, since output runs about 400 tokens while everything else per claim is
+milliseconds, but this run does not measure it separately. **Confirming it needs a run that
+deliberately varies `num_predict`,** which no run in the project has done.
+
+Either way the planning conclusion holds: **prompt size is nearly free on the GPU**, and the lever on
+wall clock is whatever sits in that fixed term.
 
 **Both statements are true on their own machine.** The MacBook fit is not refuted; it was measured
 on CPU-only inference where ingestion genuinely dominates. It simply does not transfer, and every
 GPU result since 7 August has been planned against a MacBook constant. This is the same
 cross-machine trap as the Ollama version split found on 13 August, in a different variable.
 
-**Where the stale claim is recorded and needs correcting:**
+**Where the stale claim was recorded. All but one corrected the same day:**
 
-    docs/working_state.md:2774        "prompt size is the only real lever on wall clock"
-    docs/working_state.md:3094-3112   the fit itself and the 6,610-token planning numbers
-    docs/architecture_plan.md:782     the fit
-    docs/architecture_plan.md:1004    "no new optimisation workstream" rests on it
-    docs/architecture_plan.md:1560    "halving the mean prompt roughly halves every local run"
-    CLAUDE.md, hard constraints       same claim, needs the author's own edit
+    docs/working_state.md      "only real lever" struck; the fit section now opens MACBOOK ONLY
+    docs/architecture_plan.md  §4.6 carries the GPU fit; §1004 premise corrected, conclusion
+                               kept on other grounds; §1560 marked FALSE ON THE GPU BOX
+    docs/paper_numbers.md      §3.1 gained four GPU rows and a rule 5 warning
+    CLAUDE.md, hard constraints    STILL STALE. The author's own file, left for him.
 
 `architecture_plan.md:1560` is the load-bearing one. "Tighter retrieval buys wall-clock and recall
 together, and it is the only thing in the project that does both" is false on the GPU box, where
