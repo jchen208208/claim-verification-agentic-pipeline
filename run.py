@@ -16,6 +16,7 @@ from src.gold_retriever import retrieve as gold_retrieve
 from src.gold_padded_retriever import retrieve as gold_padded_retrieve
 from src.run_loop import run_sample
 from src.sampler import stratified_sample
+from src.routed_loop import run_routed_sample
 
 REPO_ROOT = Path(__file__).resolve().parent
 RESULTS_ROOT = REPO_ROOT / "results"
@@ -48,6 +49,39 @@ def build_sample(config):
     return claims
 
 
+def run_pipeline(config, sample, results_dir, retriever):
+
+    print(f"experiment    {config['experiment']}   PIPELINE")
+    print(f"system        {config['model']}")
+    for name in ("local_a", "local_b", "cloud"):
+        stage = config[name]
+        print(f"  {name:9}   {stage['model']:22}"
+              f" prompt {stage['prompt_version']:12}"
+              f" client {stage.get('client', 'ollama')}")
+    print(f"escalate_numeric            {config.get('escalate_numeric', True)}")
+    print(f"skip_local_when_escalating  {config.get('skip_local_when_escalating', False)}")
+    print(f"retriever     {config['retriever']}, k={config['top_k']}")
+    print(f"sample        {len(sample)} examples, seed {config['sample_seed']}")
+    print(f"results       {results_dir}\n", flush=True)
+
+    # both local models must run on the same host
+    host = config["local_a"].get("ollama_host", "localhost")
+    if config["local_b"].get("ollama_host", "localhost") != host:
+        print("\nWarning: local_a and local_b are on different hosts.")
+        return 1
+
+    ollama_version = get_ollama_version(host)
+    print(f"ollama        {ollama_version} on {host}", flush=True)
+
+    expected = config.get("expect_ollama_version")
+    if expected is not None and ollama_version != expected:
+        print(f"\nError: config expects Ollama {expected}, this server is {ollama_version}.")
+        return 1
+
+    run_routed_sample(sample, config, results_dir, CLIENTS, retriever, ollama_version)
+    return 0
+
+
 def main():
     # example command: python3 run.py configs/condition1_7b_full700.json 2>&1 | tee logs/condition1_7b_full700.txt, here python's sys.argv = ['run.py', 'config...']
     # 'tee' command writes the same stream to a file and also let's you see it on your screen/terminal. with just '>', all the output get redirected to the file without showing on screen.
@@ -67,6 +101,10 @@ def main():
     scope = "full 700" if config["per_cell"] is None else f"{config['per_cell']} per cell"
 
     results_dir = RESULTS_ROOT / config["experiment"]
+
+    # If we're running a pipeling, the single-model path is skipped over.
+    if config.get("pipeline"):
+        return run_pipeline(config, sample, results_dir, retriever)
 
     print(f"experiment    {config['experiment']}")
     print(f"model         {config['model']}")
