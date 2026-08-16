@@ -5662,6 +5662,70 @@ the less reproducible half of the system, which is on topic for the workshop.
 accuracy moves from a 95% range of 78.1-81.3 to 78.3-81.7. **The conclusion is unchanged** and the
 earlier estimate stands.
 
+### THE LOADER TAKES A SPLIT NOW, AND test.json IS THINNER THAN testmini
+
+`src/loader.py` gained a `split` parameter defaulting to `testmini`, `EXPECTED_COUNTS` became a
+dict keyed by split, and `run.py`'s `build_sample` reads `config["split"]` and checks the total for
+that split rather than a hardcoded 700. The default keeps all eight existing call sites working
+untouched. `src/sampler.py` needed nothing: it groups cells dynamically and never assumed 700.
+
+**Item 7 says this is "one line changed" in the loader. It was three places**, as flagged earlier
+today: the filename, `EXPECTED_COUNTS`, and `build_sample`'s 700 check. Two more turned out to be
+worth changing as well, both cosmetic but both things you read before leaving a 14 hour run: the
+"full 700" scope string, and the pipeline header, which never printed the split at all.
+
+### NEW DATA TRAP: test.json ships four fields fewer than testmini
+
+Confirmed by inspection today, not assumed.
+
+    field                  testmini            test.json
+    python_calculation     250 numeric         ABSENT
+    execution_result       250 numeric         ABSENT
+    knowledge              200 knowledge       ABSENT
+    explanation            all 700 non-empty   600 numeric are EMPTY STRINGS
+    explaination typo      250 numeric         does not occur
+
+**Nothing crashes.** `raw_to_claim` already used `.get()` for the three absent fields, so they come
+back `None`, and the empty explanation is a valid string. Nothing in the codebase reads the three
+absent fields either, checked by grep. **This is a silent difference, which is the dangerous kind.**
+
+**What it costs.** On test.json's numeric subset there is **no gold reasoning of any kind**: no
+explanation, no reference calculation, no reference answer. Just the statement, the label and the
+evidence indices. So:
+
+1. **The arithmetic cannot be checked against the benchmark's own answer on test.json.** On
+   testmini, `execution_result` is FINDVER's computed value, which is what would let us say a
+   verdict was right for the wrong reason. That was the 2 August finding on `$15,800,015`. **That
+   check is not available on the split the paper reports.**
+2. **Any error taxonomy over numeric claims has to be built on testmini**, or done by reading the
+   model's output against the retrieved evidence by hand. Section 9 still wants a four-category
+   taxonomy and this constrains how it can be produced.
+3. `gold_explanation` in every routed record for a numeric test claim will be `""`. Expected, not a
+   bug, and now asserted in the harness so nobody later reads it as one.
+
+**This belongs in the trap list in CLAUDE.md**, which is the author's own file, so it is flagged
+here rather than edited there.
+
+### HARNESS: 162 -> 189
+
+Section 0b, the loader on both splits. Every check runs off disk, no model, no network.
+
+    both splits load their exact subset counts and total
+    default split is still testmini, so the eight existing call sites are unaffected
+    every claim's split field matches the file it came from
+    every report file named by every claim exists, 2,400 across both splits
+    labels are bools, not strings
+    stratified sampling works on both splits
+    id prefixes: testmini is -val-, test is -test-, and the two share no example_id
+    load_claims rejects "val", "TEST", "testmini.json" and "" with ValueError
+    testmini: every explanation non-empty
+    test: all 600 numeric explanations empty, no python_calculation, no
+          execution_result, no knowledge  <- asserted so the fact is never assumed away
+    build_sample defaults to testmini, honours split=test, and samples per cell on test
+
+The id-prefix and shared-id checks are the cheap guard against the failure that actually threatens
+this: loading the wrong file into the right variable and getting a plausible-looking run.
+
 ### Still open
 
-The `test.json` loader change, and the two big runs.
+The `test.json` config file, and the two big runs.

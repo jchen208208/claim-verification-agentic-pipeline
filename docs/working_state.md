@@ -2535,10 +2535,31 @@ but the effect on verdicts had never been measured. **n=13, a flag not a rate.**
 sensitivity analysis with the cloud at 23.1% leaves every conclusion unchanged.
 
 ### What to do next, in order
-1. **The loader change for `test.json`.** Three places, not one line: the filename in
-   `src/loader.py`, `EXPECTED_COUNTS` just below it, and `build_sample` in `run.py`, which raises
-   unless the file holds exactly 700 claims.
+1. **Write the `test.json` config**, a copy of `pipeline_trial.json` with `per_cell` null,
+   `"split": "test"` and a new experiment name.
 2. **The two big runs**, 13.8 h and 7.6 h.
+
+### DONE 16 Aug: the loader takes a split
+
+`load_claims(split="testmini")`, `EXPECTED_COUNTS` keyed by split, `build_sample` reading
+`config["split"]`. The default keeps all eight existing call sites untouched. Harness 162 -> 189.
+
+### NEW DATA TRAP: test.json ships four fields fewer than testmini
+
+    field                  testmini            test.json
+    python_calculation     250 numeric         ABSENT
+    execution_result       250 numeric         ABSENT
+    knowledge              200 knowledge       ABSENT
+    explanation            all 700 non-empty   600 numeric are EMPTY STRINGS
+    explaination typo      250 numeric         does not occur
+
+Nothing crashes and nothing in the codebase reads the missing fields, so this is silent.
+
+**What it costs: test.json's numeric subset has no gold reasoning at all.** No explanation, no
+reference calculation, no reference answer. **The arithmetic cannot be checked against FINDVER's
+own computed value on the split the paper reports**, which is exactly the check that caught the
+`$15,800,015` error on 2 August. Any numeric error taxonomy has to be built on testmini or read by
+hand. **This belongs in the CLAUDE.md trap list, which is your file.**
 
 **Overleaf is still not started.** Owed since 7 August. Today is 16 August, the freeze is
 23 August.

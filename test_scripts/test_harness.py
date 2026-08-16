@@ -280,6 +280,84 @@ def main():
             check(f"{path.name} {name} overflow True at num_ctx {ctx}",
                   check_overflow(ctx - predict, predict, ctx) is True)
 
+    # --- 0b. the loader, both splits ------------------------------------
+    # Added 16 Aug with the split parameter. test.json is 1,700 claims with a
+    # different subset balance, different id prefixes and three fields missing,
+    # so "loaded something plausible" is not the same as "loaded the right file".
+    from src.loader import EXPECTED_COUNTS, load_claims as load_split
+
+    check("default split is still testmini",
+          len(load_split()) == 700, f"got {len(load_split())}")
+
+    split_claims = {}
+    for split, counts in EXPECTED_COUNTS.items():
+        claims = load_split(split)
+        split_claims[split] = claims
+        total = sum(counts.values())
+
+        check(f"{split} loads {total} claims", len(claims) == total,
+              f"got {len(claims)}")
+        actual = {s: sum(1 for c in claims if c.subset == s) for s in counts}
+        check(f"{split} subset counts match EXPECTED_COUNTS", actual == counts,
+              f"{actual} != {counts}")
+        check(f"{split} claims all carry split={split!r}",
+              all(c.split == split for c in claims))
+        check(f"{split} every report file exists",
+              all((REPORT_DIR / c.report).is_file() for c in claims))
+        check(f"{split} labels are bools, not strings",
+              all(isinstance(c.entailment_label, bool) for c in claims))
+        check(f"{split} stratified sampling works", 
+              len(stratified_sample(claims, 2)) == 12)
+
+    # The id prefix is the cheapest guard against loading the wrong file into
+    # the right variable: testmini ids say "val", test ids say "test".
+    check("testmini ids use the -val- prefix",
+          all("-val-" in c.example_id for c in split_claims["testmini"]))
+    check("test ids use the -test- prefix",
+          all("-test-" in c.example_id for c in split_claims["test"]))
+    check("the two splits share no example_id",
+          not ({c.example_id for c in split_claims["testmini"]}
+               & {c.example_id for c in split_claims["test"]}))
+
+    for bad in ("val", "TEST", "testmini.json", ""):
+        try:
+            load_split(bad)
+            check(f"load_claims({bad!r}) is rejected", False, "it was accepted")
+        except ValueError:
+            check(f"load_claims({bad!r}) is rejected", True)
+        except Exception as exc:
+            check(f"load_claims({bad!r}) is rejected", False,
+                  f"raised {type(exc).__name__}, wanted ValueError")
+
+    # Split-specific data facts, asserted so they are never assumed away.
+    # Trap 4, the explaination misspelling, is testmini only.
+    check("testmini: every claim has a non-empty explanation",
+          all(c.explanation and c.explanation.strip()
+              for c in split_claims["testmini"]))
+    numeric_test = [c for c in split_claims["test"] if c.subset == "numeric"]
+    check("test: all 600 numeric explanations are EMPTY, a known data fact",
+          len(numeric_test) == 600
+          and all(not (c.explanation or "").strip() for c in numeric_test),
+          "if this fails the data changed, and error analysis on numeric "
+          "test claims may now be possible")
+    check("test: no python_calculation or execution_result anywhere",
+          all(c.python_calculation is None and c.execution_result is None
+              for c in split_claims["test"]))
+    check("test: no knowledge field anywhere",
+          all(c.knowledge is None for c in split_claims["test"]))
+
+    # build_sample is what run.py actually calls, so the split has to survive
+    # the trip through a config dict.
+    from run import build_sample
+    check("build_sample defaults to testmini",
+          len(build_sample({"per_cell": None, "sample_seed": 0})) == 700)
+    check("build_sample honours split=test",
+          len(build_sample({"per_cell": None, "sample_seed": 0,
+                            "split": "test"})) == 1700)
+    check("build_sample samples per cell on test",
+          len(build_sample({"per_cell": 3, "sample_seed": 0,
+                            "split": "test"})) == 18)
+
     sample = stratified_sample(load_claims(), 2)
     check("sample is 12 examples", len(sample) == 12, f"got {len(sample)}")
 
