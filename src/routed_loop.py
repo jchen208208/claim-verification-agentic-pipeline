@@ -52,15 +52,14 @@ class RoutedRecord:
     locals_skipped: bool = False  # the detector fired = true
 
     # dictionary containing the full stage's records (1 to 3 record objects): {"local_a": {...}, "local_b": {...}, "cloud": {...}}
-    stages: dict = field(default_factory=dict)
+    stages: dict = field(default_factory=dict)  # without field, all 700 records would share a dict but with field, each get their own
 
     status: str = "ok"
     traceback: str | None = None
 
 
-# One pipeline stage: everything run_one_claim needs that differs per model.
-# Built once per run in block 3, not per claim.
-Stage = namedtuple("Stage", "config template client")
+# a stages class
+Stage = namedtuple("Stage", ["config", "template", "client"])
 
 def route_one_claim(claim, config, stages, retrieve, ollama_version=None):
     """one claim through the pipeline.
@@ -69,6 +68,7 @@ def route_one_claim(claim, config, stages, retrieve, ollama_version=None):
         otherwise -> 3B then 7B
         verdicts agree -> keep the 7B's verdict and no cloud call
         verdicts differ -> cloud
+    stages is a dictionary of Stages objects
     """
 
     record = RoutedRecord(
@@ -95,23 +95,23 @@ def route_one_claim(claim, config, stages, retrieve, ollama_version=None):
         # the two local models
         local_b = None
         if not skip_locals:
-            local_a = run_one_claim(claim, stages["local_a"].config, stages["local_a"].template, stages["local_a"].client, retrieve, ollama_version)
-            record.stages["local_a"] = asdict(local_a)
+            local_a = run_one_claim(claim, stages["local_a"].config, stages["local_a"].template, stages["local_a"].client, retrieve, ollama_version)  # runs the claim through the 3B model, nothing else runs until it finishes, returns a Record object
+            record.stages["local_a"] = asdict(local_a)  # converts Record object to a dict and stores it in this record's stages field
             record.verdict_local_a = local_a.extracted_label
 
             local_b = run_one_claim(claim, stages["local_b"].config, stages["local_b"].template, stages["local_b"].client, retrieve, ollama_version)
-            record.stages["local_b"] = asdict(local_b)
+            record.stages["local_b"] = asdict(local_b) 
             record.verdict_local_b = local_b.extracted_label
 
-        # check for failed stages
-        for name, stage_record in (("local_a", local_a), ("local_b", local_b)):
-            if stage_record.status != "ok":
-                raise RuntimeError(f"{name} failed:\n{stage_record.traceback}")
+            # check for failed stages
+            for name, stage_record in (("local_a", local_a), ("local_b", local_b)):
+                if stage_record.status != "ok":
+                    raise RuntimeError(f"{name} failed:\n{stage_record.traceback}")
 
-        # if the two models' verdicts contradict, escalate to cloud
-        if local_a.extracted_label != local_b.extracted_label:
-            escalate = True
-            reason = reason or "disagreement"
+            # if the two models' verdicts contradict, escalate to cloud
+            if local_a.extracted_label != local_b.extracted_label:
+                escalate = True
+                reason = reason or "disagreement"
 
         # cloud block
         if escalate:
@@ -123,33 +123,36 @@ def route_one_claim(claim, config, stages, retrieve, ollama_version=None):
                 raise RuntimeError(f"cloud failed:\n{cloud.traceback}")
             deciding, record.final_source = cloud, "cloud"
         else:
-            deciding, record.final_source = local_b, "local_b"
+            deciding, record.final_source = local_b, "local_b"  # deciding is a Record object
 
         record.escalation_reason = reason
 
         # copy the deciding stage's answer to the top level
         for attribute in ("extracted_label", "extraction_source", "evidence_present", "context_overflow", "done_reason", "prompt_eval_count", "eval_count", "thinking", "served_model", "system_fingerprint", "chunks_requested", "chunks_kept"):
-            setattr(record, attribute, getattr(deciding, attribute))
+            setattr(record, attribute, getattr(deciding, attribute))  # puts the value of each of these attributes in the deciding Recrod object into this pipeline's record object
 
-    except:
+    except Exception:
         record.status = "failed"
         record.traceback = traceback.format_exc()
+
+    record.elapsed_seconds = time.perf_counter() - started
+    return record
 
 
 STAGE_NAMES = ("local_a", "local_b", "cloud")
 
 def build_stages(config, clients):
-    """load each stage's prompt template and pick its client for each claim"""
+    """load each stage's prompt template and pick its client"""
 
     stages = {}
     for name in STAGE_NAMES:
         if name not in config:
             raise ValueError(f"pipeline config is missing the '{name}' stage")
-        stage_config = config[name]
+        stage_config = config[name]  # a dict from the config file
         stages[name] = Stage(
             config=stage_config,
             template=load_prompt_template(stage_config["prompt_version"]),
-            client=clients[stage_config.get("client", "ollama")],
+            client=clients[stage_config.get("client", "ollama")],  # clients = {"ollama": call_ollama, "deepseek": call_deepseek}
         )
     return stages
 
