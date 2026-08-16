@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 15 August 2026.
+Last updated: 16 August 2026.
 
 ---
 
@@ -2464,6 +2464,63 @@ run, and nothing sequences 3B then 7B then the escalation decision. That has to 
 run 1 can happen.
 
 **Overleaf is still not started.** Owed since 7 August. Today is 15 August, the freeze is
+23 August.
+
+---
+
+
+## Where things stand, 16 August
+
+### THE ROUTED PIPELINE IS BUILT AND UNDER TEST. Not yet run.
+
+`src/routed_loop.py`, `run_pipeline` in `run.py`, `configs/pipeline_trial.json`. This is condition
+4 built rather than derived. Detail in the build log for 16 August.
+
+Per claim: the detector decides first and costs nothing, then 3B, then 7B, keep the shared verdict
+when they agree, cloud when they differ. Nothing was re-implemented, because `run_one_claim`
+already does one model end to end and gets called up to three times with three configs. The
+prompt split falls out of that for free, locals on v1 and cloud on v2.
+
+### THE SKIP FLAG IS ON EXACTLY ONE RUN
+
+    run 1, skip OFF :  13.8 h   yields condition 1 (3B), condition 1 (7B), condition 4
+    run 1, skip ON  :  11.2 h   yields condition 4 only
+      + condition 1 runs        9.7 h
+
+Skipping saves 2.6 h and costs 9.7 h to get condition 1 back. **Flag off for the 1,700 run, on for
+a ~100 claim latency run afterwards, about 40 minutes.** That second run is the only reason the
+flag exists.
+
+**Corrected:** the 12 August note says skipping removes "about a third of the local compute". That
+was the subset label at 35.3%. Our detector flags **26.4%**.
+
+**Corrected:** run 1 is **13.8 hours, not the 10 in item 7**. Run 2 at 7.6 h is right.
+
+### THE HARNESS NOW COVERS THE ROUTED PATH: 123 checks -> 162
+
+`pipeline_trial.json` **broke the gate**: `test_harness.py` read `cfg["num_ctx"]` on every config
+and a pipeline config has no such key, so it died with `KeyError` before running any check. Fixed,
+and stage blocks are now validated instead, including that every `prompt_version` in every config
+names a file that exists.
+
+39 new checks drive every path through `route_one_claim` with stubs, no model and no network.
+**The one that matters is the skip path**, which raised `NameError` and silently wrote every
+skipped claim as failed. That flag is only on for the final latency run, so the bug would have
+surfaced at the very end of the schedule.
+
+### What to do next, in order
+
+1. **Run `configs/pipeline_trial.json`.** 30 claims, about 15 minutes. Needs the GPU box awake and
+   `DEEPSEEK_API_KEY` in the environment.
+2. **`test_scripts/check_pipeline_prompts.py`**, not yet built. Confirms `stages.local_a.prompt`
+   byte-matches the stored `condition1_3b_full700` prompt. **This is the validation, not verdict
+   equality**: verdicts move on about one claim in ten, prompts are deterministic.
+3. **The loader change for `test.json`.** Three places, not one line: the filename in
+   `src/loader.py`, `EXPECTED_COUNTS` just below it, and `build_sample` in `run.py`, which raises
+   unless the file holds exactly 700 claims.
+4. **The two big runs**, 13.8 h and 7.6 h.
+
+**Overleaf is still not started.** Owed since 7 August. Today is 16 August, the freeze is
 23 August.
 
 ---

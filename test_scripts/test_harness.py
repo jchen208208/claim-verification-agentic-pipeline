@@ -21,6 +21,21 @@ Assumed interface, which is what the run loop has to provide:
 Everything else, reading the report, building the prompt, asserting evidence,
 extracting the label, filling the Record, is internal to the run loop.
 
+Section 7, added 16 August, covers the routed pipeline on the same terms:
+
+    run_routed_sample(sample, config, results_dir, clients, retrieve)
+
+        config       a pipeline config: three stage blocks under local_a,
+                     local_b and cloud, plus escalate_numeric and
+                     skip_local_when_escalating
+        clients      {"ollama": fn, "deepseek": fn}, as run.py builds
+
+It drives every path through route_one_claim with stubs: locals agreeing,
+locals disagreeing, the detector firing with the skip off and with it on, the
+detector disabled, an unparseable local verdict, a stage that raises, and
+resume. The skip path is there because route_one_claim raised NameError on it
+the day it was written, and no run before the final latency job exercises it.
+
 Results go to a scratch directory outside the repo, so results/ is never touched.
 
 Usage:
@@ -41,6 +56,8 @@ from run import RETRIEVERS
 from src.evidence_asserter import check_overflow
 from src.logger import Record
 from src.loader import load_claims
+from src.numeric_detector import is_numeric_claim
+from src.routed_loop import RoutedRecord
 from src.sampler import stratified_sample
 
 REPORT_DIR = REPO_ROOT / "FinDVer" / "financial_reports"
@@ -63,7 +80,34 @@ RECORD_FIELDS = {f.name for f in dataclasses.fields(Record)}
 
 GOOD_RESPONSE = ("The filing states the figure directly. Therefore, the claim "
                  "is refuted.")
+REFUTED = GOOD_RESPONSE
+ENTAILED = "The filing supports this. Therefore, the claim is entailed."
 UNPARSEABLE = "I am unable to determine this from the provided document."
+
+# Derived from the dataclass for the same reason RECORD_FIELDS is.
+ROUTED_FIELDS = {f.name for f in dataclasses.fields(RoutedRecord)}
+
+# Model names used only by the routed stubs. They never reach a real server;
+# they exist so a stub can tell the three stages apart by config["model"].
+STUB_3B, STUB_7B, STUB_CLOUD = "stub:3b", "stub:7b", "stub:cloud"
+
+PIPELINE_CONFIG = {
+    "experiment": "harness_pipeline",
+    "pipeline": True,
+    "model": "routed_stub",
+    "local_a": {"client": "ollama", "model": STUB_3B, "num_ctx": 16384,
+                "num_predict": 2000, "temperature": 0, "seed": 0,
+                "prompt_version": "baseline_v1", "ollama_host": "localhost"},
+    "local_b": {"client": "ollama", "model": STUB_7B, "num_ctx": 16384,
+                "num_predict": 2000, "temperature": 0, "seed": 0,
+                "prompt_version": "baseline_v1", "ollama_host": "localhost"},
+    "cloud": {"client": "deepseek", "model": STUB_CLOUD, "num_ctx": 16384,
+              "num_predict": 2000, "temperature": 0, "seed": 0,
+              "prompt_version": "baseline_v2"},
+    "escalate_numeric": True,
+    "skip_local_when_escalating": False,
+    "retriever": "bm25", "top_k": 10, "per_cell": None, "sample_seed": 0,
+}
 
 
 # ---------------------------------------------------------------- stubs
@@ -109,6 +153,47 @@ class ModelStub:
         }
 
 
+class RoutedModelStub:
+    """Canned responses keyed by model name.
+
+    The routed loop hands every stage the same client dict, so one stub serves
+    all three and tells them apart by config["model"]. That is also how a test
+    makes the two local models agree or disagree on demand.
+    """
+
+    def __init__(self, by_model, raise_on=()):
+        self.by_model = by_model
+        self.raise_on = set(raise_on)
+        self.calls = []          # (model, prompt) in call order
+
+    def __call__(self, prompt, config):
+        model = config["model"]
+        self.calls.append((model, prompt))
+        if model in self.raise_on:
+            raise RuntimeError("stub failure: " + model)
+        return {
+            "response": self.by_model[model],
+            "prompt_eval_count": 4102,
+            "eval_count": 631,
+            "done_reason": "stop",
+        }
+
+    def models_called(self):
+        return [model for model, _ in self.calls]
+
+
+def routed_clients(stub):
+    """Both client names point at the one stub, as run.py's CLIENTS would."""
+    return {"ollama": stub, "deepseek": stub}
+
+
+def pipeline_config(**overrides):
+    """A copy of PIPELINE_CONFIG with top-level keys replaced."""
+    config = json.loads(json.dumps(PIPELINE_CONFIG))
+    config.update(overrides)
+    return config
+
+
 # ---------------------------------------------------------------- helpers
 
 CHECKS = []
@@ -150,20 +235,50 @@ def main():
                   cfg["retriever"] in RETRIEVERS,
                   f"{cfg['retriever']!r} not in {sorted(RETRIEVERS)}")
 
-        # prompt_budget_tokens overrides the num_ctx - num_predict derivation, which
-        # is meaningless for a cloud client that never receives num_ctx. It must not
-        # be usable to ask for a prompt bigger than a real context window would hold.
-        budget = cfg.get("prompt_budget_tokens")
-        if budget is not None:
-            check(f"{path.name} prompt budget fits inside num_ctx",
-                  budget + cfg["num_predict"] <= cfg["num_ctx"],
-                  f"{budget} + {cfg['num_predict']} > {cfg['num_ctx']}")
+        # A pipeline config has no flat model settings: they live in three stage
+        # blocks. Added 16 Aug after configs/pipeline_trial.json crashed this
+        # loop with KeyError: 'num_ctx', which took the whole gate down before a
+        # single check ran. The stage blocks get the same validation instead.
+        if cfg.get("pipeline"):
+            stages_present = [n for n in ("local_a", "local_b", "cloud") if n in cfg]
+            check(f"{path.name} has all three stages",
+                  len(stages_present) == 3, f"has {stages_present}")
+            check(f"{path.name} names the system in 'model'", "model" in cfg,
+                  "analyse_condition1.score reads config['model']")
+            if len(stages_present) == 3:
+                host_a = cfg["local_a"].get("ollama_host", "localhost")
+                host_b = cfg["local_b"].get("ollama_host", "localhost")
+                check(f"{path.name} local stages share one ollama_host",
+                      host_a == host_b, f"{host_a} vs {host_b}")
+            blocks = [cfg[n] for n in stages_present]
+        else:
+            blocks = [cfg]
 
-        ctx, predict = cfg["num_ctx"], cfg["num_predict"]
-        check(f"{path.name} overflow False just under num_ctx {ctx}",
-              check_overflow(ctx - predict - 1, predict, ctx) is False)
-        check(f"{path.name} overflow True at num_ctx {ctx}",
-              check_overflow(ctx - predict, predict, ctx) is True)
+        for block in blocks:
+            name = block.get("model", path.name)
+
+            # Every stage names a prompt file that exists. A typo here is
+            # otherwise a FileNotFoundError on claim 1 of a 14 hour run.
+            version = block.get("prompt_version")
+            if version is not None:
+                check(f"{path.name} prompt file exists for {version}",
+                      (REPO_ROOT / "prompts" / f"{version}.txt").is_file())
+
+            # prompt_budget_tokens overrides the num_ctx - num_predict derivation,
+            # which is meaningless for a cloud client that never receives num_ctx.
+            # It must not be usable to ask for a prompt bigger than a real context
+            # window would hold.
+            budget = block.get("prompt_budget_tokens")
+            if budget is not None:
+                check(f"{path.name} {name} prompt budget fits inside num_ctx",
+                      budget + block["num_predict"] <= block["num_ctx"],
+                      f"{budget} + {block['num_predict']} > {block['num_ctx']}")
+
+            ctx, predict = block["num_ctx"], block["num_predict"]
+            check(f"{path.name} {name} overflow False just under num_ctx {ctx}",
+                  check_overflow(ctx - predict - 1, predict, ctx) is False)
+            check(f"{path.name} {name} overflow True at num_ctx {ctx}",
+                  check_overflow(ctx - predict, predict, ctx) is True)
 
     sample = stratified_sample(load_claims(), 2)
     check("sample is 12 examples", len(sample) == 12, f"got {len(sample)}")
@@ -270,6 +385,163 @@ def main():
         check("resume repairs the failed example",
               recs2[victim.example_id]["status"] == "ok")
         check("resume leaves the finished ones alone", len(recs2) == 12)
+
+    # --- 7. the routed pipeline ----------------------------------------
+    # Added 16 Aug. route_one_claim had three bugs on the day it was written and
+    # one of them, a NameError on the skip path, is invisible to every planned
+    # run except the last one. Nothing below touches a model or the network.
+    from src.routed_loop import run_routed_sample
+
+    all_claims = list(load_claims())
+    flagged = next(c for c in all_claims if is_numeric_claim(c.statement))
+    unflagged = next(c for c in all_claims if not is_numeric_claim(c.statement))
+    check("harness found a detector-flagged and an unflagged claim",
+          flagged is not None and unflagged is not None)
+
+    def route(claims, stub, config=None, tmp=None):
+        """Run the routed loop over `claims` and return the records."""
+        config = config or pipeline_config()
+        run_routed_sample(claims, config, tmp, routed_clients(stub),
+                          retrieve_gold)
+        return load_records(tmp)
+
+    # 7a. the two local models agree: the cloud is never called
+    with tempfile.TemporaryDirectory() as tmp:
+        stub = RoutedModelStub({STUB_3B: REFUTED, STUB_7B: REFUTED,
+                                STUB_CLOUD: ENTAILED})
+        rec = route([unflagged], stub, tmp=tmp)[unflagged.example_id]
+
+        check("agree: cloud not called", rec["cloud_called"] is False)
+        check("agree: only the two locals ran",
+              stub.models_called() == [STUB_3B, STUB_7B],
+              str(stub.models_called()))
+        check("agree: two stage records stored", set(rec["stages"]) ==
+              {"local_a", "local_b"}, str(sorted(rec["stages"])))
+        check("agree: final_source is local_b", rec["final_source"] == "local_b")
+        check("agree: no escalation reason", rec["escalation_reason"] is None)
+        check("agree: answer is the 7B's", rec["extracted_label"] is False)
+        check("agree: verdict_cloud stays None", rec["verdict_cloud"] is None)
+
+        missing = ROUTED_FIELDS - set(rec)
+        check(f"all {len(ROUTED_FIELDS)} RoutedRecord fields present", not missing,
+              f"missing {missing}")
+        check("elapsed_seconds filled on the routed record",
+              isinstance(rec["elapsed_seconds"], (int, float)))
+        check("locals read the same prompt as each other",
+              rec["stages"]["local_a"]["prompt"] == rec["stages"]["local_b"]["prompt"])
+
+    # 7b. the two local models disagree: the cloud settles it
+    with tempfile.TemporaryDirectory() as tmp:
+        stub = RoutedModelStub({STUB_3B: REFUTED, STUB_7B: ENTAILED,
+                                STUB_CLOUD: REFUTED})
+        rec = route([unflagged], stub, tmp=tmp)[unflagged.example_id]
+
+        check("differ: cloud called", rec["cloud_called"] is True)
+        check("differ: reason is disagreement",
+              rec["escalation_reason"] == "disagreement",
+              str(rec["escalation_reason"]))
+        check("differ: three stage records stored",
+              set(rec["stages"]) == {"local_a", "local_b", "cloud"})
+        check("differ: answer comes from the cloud",
+              rec["extracted_label"] is False and rec["final_source"] == "cloud")
+        check("differ: both local verdicts recorded",
+              rec["verdict_local_a"] is False and rec["verdict_local_b"] is True)
+        check("cloud stage reads a different prompt than the locals",
+              rec["stages"]["cloud"]["prompt"] != rec["stages"]["local_a"]["prompt"],
+              "baseline_v2 must differ from baseline_v1")
+
+    # 7c. the detector fires with skip off: locals still run, cloud still answers
+    with tempfile.TemporaryDirectory() as tmp:
+        stub = RoutedModelStub({STUB_3B: REFUTED, STUB_7B: REFUTED,
+                                STUB_CLOUD: ENTAILED})
+        rec = route([flagged], stub, tmp=tmp)[flagged.example_id]
+
+        check("detector, skip off: all three stages ran",
+              stub.models_called() == [STUB_3B, STUB_7B, STUB_CLOUD],
+              str(stub.models_called()))
+        check("detector, skip off: reason is numeric_detector",
+              rec["escalation_reason"] == "numeric_detector",
+              str(rec["escalation_reason"]))
+        check("detector, skip off: locals_skipped is False",
+              rec["locals_skipped"] is False)
+        check("detector, skip off: cloud answer wins over agreeing locals",
+              rec["extracted_label"] is True)
+
+    # 7d. the detector fires with skip on: neither local model runs.
+    #     THIS IS THE REGRESSION TEST. Before the fix this raised NameError on
+    #     local_a and every skipped claim was silently written as failed.
+    with tempfile.TemporaryDirectory() as tmp:
+        stub = RoutedModelStub({STUB_3B: REFUTED, STUB_7B: REFUTED,
+                                STUB_CLOUD: ENTAILED})
+        config = pipeline_config(skip_local_when_escalating=True)
+        rec = route([flagged], stub, config=config, tmp=tmp)[flagged.example_id]
+
+        check("skip on: the claim did not fail", rec["status"] == "ok",
+              str(rec["traceback"])[:200])
+        check("skip on: only the cloud ran",
+              stub.models_called() == [STUB_CLOUD], str(stub.models_called()))
+        check("skip on: one stage record stored",
+              set(rec["stages"]) == {"cloud"}, str(sorted(rec["stages"])))
+        check("skip on: local verdicts are None",
+              rec["verdict_local_a"] is None and rec["verdict_local_b"] is None)
+        check("skip on: locals_skipped is True", rec["locals_skipped"] is True)
+        check("skip on: answer comes from the cloud",
+              rec["extracted_label"] is True and rec["final_source"] == "cloud")
+
+    # 7e. escalate_numeric off: the detector is ignored
+    with tempfile.TemporaryDirectory() as tmp:
+        stub = RoutedModelStub({STUB_3B: REFUTED, STUB_7B: REFUTED,
+                                STUB_CLOUD: ENTAILED})
+        config = pipeline_config(escalate_numeric=False)
+        rec = route([flagged], stub, config=config, tmp=tmp)[flagged.example_id]
+
+        check("escalate_numeric off: cloud not called on a flagged claim",
+              rec["cloud_called"] is False)
+        check("escalate_numeric off: no escalation reason",
+              rec["escalation_reason"] is None)
+
+    # 7f. an unparseable local verdict escalates, because None != a bool
+    with tempfile.TemporaryDirectory() as tmp:
+        stub = RoutedModelStub({STUB_3B: UNPARSEABLE, STUB_7B: REFUTED,
+                                STUB_CLOUD: ENTAILED})
+        rec = route([unflagged], stub, tmp=tmp)[unflagged.example_id]
+
+        check("unparseable local verdict escalates", rec["cloud_called"] is True)
+        check("unparseable local verdict recorded as None",
+              rec["verdict_local_a"] is None)
+        check("unparseable escalation is logged as disagreement",
+              rec["escalation_reason"] == "disagreement")
+
+    # 7g. a failing stage fails the whole claim, and resume repairs it
+    with tempfile.TemporaryDirectory() as tmp:
+        stub = RoutedModelStub({STUB_3B: REFUTED, STUB_7B: REFUTED,
+                                STUB_CLOUD: ENTAILED}, raise_on=[STUB_7B])
+        recs = route([unflagged, flagged], stub, tmp=tmp)
+
+        check("a failing stage marks the claim failed",
+              recs[unflagged.example_id]["status"] == "failed")
+        check("a failed routed claim stores the traceback",
+              bool(recs[unflagged.example_id]["traceback"]))
+        check("a failed routed claim still stores the stage that ran",
+              "local_a" in recs[unflagged.example_id]["stages"])
+        check("a failing stage does not end the run", len(recs) == 2)
+
+        # The stub raises on 7B, which both claims reach, so both failed. Resume
+        # must re-run both, then a third pass must run nothing at all.
+        check("every claim reaching the failing stage is marked failed",
+              all(r["status"] == "failed" for r in recs.values()))
+
+        good = RoutedModelStub({STUB_3B: REFUTED, STUB_7B: REFUTED,
+                                STUB_CLOUD: ENTAILED})
+        recs2 = route([unflagged, flagged], good, tmp=tmp)
+        check("routed resume repairs the failed claims",
+              all(r["status"] == "ok" for r in recs2.values()))
+
+        idle = RoutedModelStub({STUB_3B: REFUTED, STUB_7B: REFUTED,
+                                STUB_CLOUD: ENTAILED})
+        route([unflagged, flagged], idle, tmp=tmp)
+        check("routed resume calls no model when everything is done",
+              idle.models_called() == [], str(idle.models_called()))
 
     # ---------------------------------------------------------------- report
     width = max(len(n) for n, _, _ in CHECKS)

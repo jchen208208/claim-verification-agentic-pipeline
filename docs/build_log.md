@@ -5547,6 +5547,58 @@ Item 7 says `src/loader.py:32` "needs one line changed". Three places:
 Not hard, but it is a change with a data trap in it and should be its own piece of work rather than
 a line edited before a 14 hour run.
 
+### THE GATE WAS BROKEN BY THE NEW CONFIG, AND NOBODY WOULD HAVE NOTICED
+
+`test_harness.py` validates every file in `configs/` and read `cfg["num_ctx"]` directly.
+`pipeline_trial.json` has no top-level `num_ctx`, because its model settings live in three stage
+blocks. **The harness crashed with `KeyError: 'num_ctx'` before running a single check.**
+
+The command in CLAUDE.md is `test_scripts/test_harness.py && caffeinate ... run.py`, so `&&` would
+have stopped the run rather than letting a broken gate through. The danger was the opposite one:
+a crash that looks like the harness being broken rather than the config being wrong, at the point
+where the temptation is to run the job anyway.
+
+Fixed by validating stage blocks instead of flat keys when `pipeline` is set, and the pipeline
+config now gets three checks of its own: all three stages present, `model` named at top level for
+`analyse_condition1.score`, and both local stages on one `ollama_host`. Every stage in every config
+is also now checked to name a prompt file that exists, which nothing checked before.
+
+### ROUTED PIPELINE COVERAGE: 39 new checks, none of which touch a model
+
+`test_harness.py` section 7. `RoutedModelStub` returns canned responses keyed by
+`config["model"]`, so one stub serves all three stages and a test can make the two local models
+agree or disagree on demand. Every path through `route_one_claim`:
+
+    7a  locals agree            cloud never called, 2 stage records, answer is the 7B's
+    7b  locals disagree         cloud called, 3 stage records, answer is the cloud's,
+                                cloud prompt differs from the local prompt (v2 vs v1)
+    7c  detector, skip off      all three stages run, reason is numeric_detector,
+                                cloud overrides two agreeing locals
+    7d  detector, skip on       REGRESSION TEST, see below
+    7e  escalate_numeric off    detector ignored on a flagged claim
+    7f  unparseable local       escalates, because None != a bool
+    7g  a stage raises          claim marked failed, traceback stored, the stage that
+                                did run is still on disk, resume repairs it, and a
+                                third pass calls no model at all
+
+Plus: all 28 `RoutedRecord` fields present in the written JSON, derived from the dataclass so the
+list cannot fall behind, and both local stages confirmed to read a byte-identical prompt.
+
+**7d is the one that matters.** With the skip on, `route_one_claim` raised
+`NameError: name 'local_a' is not defined` and wrote every skipped claim as `status: "failed"`,
+silently, because the bare `except` swallowed it. **No planned run except the final latency job
+turns that flag on**, so it would have surfaced at the very end of the schedule.
+
+**Total: 123 checks before, 162 after.**
+
+### One bad check of my own, caught by the harness itself
+
+The first version of the resume check asserted that the second pass re-ran one claim and left the
+other alone. It failed. The stub raises on the 7B, which **both** claims reach, so both had failed
+and resume correctly re-ran both. The code was right and the test's assumption was wrong. Replaced
+with a stronger one: both claims repair on pass two, then a third pass must call **no model at
+all**, which is what "resume leaves finished work alone" actually means.
+
 ### Still open
 
 `configs/pipeline_trial.json` has not been run. `test_scripts/check_pipeline_prompts.py`, the
