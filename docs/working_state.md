@@ -2446,8 +2446,10 @@ the three-pattern one. It was not.**
    a number. Say the detector keys on claim phrasing. Do not imply it transfers to human-written
    claims.
 3. **27% of numeric claims are missed**, mostly the verb form "X increased by 16.79% from 2022 to
-   2023". Tier 2 catches them at 0.887 held-out precision and 58.7% calls for no accuracy gain,
-   so it is **rejected, not deferred**. Do not re-add without re-measuring.
+   2023". Tier 2 catches them: 79.6% at 58.7% calls, held-out precision 0.887. It is the better
+   detector by F1 and gains 4 claims, but **p = 0.219, a tie**, and it costs 33 extra cloud calls
+   and 10 points of held-out precision. **Set aside, not killed** — reach for it first if the
+   test.json run shows recall hurting the numeric subset.
 
 ### What is still open
 

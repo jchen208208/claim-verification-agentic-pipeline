@@ -5358,9 +5358,26 @@ axes.
 ### What was tested and rejected, with the evidence
 
 **Tier 2, three recall extenders** (`increased/decreased by <number>`, ends with a percentage,
-copula+number anywhere): recall 0.865, but held-out precision 0.887 and cloud calls 58.7% for
-79.6% accuracy. The accuracy difference from Tier 1 is 4 claims against a rerun noise floor of
-about one claim in ten. It buys nothing and costs calls and precision.
+copula+number anywhere): 79.6% at 58.7% calls, held-out precision 0.887, recall 0.865, F1 0.876
+against Tier 1's 0.843. **Tier 2 is the better numeric detector and the worse escalation rule.**
+
+Paired against Tier 1: 5 against 1, **p = 0.219, tie**. It gains 4 claims for 33 extra cloud calls.
+
+**Corrected the same day.** The first write-up of this said Tier 2 "buys nothing". That was wrong,
+and the marginal rate is what shows it:
+
+    gate only  -> Tier 1      +15 claims for +127 calls   1 claim per 8.5 calls
+    Tier 1     -> Tier 1+2     +4 claims for  +33 calls   1 claim per 8.3 calls
+    Tier 1+2   -> all cloud    +2 claims for +289 calls   1 claim per 145 calls
+
+**Tier 2 buys accuracy at the same rate Tier 1 does.** The escalation curve is straight to about
+59% of calls and only collapses after that. Tier 2 is more of the same value, not bad value.
+
+Tier 1 is still the choice, for three reasons that are not "Tier 2 does nothing": the gain fails
+significance at p = 0.219; held-out precision is 0.984 against 0.887, and precision is what
+governs wasted calls on unseen claims; and 54.0% is a better version of the paper's parity claim
+than 58.7% for a difference that does not survive a test. **Tier 2 stays a live option**, and is
+the first thing to reach for if the test.json run shows recall hurting the numeric subset.
 
 **Three Tier 1 candidates dropped after a leave-one-out ablation.** `difference in/between`,
 `net change`, `change in` all held above 0.97 on testmini and fell to 0.727, 0.889 and 0.905 on
