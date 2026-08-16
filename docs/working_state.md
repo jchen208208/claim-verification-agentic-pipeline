@@ -2535,9 +2535,49 @@ but the effect on verdicts had never been measured. **n=13, a flag not a rate.**
 sensitivity analysis with the cloud at 23.1% leaves every conclusion unchanged.
 
 ### What to do next, in order
-1. **Write the `test.json` config**, a copy of `pipeline_trial.json` with `per_cell` null,
-   `"split": "test"` and a new experiment name.
-2. **The two big runs**, 13.8 h and 7.6 h.
+1. **RUN 2 FIRST, and it needs no GPU.** `configs/condition2_flash_v2_test1700.json`, flash alone
+   on all 1,700 claims: API calls plus BM25 on CPU, so it runs on the MacBook. **7.6 h, 1.72 USD.**
+   It yields condition 2 at n=1,700, the bar. The two runs are independent, so the cloud half can
+   finish while the GPU is unavailable.
+
+       python3 test_scripts/test_harness.py && \
+       caffeinate -ims python3 run.py configs/condition2_flash_v2_test1700.json 2>&1 \
+         | tee logs/condition2_flash_v2_test1700.txt
+
+   Check the header says `sample 1700 examples, full test` before leaving it.
+
+2. **Run 1 when the GPU is back.** `configs/pipeline_test1700.json`, 13.8 h, about 0.96 USD of
+   cloud. Yields conditions 1 (3B), 1 (7B) and 4 from one job.
+
+### API SPEND, 16 August: 36.13 CNY
+
+Two defects in `api_cost_tally.py`, both fixed today.
+
+**1. It was blind to routed runs.** A routed record's `config["model"]` names the system rather
+than a priced model, so the whole directory was skipped and `pipeline_trial`'s 13 cloud calls
+appeared nowhere. The 1,700 claim routed run would have hidden about 950. Now the cloud stage is
+priced out of `stages`, and the table prints `13/30` where billed calls and claims differ.
+
+**2. Its total line used a flat 7.2 CNY/USD**, which §"TALLIED 10 Aug" already recorded as wrong.
+The error is model-specific: flash bills at 6.94 per attributed USD, pro at about 11.8. `CNY_PER_USD`
+is now a per-model dict and every CNY figure goes through one helper.
+
+    TOTAL   3.654 USD    36.13 CNY
+
+**The rates reproduce both exact balance deltas**, which is what makes them trustworthy: flash v2
+at n=700 predicts 4.90 against an exact 4.90, and pro700 + flash700 predicts 26.90 against an exact
+26.96.
+
+**Projected**, both remaining runs being flash only: run 2 is 11.9 CNY, run 1's cloud is 6.7 CNY,
+**18.6 CNY for both**, against 110.24 remaining at the last exact reading. About 17% of what is
+left.
+
+**Still owed:** a balance reading before and after every cloud run. Only the delta is exact.
+
+### Harness is at 210 checks
+
+189 -> 210 today. The two new configs added 19 by existing rules and exposed one gap: nothing
+validated the `split` key, so a typo would have passed the gate and failed at run time.
 
 ### DONE 16 Aug: the loader takes a split
 

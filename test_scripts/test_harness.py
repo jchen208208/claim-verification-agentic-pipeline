@@ -55,7 +55,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from run import RETRIEVERS
 from src.evidence_asserter import check_overflow
 from src.logger import Record
-from src.loader import load_claims
+from src.loader import EXPECTED_COUNTS, load_claims
 from src.numeric_detector import is_numeric_claim
 from src.routed_loop import RoutedRecord
 from src.sampler import stratified_sample
@@ -235,6 +235,13 @@ def main():
                   cfg["retriever"] in RETRIEVERS,
                   f"{cfg['retriever']!r} not in {sorted(RETRIEVERS)}")
 
+        # A split typo would otherwise surface only when the run starts, after
+        # the harness has already said everything is fine.
+        if "split" in cfg:
+            check(f"{path.name} names a known split",
+                  cfg["split"] in EXPECTED_COUNTS,
+                  f"{cfg['split']!r} not in {sorted(EXPECTED_COUNTS)}")
+
         # A pipeline config has no flat model settings: they live in three stage
         # blocks. Added 16 Aug after configs/pipeline_trial.json crashed this
         # loop with KeyError: 'num_ctx', which took the whole gate down before a
@@ -284,7 +291,7 @@ def main():
     # Added 16 Aug with the split parameter. test.json is 1,700 claims with a
     # different subset balance, different id prefixes and three fields missing,
     # so "loaded something plausible" is not the same as "loaded the right file".
-    from src.loader import EXPECTED_COUNTS, load_claims as load_split
+    from src.loader import load_claims as load_split
 
     check("default split is still testmini",
           len(load_split()) == 700, f"got {len(load_split())}")

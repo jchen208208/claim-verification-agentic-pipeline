@@ -5726,6 +5726,99 @@ Section 0b, the loader on both splits. Every check runs off disk, no model, no n
 The id-prefix and shared-id checks are the cheap guard against the failure that actually threatens
 this: loading the wrong file into the right variable and getting a plausible-looking run.
 
+### THE COST TALLY WAS BLIND TO ROUTED RUNS
+
+`api_cost_tally.py` read `record["config"]["model"]` and skipped any directory whose model was not
+in `PRICING`. A routed record's `config["model"]` is `routed_3b_7b_flashv2`, which is the name of a
+system rather than a priced model, **so the whole directory was skipped and `pipeline_trial`'s 13
+real cloud calls appeared nowhere.**
+
+The script's own docstring says spending "has to be reportable at any time and traceable to a run
+rather than to a lump sum". It was neither, for routed runs.
+
+Two reasons a routed record cannot be priced the old way. Its top-level token counts belong to
+whichever stage decided the claim, which is usually a local model and costs nothing. And the cloud
+stage is nested under `stages` and is **absent on any claim that never escalated**, so a routed run
+bills on a subset of its own claims.
+
+Fixed with `billable_tokens(record)`, which returns the cloud stage's model and tokens for a routed
+record, the top-level ones otherwise, and `None` for a claim that never escalated. The table now
+prints `13/30` rather than `30` where the two differ.
+
+**The 1,700 claim routed run would have hidden about 950 calls, roughly a dollar, from a tally kept
+on someone else's key.**
+
+### SPEND, 16 August: 36.13 CNY, and my first figure was 27% low
+
+**Corrected within the hour.** The first version of this section said "about 26.3 CNY", computed by
+multiplying the USD total by a flat 7.2. **That flat rate is wrong and this file already said so on
+10 August.** The USD-to-CNY error is model-specific:
+
+    flash   6.94 CNY per attributed USD    ~= the 7.2 nominal rate
+    pro    ~11.8 CNY per attributed USD    ~1.65x its USD list
+
+`api_cost_tally.py` printed those exact two lines in its own balance section, and the flat 7.2 on
+its total line four lines earlier. I read the wrong line of a file I had open.
+
+                                        calls        USD      CNY
+    condition2_deepseek_pro_full700       700      1.911    22.55
+    condition2_flash_v2_full700           700      0.706     4.90
+    condition2_deepseek_flash_full700     700      0.626     4.35
+    archive/condition2_deepseek_pro       102      0.295     3.48
+    archive/condition2_deepseek_flash     102      0.091     0.63
+    archive/pipeline_trial              13/30      0.013     0.09   <- previously invisible
+    ad-hoc, 7 calls                                0.011     0.13
+                                  TOTAL            3.654    36.13
+
+**The per-model rates reproduce both exact balance deltas**, which is the check that they are real
+and not fitted:
+
+    flash v2 at n=700          predicted 4.90 CNY    exact delta 4.90    match
+    pro n=700 + flash n=700    predicted 26.90       exact delta 26.96   0.06 off
+
+36.13 CNY also agrees with the ~36 CNY derived on 11 August by adding balance deltas, which is an
+independent route to the same number.
+
+**Fixed so it cannot recur.** `CNY_PER_USD` is now a per-model dict, every CNY figure goes through
+one `cny(model, usd)` helper, the table has a CNY column per run, and the total line says CNY is
+the figure to quote and USD is attribution.
+
+**Projected from here**, at flash's 6.94, since both remaining runs use flash only:
+
+    run 2, flash alone on test.json      1,700 calls    1.72 USD    11.9 CNY
+    run 1, routed pipeline on test.json   ~950 calls    0.96 USD     6.7 CNY
+                                    both                            18.6 CNY
+
+Against 110.24 CNY remaining at the last exact reading, 11 August. **Both runs cost about 17% of
+what is left.**
+
+**The live balance was not read**, because that needs the professor's key. Run
+`source .env && python3 test_scripts/api_cost_tally.py` for DeepSeek's own figure, and record the
+reading: only the delta between two readings is exact.
+
+### HARNESS: 189 -> 210
+
+The two new configs added 19 checks by existing rules, and revealed one gap: **nothing validated the
+`split` key**, so `"split": "Test"` would have passed the gate and failed at run time. Added.
+
+### The two configs are written
+
+    configs/condition2_flash_v2_test1700.json   run 2, no GPU, no Ollama, 7.6 h, 1.72 USD
+    configs/pipeline_test1700.json              run 1, needs the GPU, 13.8 h
+
+**Run 2 first**, because it needs no GPU at all: flash alone is API calls plus BM25 on CPU, so it
+runs on the MacBook while the GPU is unavailable. It yields condition 2 at n=1,700, the bar the
+routed system is compared against. The two runs are independent, so nothing is blocked by doing
+them in this order.
+
 ### Still open
 
-The `test.json` config file, and the two big runs.
+Both big runs. `results/pipeline_trial` was archived to `results/archive/pipeline_trial`, so
+`check_pipeline_prompts.py` now needs that path as its argument.
+
+### Where the time went, 16 August
+
+Nothing ran on the GPU today. Everything above is design, code, harness and analysis, and three of
+the four defects found today were found by reading or by a check rather than by a failed run:
+`route_one_claim`'s three bugs, the harness crashing on the new config, and the cost tally's blind
+spot. The fourth, the trial run, cost 14.2 minutes.

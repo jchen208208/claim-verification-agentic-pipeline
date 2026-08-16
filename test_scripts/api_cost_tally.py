@@ -53,7 +53,22 @@ AD_HOC = [
     ("deepseek-v4-flash", 6, 20, "9 Aug, flash model-name probe, output estimated"),
 ]
 
-CNY_PER_USD = 7.2   # rough, for orientation only
+# CNY actually billed per USD of attribution, PER MODEL. These are not a spot
+# rate. They are derived from balance deltas on 10 and 11 August, which are the
+# only exact spend figures this project has, and the error is model-specific:
+# flash bills near the nominal 7.2, pro bills about 1.65x its USD list. Using a
+# flat rate understates pro by two thirds and makes pro look 3x flash per run
+# when it is really about 5x. The whole CNY column is derived through here so a
+# flat rate cannot be reintroduced by accident.
+CNY_PER_USD = {
+    "deepseek-v4-flash": 6.94,
+    "deepseek-v4-pro": 11.8,
+}
+CNY_PER_USD_FALLBACK = 7.2   # unpriced model: nominal spot, flagged in the output
+
+
+def cny(model, usd):
+    return usd * CNY_PER_USD.get(model, CNY_PER_USD_FALLBACK)
 
 
 def cost(model, prompt_tokens, output_tokens):
@@ -61,8 +76,37 @@ def cost(model, prompt_tokens, output_tokens):
     return prompt_tokens / 1e6 * rate_in + output_tokens / 1e6 * rate_out
 
 
+def billable_tokens(record):
+    """What this record actually cost, as (model, prompt_tokens, output_tokens).
+
+    None means the record billed nothing.
+
+    Routed records need the special case. Their top-level token counts belong to
+    whichever stage decided the claim, which is usually a local model and costs
+    nothing, and their config["model"] names the system rather than a priced
+    model. The billable part is the cloud stage nested under "stages", which is
+    absent entirely on a claim that never escalated.
+
+    Added 16 Aug. Before this, a routed directory was skipped whole, because
+    "routed_3b_7b_flashv2" is not in PRICING, so pipeline_trial's 13 real cloud
+    calls appeared nowhere. A 1,700 claim routed run would have hidden about 950.
+    """
+    stages = record.get("stages")
+    if stages:
+        cloud = stages.get("cloud")
+        if not cloud:
+            return None                     # this claim never escalated
+        return (cloud.get("config", {}).get("model"),
+                cloud.get("prompt_eval_count") or 0,
+                cloud.get("eval_count") or 0)
+
+    return (record["config"].get("model"),
+            record.get("prompt_eval_count") or 0,
+            record.get("eval_count") or 0)
+
+
 def scan_runs():
-    """Every results directory whose records were produced by a priced model."""
+    """Every results directory that spent anything, priced per record."""
     rows = []
     for directory in sorted(RESULTS_ROOT.rglob("*")):
         if not directory.is_dir():
@@ -71,22 +115,37 @@ def scan_runs():
         if not files:
             continue
 
-        prompt_tokens = output_tokens = 0
+        prompt_tokens = output_tokens = calls = 0
         model = None
+        unpriced = False
+
         for path in files:
             record = json.loads(path.read_text())
             # results/archive holds decompositions_v1.json, which is one analysis
             # blob rather than a per-claim Record, so it has no config to read
             if not isinstance(record, dict) or "config" not in record:
+                unpriced = True
                 break
-            model = record["config"].get("model")
-            if model not in PRICING:
+
+            billed = billable_tokens(record)
+            if billed is None:
+                continue                    # routed claim, no cloud call
+
+            billed_model, prompt, output = billed
+            if billed_model not in PRICING:
+                unpriced = True             # a local-only run, costs nothing
                 break
-            prompt_tokens += record.get("prompt_eval_count") or 0
-            output_tokens += record.get("eval_count") or 0
-        else:
-            rows.append((directory.relative_to(RESULTS_ROOT).as_posix(), model,
-                         len(files), prompt_tokens, output_tokens))
+
+            model = billed_model
+            prompt_tokens += prompt
+            output_tokens += output
+            calls += 1
+
+        if unpriced or model is None:
+            continue
+
+        rows.append((directory.relative_to(RESULTS_ROOT).as_posix(), model,
+                     calls, len(files), prompt_tokens, output_tokens))
     return rows
 
 
@@ -113,14 +172,19 @@ def main():
 
     print("\nDeepSeek spend by experiment, from our own recorded token counts")
     print("=" * 96)
-    print(f"{'experiment':<40}{'model':<20}{'n':>5}{'in tok':>12}{'out tok':>12}{'USD':>9}")
+    print(f"{'experiment':<38}{'model':<20}{'calls/n':>9}{'in tok':>12}"
+          f"{'out tok':>12}{'USD':>8}{'CNY':>8}")
     print("-" * 96)
 
     total = 0.0
-    for name, model, n, prompt_tokens, output_tokens in rows:
+    total_cny = 0.0
+    for name, model, calls, claims, prompt_tokens, output_tokens in rows:
         usd = cost(model, prompt_tokens, output_tokens)
         total += usd
-        print(f"{name:<40}{model:<20}{n:>5}{prompt_tokens:>12,}{output_tokens:>12,}{usd:>9.3f}")
+        total_cny += cny(model, usd)
+        scope = f"{calls}" if calls == claims else f"{calls}/{claims}"
+        print(f"{name:<38}{model:<20}{scope:>9}{prompt_tokens:>12,}"
+              f"{output_tokens:>12,}{usd:>8.3f}{cny(model, usd):>8.2f}")
 
     print("-" * 96)
     print(f"{'ad-hoc calls, not in any result file':<40}{'':<20}{len(AD_HOC):>5}"
@@ -130,9 +194,15 @@ def main():
         print(f"    {note:<62}{cost(model, prompt_tokens, output_tokens):>9.4f}")
 
     total += sum(cost(m, i, o) for m, i, o, _ in AD_HOC)
+    total_cny += sum(cny(m, cost(m, i, o)) for m, i, o, _ in AD_HOC)
+
     print("=" * 96)
-    print(f"{'TOTAL, estimated':<78}{total:>9.3f} USD")
-    print(f"{'':<78}{total * CNY_PER_USD:>9.2f} CNY at {CNY_PER_USD}/USD, rough")
+    print(f"{'TOTAL, estimated':<78}{total:>8.3f}{total_cny:>8.2f}")
+    print()
+    print("  CNY is the figure to quote. The account is billed in CNY and the")
+    print("  USD column is attribution: it says where the money went, not how much.")
+    print("  Per-model rates come from the 10 and 11 August balance deltas, so the")
+    print("  CNY column inherits their uncertainty. Only a balance delta is exact.")
 
     info, error = live_balance()
     print("\nLive account balance, DeepSeek's own figure")
