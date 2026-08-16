@@ -33,3 +33,8 @@ _PATTERNS = (
 
 # join with "|" so one pass over the string tests all three.
 _DETECTOR = re.compile("|".join(_PATTERNS), re.IGNORECASE)
+
+
+def is_numeric_claim(statement: str) -> bool:
+    """Takes the claim statement text, not a Claim object"""
+    return _DETECTOR.search(statement) is not None
