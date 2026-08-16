@@ -51,7 +51,7 @@ class RoutedRecord:
     escalation_reason: str | None = None  # "numeric_detector", "disagreement", or None when nothing escalated
     locals_skipped: bool = False  # the detector fired = true
 
-    # the full stage's records: {"local_a": {...}, "local_b": {...}, "cloud": {...}}
+    # dictionary containing the full stage's records (1 to 3 record objects): {"local_a": {...}, "local_b": {...}, "cloud": {...}}
     stages: dict = field(default_factory=dict)
 
     status: str = "ok"

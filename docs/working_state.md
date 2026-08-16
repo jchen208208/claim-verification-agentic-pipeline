@@ -2439,9 +2439,14 @@ the three-pattern one. It was not.**
 
 ### Three limits, carried into the paper
 
-1. **The routed row is testmini only.** Precision and recall are held out, accuracy and calls are
-   not. This is the **fifth** configuration choice made against the 700 claims the paper reports,
-   after k=10 vs 20, prompt v1 vs v2, always-escalate-numeric, and k=5.
+1. **The routed row is testmini only, and derived rather than run.** Precision and recall are held
+   out, accuracy and calls are not. This is the **fifth** configuration choice made against the 700
+   claims the paper reports, after k=10 vs 20, prompt v1 vs v2, always-escalate-numeric, and k=5.
+
+   **The live pipeline will not reproduce 79.0% at 54.0%.** Reruns move 10.8% of local verdicts.
+   Resampling both local arms at that rate, accuracy lands at 79.6% (95%: 78.4-80.9) but cloud
+   calls land at **56.5% (95%: 54.3-58.7)**. The call rate is biased upward, not just noisy: extra
+   disagreement can only add escalations. **54.0% is a lower bound. The paper reports the run.**
 2. **It may be a generation artefact.** 60.4% of numeric claims fit one template, 86.4% end with
    a number. Say the detector keys on claim phrasing. Do not imply it transfers to human-written
    claims.

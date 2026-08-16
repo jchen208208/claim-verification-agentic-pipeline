@@ -5417,3 +5417,137 @@ wrong for one exchange and was corrected in place.
                                                --show misses and --show fp to read the errors
 
 `paper_numbers.md` 2.13.3 is marked settled and superseded by the new 2.13.4.
+
+## 16 August 2026 - the routed pipeline is built, and it will not reproduce the derived numbers
+
+### What was built
+
+    src/routed_loop.py         RoutedRecord, Stage, route_one_claim,
+                               build_stages, run_routed_sample
+    run.py                     run_pipeline, dispatched on a "pipeline": true key
+    configs/pipeline_trial.json  30 claims, per_cell 5, skip off
+
+This is condition 4 **built rather than derived**, which was the 12 August correction. The
+accuracy is identical either way because the gate is deterministic given three verdicts, but the
+live version alone gives a real end-to-end latency, lets us say we ran the system rather than
+simulated a policy over stored files, and can skip local inference on a claim already known to be
+escalating.
+
+### The design decision worth recording: nothing was re-implemented
+
+`run_one_claim` in `run_loop.py` already does retrieve, trim, build prompt, assert evidence, call,
+extract, and it takes its config, client and retriever as arguments. So the routed loop **calls it
+up to three times per claim with three different configs** and glues the results together. No
+retrieval, trimming, prompt building or extraction logic exists twice.
+
+Three things fall out of that for free:
+
+1. **The prompt split.** Each stage carries its own `prompt_version`, so the locals run
+   `baseline_v1` and the cloud runs `baseline_v2` with no branching in the control flow. That was
+   a decision from 12 August that would otherwise have needed special-casing.
+2. **Unparseable verdicts escalate.** An unparseable response has label `None`, and `None != True`,
+   so the gate's comparison says "disagree" and the claim goes to the cloud. That is the wanted
+   behaviour and needed no special case.
+3. **Every existing analysis script works on a routed directory.** `RoutedRecord` repeats the
+   deciding stage's answer at top level using the field names `analyse_condition1.score()` reads,
+   so `load_run("pipeline_trial")` needs no new code. The three full stage records nest under
+   `stages`, so every prompt and per-stage timing is still on disk.
+
+### The skip flag: the arithmetic runs backwards from intuition
+
+`skip_local_when_escalating` does what it says: a claim the detector flags goes straight to the
+cloud and neither local model runs. The question was whether to turn it on for the big run.
+
+    run 1, skip OFF :  13.8 h   yields condition 1 (3B), condition 1 (7B), condition 4
+    run 1, skip ON  :  11.2 h   yields condition 4 only
+      + condition 1 runs        9.7 h
+      ON total      :  20.9 h   vs OFF 13.8 h
+
+**Skipping saves 2.6 hours and then costs 9.7 to get condition 1 back**, because with locals
+skipped there are only local verdicts for 74% of claims. Condition 1 is the on-device baseline the
+whole paper argues about, so it is not optional.
+
+**Decision: flag off for the `test.json` run, then about 100 claims with it on, roughly 40
+minutes, purely for the end-to-end latency number.**
+
+**Correction made during this.** The 12 August note says skipping removes "about a third of the
+local compute". That figure was for the subset label, which covers 35.3% of claims. **Our detector
+flags 26.4%**, so the saving is smaller than the note claims and its side of this trade is weaker
+than recorded.
+
+### CORRECTION: run 1 is 13.8 hours, not 10
+
+Item 7 prices it at about 10 GPU hours. From the stored runs, 3B 6.8 s/claim, 7B 13.7 s/claim,
+cloud 16.0 s/claim, so 1,700 claims with the flag off is 3.2 + 6.5 + 4.1 = **13.8 hours**. Run 2,
+flash alone on 1,700, is 7.6 hours, which the plan has right. Still one night each, but run 1 will
+not finish in an evening.
+
+### THE PIPELINE WILL NOT REPRODUCE 79.0% AT 54.0%, AND THE CALL RATE IS BIASED
+
+Asked directly whether the live run would give the derived numbers. It will not, and one of the two
+figures is biased rather than merely noisy.
+
+Three instability measurements already in the project:
+
+    identical rerun, same machine, same seed, temp 0    91/102 agree = 89.2%
+    across machines (Mac vs GPU)                          5/6 agree
+    DeepSeek ignores seed and temperature               unquantified
+
+Resampling both local arms at the measured 10.8%, 2,000 trials, holding each model's accuracy fixed
+so the resample is a rerun rather than a degradation:
+
+                        derived      expected live
+    accuracy              79.0%      79.6%   95% range 78.4 to 80.9
+    cloud calls           54.0%      56.5%   95% range 54.3 to 58.7
+
+**Accuracy is stable to about ±1.3 points** and every conclusion survives: still a tie with
+cloud-alone, still well above the plain gate.
+
+**The call rate is biased upward and 54.0% is a lower bound.** The mechanism is structural, not
+statistical: the 3B and 7B vary independently, every extra disagreement between them is an extra
+escalation, and noise can only add disagreements on net. Expect 56-57% from the run. This is also
+why simulated accuracy drifts slightly up, since more escalation means more cloud answers.
+
+**A measurement bug of my own, caught before it was quoted.** The first version of this simulation
+flipped 10.8% of verdicts at random and reported accuracy falling to 77.5%. That is wrong: random
+flips make a model worse, while a rerun is equally accurate and differently wrong. Rerun with equal
+numbers moving correct to wrong and wrong to correct, the answer went the other way. **A noise
+model that does not preserve the quantity it claims to perturb is not a noise model.**
+
+Two things that stay unquantified. **DeepSeek's contribution is a guess**, since it ignores `seed`
+and `temperature`; the 10.8% used above is the local rate borrowed, not a cloud measurement. And
+**`condition1_3b_full700` and `condition1_7b_full700` both record `ollama_version: null`**, because
+the field was added after they ran, so the Ollama version behind the 61.4% and 72.4% baselines is
+unknown. `condition1_3b_k5_full700` records 0.32.9.
+
+**Consequence: the paper reports the live run's numbers, not the derived row.** 2.13.4 is marked
+accordingly.
+
+### CORRECTION: the smoke check compares prompts, not verdicts
+
+While presenting the config I wrote that the pipeline's local verdicts "should match those stored
+runs claim for claim, which is the strongest check available". **That is wrong.** Verdicts differ on
+about one claim in ten by design.
+
+**The prompt is the deterministic thing.** `prompt_eval_count` was identical on all six claims of
+the cross-machine test, because retrieval, sampling, trimming and prompt building have no
+floating-point in them. So the check is that `stages.local_a.prompt` byte-matches the stored
+`condition1_3b_full700` prompt for the same claim. Prompts match and verdicts differ means the
+plumbing is right and the model is being the model. Prompts differ means a real bug.
+
+### CORRECTION: test.json needs three changes, not one line
+
+Item 7 says `src/loader.py:32` "needs one line changed". Three places:
+
+    src/loader.py    the hardcoded testmini.json filename
+    src/loader.py    EXPECTED_COUNTS, which asserts the 250/250/200 testmini split
+                     and would reject test.json's 600/600/500
+    run.py           build_sample, which raises unless the file has exactly 700 claims
+
+Not hard, but it is a change with a data trap in it and should be its own piece of work rather than
+a line edited before a 14 hour run.
+
+### Still open
+
+`configs/pipeline_trial.json` has not been run. `test_scripts/check_pipeline_prompts.py`, the
+prompt-equality check described above, is not built.

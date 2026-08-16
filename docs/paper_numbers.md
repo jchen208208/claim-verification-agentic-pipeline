@@ -1400,7 +1400,18 @@ Paired against the two policies it has to match: versus the oracle label policy 
 
 **Three limits, all of which belong in the paper.**
 
-1. **The routed row is testmini only.** The detector was developed on testmini, which is also where the accuracy and call figures come from. Only the precision and recall have a held-out check. Confirming the routed row needs the `test.json` pipeline run.
+1. **The routed row is testmini only, and it is a derivation, not a run.** The detector was developed on testmini, which is also where the accuracy and call figures come from. Only precision and recall have a held-out check.
+
+    **The live pipeline will not reproduce 79.0% at 54.0%, and the call rate is biased, not merely noisy.** Identical reruns move about 10.8% of local verdicts (2.3.2). Resampling both local arms at that rate, 2,000 trials, holding each model's accuracy fixed:
+
+    | | derived | expected live |
+    |---|---|---|
+    | accuracy | 79.0% | 79.6%, 95% range 78.4 to 80.9 |
+    | cloud calls | 54.0% | 56.5%, 95% range 54.3 to 58.7 |
+
+    Accuracy is stable to about ±1.3 points and every conclusion survives. **The call rate is not.** 54.0% sits at the bottom edge of the range, because the two local models vary independently, every extra disagreement is an extra escalation, and noise can only add disagreements on net. **Treat 54.0% as a lower bound and expect 56-57% from the run.** Two unquantified additions: DeepSeek ignores `seed` and `temperature`, so the cloud arm's instability is a guess rather than a measurement, and `condition1_3b_full700` and `condition1_7b_full700` both record `ollama_version: null`, so the Ollama version behind the 61.4% and 72.4% baselines is unknown.
+
+    **The paper reports the live run's numbers, not this row.**
 2. **This may be a generation artefact.** 60.4% of numeric claims fit one sentence template and 86.4% end with a number. That is what machine-generated claims look like. The honest phrasing is that the detector keys on **claim phrasing**, and it should not be implied it would transfer to claims written by a human analyst.
 3. **Tier 2 was tested and set aside, not killed.** Three recall extenders (`increased/decreased by <number>`, ends with a percentage, copula+number anywhere) give 79.6% at 58.7% calls, held-out precision 0.887 and recall 0.865. By F1 it is the **better detector**, 0.876 against 0.843. Paired against Tier 1 it is 5 against 1, **p = 0.219, tie**, gaining 4 claims for 33 extra cloud calls, which is **the same marginal rate at which Tier 1 itself buys accuracy** (1 claim per 8.3 calls against 1 per 8.5). Tier 1 is chosen because the gain fails significance, because held-out precision is 0.984 against 0.887, and because 54.0% states the parity claim better than 58.7%. **Not because Tier 2 does nothing.** It is the first thing to try if the test.json run shows recall hurting the numeric subset. Three Tier 1 candidates were also dropped: `difference in/between`, `net change`, `change in` held above 0.97 on testmini but fell to 0.727, 0.889 and 0.905 held out, and removing them left routed accuracy unchanged while cutting calls 55.6% to 54.0%. **Do not add any of these back without re-measuring.**
 
