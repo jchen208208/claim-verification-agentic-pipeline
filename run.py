@@ -7,7 +7,7 @@ import sys
 import random
 from pathlib import Path
 
-from src.loader import load_claims
+from src.loader import load_claims, EXPECTED_COUNTS
 from src.ollama_client import call_ollama, get_ollama_version
 from src.deepseek_client import call_deepseek
 from src.bm25_retriever import retrieve as bm25_retrieve
@@ -36,14 +36,16 @@ CLIENTS = {
 }
 
 def build_sample(config):
-    """If per_cell is null, that means it's a full 700 run so no need for sampling. Sampling caps at 600 total claims."""
-    claims = list(load_claims())
+    """If per_cell is null, that means it's a full run so no need for sampling."""
+    split = config.get("split", "testmini")
+    claims = list(load_claims(split))
 
     if config["per_cell"] is not None:
         return stratified_sample(claims, config["per_cell"], seed=config["sample_seed"])
 
-    if len(claims) != 700:
-        raise ValueError(f"expected 700 claims, loaded {len(claims)}")
+    expected = sum(EXPECTED_COUNTS[split].values())
+    if len(claims) != expected:
+        raise ValueError(f"expected {expected} claims in {split}, loaded {len(claims)}")
 
     random.Random(config["sample_seed"]).shuffle(claims)
     return claims
@@ -61,7 +63,8 @@ def run_pipeline(config, sample, results_dir, retriever):
     print(f"escalate_numeric            {config.get('escalate_numeric', True)}")
     print(f"skip_local_when_escalating  {config.get('skip_local_when_escalating', False)}")
     print(f"retriever     {config['retriever']}, k={config['top_k']}")
-    print(f"sample        {len(sample)} examples, seed {config['sample_seed']}")
+    print(f"sample        {len(sample)} examples, "
+          f"{config.get('split', 'testmini')}, seed {config['sample_seed']}")
     print(f"results       {results_dir}\n", flush=True)
 
     # both local models must run on the same host
@@ -98,7 +101,8 @@ def main():
     retriever = functools.partial(RETRIEVERS[config["retriever"]], k=config["top_k"])
 
     sample = build_sample(config)
-    scope = "full 700" if config["per_cell"] is None else f"{config['per_cell']} per cell"
+    split = config.get("split", "testmini")
+    scope = f"full {split}" if config["per_cell"] is None else f"{config['per_cell']} per cell"
 
     results_dir = RESULTS_ROOT / config["experiment"]
 
