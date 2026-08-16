@@ -198,5 +198,5 @@ def run_routed_sample(sample, config, results_dir, clients, retrieve, ollama_ver
     print(f"\n{done} ok, {failed} failed, {skipped} skipped, out of {len(sample)}")
     if done:
         print(f"cloud calls   {cloud_calls}/{done} = {cloud_calls / done:.1%}")
-        print(f"  detector    {reasons['numeric_detector']}")
-        print(f"  disagreement{reasons['disagreement']:>4}")
+        print(f"detector    {reasons['numeric_detector']}")
+        print(f"disagreement{reasons['disagreement']:>4}")

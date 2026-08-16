@@ -2508,17 +2508,37 @@ names a file that exists.
 skipped claim as failed. That flag is only on for the final latency run, so the bug would have
 surfaced at the very end of the schedule.
 
-### What to do next, in order
+### THE TRIAL RUN PASSED. 30 ok, 0 failed, 14.2 minutes.
 
-1. **Run `configs/pipeline_trial.json`.** 30 claims, about 15 minutes. Needs the GPU box awake and
-   `DEEPSEEK_API_KEY` in the environment.
-2. **`test_scripts/check_pipeline_prompts.py`**, not yet built. Confirms `stages.local_a.prompt`
-   byte-matches the stored `condition1_3b_full700` prompt. **This is the validation, not verdict
-   equality**: verdicts move on about one claim in ten, prompts are deterministic.
-3. **The loader change for `test.json`.** Three places, not one line: the filename in
+`results/pipeline_trial/`. 13 cloud calls of 30, six from the detector and seven from disagreement.
+Stage records were 2 or 3 and never 1, which is the check that skip is off. **Ignore the 43.3% call
+rate and the 73.3% accuracy, n=30.**
+
+**Every analysis script read the routed directory with no new code**, which is what `RoutedRecord`
+repeating the answer at top level was for.
+
+**Prompts are byte-identical, 73 of 73**, across all three stages, and `prompt_eval_count` agrees
+too. `test_scripts/check_pipeline_prompts.py` is the reproducer. This is the validation that the
+plumbing is right; verdict equality is not and never could be.
+
+### THE CLOUD IS THE LESS REPRODUCIBLE HALF, first direct measurement
+
+Verdicts against the stored runs, on prompts confirmed byte-identical:
+
+    local_a   27/30 = 90.0%    predicted about 89.2%
+    local_b   28/30 = 93.3%
+    cloud     10/13 = 76.9%
+
+The local arms hit the prediction from 2.3.2 on a different sample and a different day. **The cloud
+moved 23.1%, about twice the local rate.** DeepSeek was known to ignore `seed` and `temperature`,
+but the effect on verdicts had never been measured. **n=13, a flag not a rate.** Re-running the
+sensitivity analysis with the cloud at 23.1% leaves every conclusion unchanged.
+
+### What to do next, in order
+1. **The loader change for `test.json`.** Three places, not one line: the filename in
    `src/loader.py`, `EXPECTED_COUNTS` just below it, and `build_sample` in `run.py`, which raises
    unless the file holds exactly 700 claims.
-4. **The two big runs**, 13.8 h and 7.6 h.
+2. **The two big runs**, 13.8 h and 7.6 h.
 
 **Overleaf is still not started.** Owed since 7 August. Today is 16 August, the freeze is
 23 August.

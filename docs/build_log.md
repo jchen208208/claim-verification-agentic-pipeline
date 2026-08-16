@@ -5599,7 +5599,69 @@ and resume correctly re-ran both. The code was right and the test's assumption w
 with a stronger one: both claims repair on pass two, then a third pass must call **no model at
 all**, which is what "resume leaves finished work alone" actually means.
 
+### THE TRIAL RUN: 30 ok, 0 failed, 14.2 minutes
+
+`configs/pipeline_trial.json`, 5 per cell, skip off, GPU box on Ollama 0.32.9.
+Results in `results/pipeline_trial/`, console in `logs/pipeline_trial.txt`.
+
+    n                    30, all ok, none failed
+    cloud calls          13/30 = 43.3%
+      numeric_detector    6
+      disagreement        7
+    stage records         2 on 17 claims, 3 on 13 claims, never 1
+    final_source          local_b 17, cloud 13
+    seconds per claim     28.5, total 14.2 min
+
+**Stage counts of 2 or 3 and never 1 is the check that skip is off**, and it is right. Per-claim
+timing tracks the stored runs: a local-only claim took 19.4 s against 6.8 + 13.7 = 20.5 s predicted.
+
+**Do not read the 43.3% call rate or the 73.3% accuracy.** n=30. The call rate's own point estimate
+from n=700 is 54.0%, and 30 claims cannot distinguish those.
+
+### The design held: every analysis script read the routed directory unchanged
+
+`python3 test_scripts/analyse_condition1.py pipeline_trial` printed a full metrics table with **no
+new code**. That is the payoff for `RoutedRecord` repeating the deciding stage's answer at top
+level under the field names `score()` already reads.
+
+### PROMPTS ARE BYTE-IDENTICAL. 73 of 73.
+
+`test_scripts/check_pipeline_prompts.py`, built today. Each stage compared against the single-model
+run whose config it mirrors:
+
+    local_a   30/30 prompts byte-identical  vs condition1_3b_full700
+    local_b   30/30                         vs condition1_7b_full700
+    cloud     13/13                         vs condition2_flash_v2_full700
+
+`prompt_eval_count` matches on all 73 as well, which is the same fact confirmed from the server
+side rather than from our own string building.
+
+**This is the validation, and verdict equality is not.** Retrieval, sampling, trimming and prompt
+building contain no floating point, so prompts must match exactly. Verdicts must not. The rule the
+script enforces: prompts match and verdicts differ means the plumbing is right and the model is
+being the model; prompts differ means a real bug and the run is not comparable.
+
+### THE REPRODUCIBILITY PREDICTION WAS RIGHT, AND THE CLOUD IS WORSE THAN ASSUMED
+
+Verdicts against the stored runs, on byte-identical prompts:
+
+    local_a   27/30 = 90.0%   predicted about 89.2%
+    local_b   28/30 = 93.3%
+    cloud     10/13 = 76.9%
+
+**The local arms landed on the prediction.** 2.3.2 measured 91/102 = 89.2% for an identical rerun,
+and this is 90.0% and 93.3% on a different sample, a different day and inside a different program.
+
+**The cloud is the new information.** DeepSeek was known to ignore `seed` and `temperature`, but
+its effect on *verdicts* had never been measured, only on response text on a single claim. Here
+**3 of 13 verdicts moved, 23.1%, roughly twice the local rate**, on prompts confirmed byte-identical.
+**n=13, so this is a flag and not a rate.** It is the first direct evidence that the cloud arm is
+the less reproducible half of the system, which is on topic for the workshop.
+
+**Re-ran the sensitivity analysis with the cloud at 23.1% instead of the assumed 10.8%.** Routed
+accuracy moves from a 95% range of 78.1-81.3 to 78.3-81.7. **The conclusion is unchanged** and the
+earlier estimate stands.
+
 ### Still open
 
-`configs/pipeline_trial.json` has not been run. `test_scripts/check_pipeline_prompts.py`, the
-prompt-equality check described above, is not built.
+The `test.json` loader change, and the two big runs.

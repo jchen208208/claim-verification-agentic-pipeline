@@ -8,7 +8,10 @@ from dataclasses import dataclass
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "FinDVer" / "data"
 
-EXPECTED_COUNTS = {"ie": 250, "numeric": 250, "knowledge": 200}
+EXPECTED_COUNTS = {
+    "testmini": {"ie": 250, "numeric": 250, "knowledge": 200},
+    "test": {"ie": 600, "numeric": 600, "knowledge": 500},
+}
 
 @dataclass(frozen=True)
 class Claim:
@@ -27,14 +30,18 @@ class Claim:
     execution_result: float | None
     knowledge: tuple[str, ...] | None
 
-def load_raw():
-    # read testmini.json and confirm it is the file we expect.
-    path = DATA_DIR / "testmini.json"
+def load_raw(split="testmini"):
+    if split not in EXPECTED_COUNTS:
+        raise ValueError(f"unknown split {split!r}, expected one of "
+                         f"{sorted(EXPECTED_COUNTS)}")
+    
+    # read testmini.json or test.json and confirm it is the file we expect.
+    path = DATA_DIR / f"{split}.json"
     with open(path) as f:
         records = json.load(f)
 
     counts = Counter(r["subset"] for r in records)
-    if counts != EXPECTED_COUNTS:
+    if counts != EXPECTED_COUNTS[split]:
         raise ValueError(f"unexpected subset counts: {counts}")
 
     return records
@@ -63,6 +70,6 @@ def raw_to_claim(raw):
         knowledge=tuple(knowledge) if knowledge is not None else None,
     )
 
-def load_claims():
-    # loads all 700 claims into a list and returns that list
-    return [raw_to_claim(r) for r in load_raw()]
+def load_claims(split="testmini"):
+    # loads all claims int either testmini or test into a list and returns that list
+    return [raw_to_claim(r) for r in load_raw(split)]
