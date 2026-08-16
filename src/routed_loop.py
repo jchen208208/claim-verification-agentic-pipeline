@@ -1,6 +1,19 @@
 """Run the routed pipeline: 3B, then 7B, then cloud only when needed."""
 
 from dataclasses import dataclass, field
+import time
+import traceback
+from collections import namedtuple
+from dataclasses import asdict
+
+from src.numeric_detector import is_numeric_claim
+from src.run_loop import run_one_claim
+from collections import namedtuple
+from dataclasses import asdict
+
+from src.numeric_detector import is_numeric_claim
+from src.run_loop import run_one_claim
+
 
 @dataclass
 class RoutedRecord:
@@ -41,3 +54,81 @@ class RoutedRecord:
 
     status: str = "ok"
     traceback: str | None = None
+
+
+# One pipeline stage: everything run_one_claim needs that differs per model.
+# Built once per run in block 3, not per claim.
+Stage = namedtuple("Stage", "config template client")
+
+def route_one_claim(claim, config, stages, retrieve, ollama_version=None):
+    """one claim through the pipeline.
+    The order is fixed and per claim:
+        detector fires -> cloud, and skip both locals if the config says so
+        otherwise -> 3B then 7B
+        verdicts agree -> keep the 7B's verdict and no cloud call
+        verdicts differ -> cloud
+    """
+
+    record = RoutedRecord(
+        example_id=claim.example_id,
+        subset=claim.subset,
+        gold_label=claim.entailment_label,
+        gold_explanation=claim.explanation,
+        config=config,
+    )
+
+    started = time.perf_counter()
+
+    try:
+        # detector first
+        escalate = False
+        reason = None
+        if config.get("escalate_numeric", True) and is_numeric_claim(claim.statement):
+            escalate = True
+            reason = "numeric_detector"
+
+        skip_locals = escalate and config.get("skip_local_when_escalating", False)
+        record.locals_skipped = skip_locals
+
+        # the two local models
+        local_b = None
+        if not skip_locals:
+            local_a = run_one_claim(claim, stages["local_a"].config, stages["local_a"].template, stages["local_a"].client, retrieve, ollama_version)
+            record.stages["local_a"] = asdict(local_a)
+            record.verdict_local_a = local_a.extracted_label
+
+            local_b = run_one_claim(claim, stages["local_b"].config, stages["local_b"].template, stages["local_b"].client, retrieve, ollama_version)
+            record.stages["local_b"] = asdict(local_b)
+            record.verdict_local_b = local_b.extracted_label
+
+        # check for failed stages
+        for name, stage_record in (("local_a", local_a), ("local_b", local_b)):
+            if stage_record.status != "ok":
+                raise RuntimeError(f"{name} failed:\n{stage_record.traceback}")
+
+        # if the two models' verdicts contradict, escalate to cloud
+        if local_a.extracted_label != local_b.extracted_label:
+            escalate = True
+            reason = reason or "disagreement"
+
+        # cloud block
+        if escalate:
+            cloud = run_one_claim(claim, stages["cloud"].config, stages["cloud"].template, stages["cloud"].client, retrieve, None)
+            record.stages["cloud"] = asdict(cloud)
+            record.verdict_cloud = cloud.extracted_label
+            record.cloud_called = True
+            if cloud.status != "ok":
+                raise RuntimeError(f"cloud failed:\n{cloud.traceback}")
+            deciding, record.final_source = cloud, "cloud"
+        else:
+            deciding, record.final_source = local_b, "local_b"
+
+        record.escalation_reason = reason
+
+        # copy the deciding stage's answer to the top level
+        for attribute in ("extracted_label", "extraction_source", "evidence_present", "context_overflow", "done_reason", "prompt_eval_count", "eval_count", "thinking", "served_model", "system_fingerprint", "chunks_requested", "chunks_kept"):
+            setattr(record, attribute, getattr(deciding, attribute))
+
+    except:
+        record.status = "failed"
+        record.traceback = traceback.format_exc()
