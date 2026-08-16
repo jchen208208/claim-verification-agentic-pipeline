@@ -13,6 +13,8 @@ from dataclasses import asdict
 
 from src.numeric_detector import is_numeric_claim
 from src.run_loop import run_one_claim
+from src.logger import write_result, has_result
+from src.run_loop import load_prompt_template
 
 
 @dataclass
@@ -132,3 +134,66 @@ def route_one_claim(claim, config, stages, retrieve, ollama_version=None):
     except:
         record.status = "failed"
         record.traceback = traceback.format_exc()
+
+
+STAGE_NAMES = ("local_a", "local_b", "cloud")
+
+def build_stages(config, clients):
+    """load each stage's prompt template and pick its client for each claim"""
+
+    stages = {}
+    for name in STAGE_NAMES:
+        if name not in config:
+            raise ValueError(f"pipeline config is missing the '{name}' stage")
+        stage_config = config[name]
+        stages[name] = Stage(
+            config=stage_config,
+            template=load_prompt_template(stage_config["prompt_version"]),
+            client=clients[stage_config.get("client", "ollama")],
+        )
+    return stages
+
+
+def run_routed_sample(sample, config, results_dir, clients, retrieve, ollama_version=None):
+    """iterate through the sample, route each claim, and write each record after it finishes."""
+
+    stages = build_stages(config, clients)
+
+    done = failed = skipped = 0
+    cloud_calls = 0
+    reasons = {"numeric_detector": 0, "disagreement": 0}
+
+    for n, claim in enumerate(sample, start=1):
+        if has_result(claim.example_id, results_dir):
+            skipped += 1
+            continue
+
+        record = route_one_claim(claim, config, stages, retrieve, ollama_version)
+        write_result(record, results_dir)
+
+        if record.status == "ok":
+            done += 1
+        else:
+            failed += 1
+
+        if record.cloud_called:
+            cloud_calls += 1
+        if record.escalation_reason in reasons:
+            reasons[record.escalation_reason] += 1
+
+        cloud_rate = cloud_calls / done if done else 0.0
+        decision = f"->cloud({record.escalation_reason})" if record.cloud_called else "->local"
+
+        print(f"[{n}/{len(sample)}] {claim.example_id:<18}"
+              f" {record.elapsed_seconds or 0:6.1f}s"
+              f"  a={record.verdict_local_a} b={record.verdict_local_b}"
+              f"  {decision:<28}"
+              f"  label={record.extracted_label}"
+              f"  cloud={cloud_rate:.1%}"
+              f"  status={record.status}", flush=True)
+
+    print(f"\n{done} ok, {failed} failed, {skipped} skipped, out of {len(sample)}")
+    if done:
+        print(f"cloud calls   {cloud_calls}/{done} = {cloud_calls / done:.1%}")
+        print(f"  detector    {reasons['numeric_detector']}")
+        print(f"  disagreement{reasons['disagreement']:>4}")
