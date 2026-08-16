@@ -1359,7 +1359,50 @@ The loose detector catches **99.2%** of numeric claims but flags **77.7%** of al
 
 **What is unaffected.** The plain gate at 76.9% and 35.9% uses only the two local models' verdicts and needs no annotation. **If the paper needs one number that is beyond this objection, it is that one.**
 
-**Status: flagged, not settled.** Both detectors were written in minutes and are not a serious attempt. A better one is cheap to build and needs no compute.
+**Status: SETTLED 15 Aug 2026, see 2.13.4.** The detector was built and the objection is answered. The paragraphs above are kept because the 12 August detectors, and what they cost, are the baseline the new one is measured against. **What may be written above is now superseded by 2.13.4** and must not be quoted from here.
+
+---
+
+
+### 2.13.4 **[NEW 15 Aug 2026] THE NUMERIC RULE NO LONGER NEEDS THE BENCHMARK LABEL**
+
+Reproduce with: `python3 test_scripts/measure_numeric_detector.py`. The detector itself is `src/numeric_detector.py`, three regexes, no model call. Add `--show misses` or `--show fp` to read the errors.
+
+**The pattern.** FINDVER's numeric claims are equations written as English sentences: a computed quantity as the subject, a copula, and the value as the last constituent before the full stop. The other two subsets embed their figures in narrative and never take that shape. The full frame `The <X> ... is/was <number>.` matches **151 of 250 numeric claims on testmini and 0 of the 450 others**. Supporting evidence for the same shape: numeric claims average 20.5 words, ie and knowledge average 41.
+
+Three patterns, each measured on both splits:
+
+| pattern | testmini hits / prec | test.json hits / prec |
+|---|---|---|
+| copula + number at sentence tail | 152 / **1.000** | 383 / 0.995 |
+| the word "percentage" | 111 / **1.000** | 280 / 0.982 |
+| "is/was approximately\|precisely\|exactly\|nearly\|roughly" | 53 / **1.000** | 118 / **1.000** |
+| **whole detector** | **182 / 1.000**, recall 0.728 | **449 / 0.984**, recall 0.737 |
+
+**test.json was held out.** 1,700 claims, never inspected while the patterns were written. Precision falls only 1.000 to 0.984 and recall rises 0.728 to 0.737, so this is a real regularity in how the claims are worded, not a regex fitted to 700 sentences. It costs nothing to check because test.json ships subset labels too.
+
+**The routed table, n=700, strict scoring:**
+
+| policy | accuracy | cloud calls | deployable |
+|---|---|---|---|
+| 3B alone | 61.4% | 0% | yes |
+| 7B alone | 72.4% | 0% | yes |
+| gate only | 76.9% | 35.9% | yes |
+| gate + subset LABEL | 79.7% | 61.0% | **no**, reads `claim.subset` |
+| **gate + DETECTOR** | **79.0%** | **54.0%** | **yes** |
+| always cloud | 79.9% | 100.0% | yes |
+
+Paired against the two policies it has to match: versus the oracle label policy 2/7, **p = 0.180, tie**. Versus cloud-alone 38/44, **p = 0.581, tie**.
+
+**What may now be written.** *"Escalating arithmetic claims is worth about 2 points over the plain gate, and the claims can be identified from their wording alone, with no benchmark annotation and no model call, at 0.984 precision on 1,700 held-out claims. The resulting system ties a frontier cloud model while calling it on 54% of claims."*
+
+**Still not supportable.** That the detector beats the label policy. It uses 7 points fewer calls at 0.7 points lower accuracy, and both differences are ties.
+
+**Three limits, all of which belong in the paper.**
+
+1. **The routed row is testmini only.** The detector was developed on testmini, which is also where the accuracy and call figures come from. Only the precision and recall have a held-out check. Confirming the routed row needs the `test.json` pipeline run.
+2. **This may be a generation artefact.** 60.4% of numeric claims fit one sentence template and 86.4% end with a number. That is what machine-generated claims look like. The honest phrasing is that the detector keys on **claim phrasing**, and it should not be implied it would transfer to claims written by a human analyst.
+3. **Tier 2 was tested and rejected.** Three recall extenders (`increased/decreased by <number>`, ends with a percentage, copula+number anywhere) raise recall to 0.865 but drop held-out precision to 0.887 and raise cloud calls to 58.7%, for 79.6% accuracy. Inside the noise on accuracy, worse on both other axes. Three Tier 1 candidates were also dropped: `difference in/between`, `net change`, `change in` held above 0.97 on testmini but fell to 0.727, 0.889 and 0.905 held out, and removing them left routed accuracy unchanged while cutting calls 55.6% to 54.0%. **Do not add any of these back without re-measuring.**
 
 ---
 

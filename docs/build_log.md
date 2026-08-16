@@ -5272,3 +5272,131 @@ tighter retrieval buys recall and almost no wall clock.
    which is a real on-device claim independent of the routing question.
 4. **Wall-clock planning for the GPU must be redone against output tokens.** Any estimate in the
    docs derived from the 0.0641 constant is wrong for that machine.
+
+## 15 August 2026 - the numeric escalation rule no longer needs the benchmark label
+
+### What this closes
+
+Item 1 of the 12 August "free, no compute, do first" list. The headline 79.7% at 61% cloud
+calls leaned on `claim.subset`, an annotation FINDVER ships and no deployed system has, so it
+was an oracle-assisted number (2.13.3). The two detectors written in a terminal on 12 August
+either cost 1.8 points or escalated 85.1% of claims, and neither was saved to a file, so under
+`paper_numbers.md` rule 1 none of their figures were citable either.
+
+### The pattern, found by reading all 250 numeric claims
+
+**A numeric claim is an equation written as an English sentence.** The subject is a
+nominalisation of an arithmetic operation, "the percentage increase in", "the net change in",
+"the average". The predicate is a copula whose complement is a bare number with nothing after
+it. The value lands last.
+
+    numeric-val-168   The percentage increase in gross revenues from 2022 to 2023
+                      is approximately 22.57%.
+    ie-val-64         The Company recognized stock-based compensation expenses of
+                      $3,853,643 in 2023, which is included in the selling, general
+                      and administrative expenses, ...
+
+The ie claim contains a larger number than the numeric one. What separates them is not the
+presence of a figure, it is where the figure sits and whether the sentence stops there.
+
+Measured on testmini, the full frame `The <X> ... is/was <number>.`:
+
+    numeric      151/250 = 60.4%
+    ie             0/250 =  0.0%
+    knowledge      0/200 =  0.0%
+
+Zero false positives out of 450. A second, independent signature of the same shape: numeric
+claims average **20.5 words**, ie and knowledge average **41**, almost exactly double. A numeric
+claim asserts one value. The others are compound sentences carrying several facts.
+
+### How the search was run
+
+An n-gram sweep over all 700 testmini statements, ranking every 1-, 2- and 3-gram by precision
+against the numeric subset, then reading the claims behind the top phrases rather than trusting
+the ranking. The single word "percentage" came back at 111 hits and **zero** in the other 450.
+That is what pointed at the sentence frame rather than at a keyword list.
+
+Candidate features were then scored one at a time, and the weak ones were scored again on the
+residual pool of claims the strong ones had not already caught, because a feature at 0.64
+precision against a 35.7% base rate looks very different against the 8.7% base rate of what is
+left. That is what killed the second tier.
+
+### The detector
+
+`src/numeric_detector.py`, three regexes joined into one compiled pattern, one public function
+`is_numeric_claim(statement) -> bool`. No model call, no cloud call, no data loading.
+
+    pattern                          testmini             test.json (held out)
+    copula + number at tail          152 hits, 1.000      383 hits, 0.995
+    the word "percentage"            111 hits, 1.000      280 hits, 0.982
+    "is/was approximately|..."        53 hits, 1.000      118 hits, 1.000
+    WHOLE DETECTOR                   182 hits, 1.000      449 hits, 0.984
+                                     recall 0.728         recall 0.737
+
+**test.json is a genuine held-out check.** 1,700 claims, never inspected while the patterns were
+written, and it ships subset labels so the check costs nothing. Precision falls one and a half
+points, recall rises. The regularity is real.
+
+### The routed result
+
+    policy                          acc     calls    deployable
+    3B alone                      61.4%      0.0%    yes
+    7B alone                      72.4%      0.0%    yes
+    gate only                     76.9%     35.9%    yes
+    gate + subset LABEL           79.7%     61.0%    NO, reads claim.subset
+    gate + DETECTOR               79.0%     54.0%    yes
+    always cloud                  79.9%    100.0%    yes
+
+Paired: versus the oracle label policy 2/7, **p = 0.180, tie**. Versus cloud-alone 38/44,
+**p = 0.581, tie**.
+
+**The objection is answered.** The system matches the oracle policy's accuracy without the
+annotation, and does it with 7 points fewer cloud calls. Against the 12 August pair: the tight
+detector was 77.9% at 62.6% and the loose one 80.0% at 85.1%. This is better than both on both
+axes.
+
+### What was tested and rejected, with the evidence
+
+**Tier 2, three recall extenders** (`increased/decreased by <number>`, ends with a percentage,
+copula+number anywhere): recall 0.865, but held-out precision 0.887 and cloud calls 58.7% for
+79.6% accuracy. The accuracy difference from Tier 1 is 4 claims against a rerun noise floor of
+about one claim in ten. It buys nothing and costs calls and precision.
+
+**Three Tier 1 candidates dropped after a leave-one-out ablation.** `difference in/between`,
+`net change`, `change in` all held above 0.97 on testmini and fell to 0.727, 0.889 and 0.905 on
+test.json. Removing all three left routed accuracy unchanged at 79.0-79.1%, cut cloud calls
+55.6% to 54.0%, and raised held-out precision 0.955 to 0.984. **They were cost without benefit.**
+
+This is the correction worth remembering: on testmini all six patterns looked to be at or above
+0.978 precision, and the six-pattern rule was what I first proposed. The held-out file is what
+separated the three that were real from the three that were fitted to 700 sentences. **The
+ablation was run before the code was written, not after.**
+
+### One measurement bug of my own, caught before it reached a conclusion
+
+The first Tier 1+2 routed figure, 79.7% at 60.0%, was computed against the six-pattern base and
+quoted after the base had already been cut to three. Re-run on the three-pattern base it is
+79.6% at 58.7%. The conclusion did not move, Tier 2 stays off either way, but the number was
+wrong for one exchange and was corrected in place.
+
+### Limits, all of which belong in the paper
+
+1. **The routed row is testmini only.** Development and the accuracy and call figures come from
+   the same 700 claims. Only precision and recall have a held-out check. This is the fifth
+   configuration choice made against the set the paper reports, after k=10 vs 20, prompt v1 vs
+   v2, always-escalate-numeric, and k=5. It strengthens the case for item 7.
+2. **The pattern may be an artefact of how FINDVER generated these claims**, not a property of
+   arithmetic claims in general. 60.4% fit one template and 86.4% end with a number. The paper
+   should say the detector keys on claim phrasing and should not imply it transfers to claims a
+   human analyst wrote.
+3. **The detector is 27% recall short.** It misses 68 of 250 numeric claims on testmini, mostly
+   the verb form "X increased by 16.79% from 2022 to 2023". Tier 2 catches those and is not worth
+   what it costs. Read them with `--show misses`.
+
+### Built today
+
+    src/numeric_detector.py                    3 regexes, one function, no model call
+    test_scripts/measure_numeric_detector.py   regenerates every number above, plus
+                                               --show misses and --show fp to read the errors
+
+`paper_numbers.md` 2.13.3 is marked settled and superseded by the new 2.13.4.

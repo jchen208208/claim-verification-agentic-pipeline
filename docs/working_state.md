@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 14 August 2026.
+Last updated: 15 August 2026.
 
 ---
 
@@ -2395,6 +2395,69 @@ together, and it is the only thing in the project that does both" is false on th
 Item 6 of the 12 August agenda is closed. **Item 7, `test.json` at 1,700 claims, is now the
 priority**, and today added to its case: k=5 is the fourth configuration choice made against the
 same 700 the paper reports, after k=10 versus 20, prompt v1 versus v2, and always-escalate-numeric.
+
+---
+
+
+## Where things stand, 15 August
+
+### THE NUMERIC RULE IS DEPLOYABLE. The benchmark label is gone.
+
+`src/numeric_detector.py`, three regexes, no model call, no cloud call. Full detail in
+`paper_numbers.md` 2.13.4 and the build log for 15 August.
+
+**The pattern: a numeric claim is an equation written as an English sentence.** A computed
+quantity as the subject, a copula, the value last. `The <X> ... is/was <number>.` matches
+**151 of 250 numeric claims and 0 of the other 450.** Numeric claims average 20.5 words, the
+other two subsets 41.
+
+                              acc     calls    deployable
+    gate only               76.9%     35.9%    yes
+    gate + subset LABEL     79.7%     61.0%    NO, reads claim.subset
+    gate + DETECTOR         79.0%     54.0%    yes
+    always cloud            79.9%    100.0%    yes
+
+Paired: vs the oracle label policy p = 0.180, **tie**. Vs cloud-alone p = 0.581, **tie**.
+
+**The 12 August objection is answered.** The headline no longer needs an annotation, and it
+costs 7 points fewer cloud calls than the label policy rather than the 1.8 accuracy points the
+tight detector cost. Item 1 of the 12 August "do first" list is closed.
+
+### The held-out check is the reason to believe it
+
+`test.json` is 1,700 claims that were never inspected while the patterns were written, and it
+ships subset labels, so checking costs nothing.
+
+    whole detector    testmini  182 flags, precision 1.000, recall 0.728
+                      test.json 449 flags, precision 0.984, recall 0.737
+
+**This also caught a real error before it shipped.** The rule I first proposed had six patterns,
+all at or above 0.978 precision on testmini. Three of them fell to 0.727, 0.889 and 0.905 on the
+held-out file. Dropping them left routed accuracy unchanged, cut calls 55.6% to 54.0%, and
+raised held-out precision to 0.984. **On testmini alone the six-pattern rule looked better than
+the three-pattern one. It was not.**
+
+### Three limits, carried into the paper
+
+1. **The routed row is testmini only.** Precision and recall are held out, accuracy and calls are
+   not. This is the **fifth** configuration choice made against the 700 claims the paper reports,
+   after k=10 vs 20, prompt v1 vs v2, always-escalate-numeric, and k=5.
+2. **It may be a generation artefact.** 60.4% of numeric claims fit one template, 86.4% end with
+   a number. Say the detector keys on claim phrasing. Do not imply it transfers to human-written
+   claims.
+3. **27% of numeric claims are missed**, mostly the verb form "X increased by 16.79% from 2022 to
+   2023". Tier 2 catches them at 0.887 held-out precision and 58.7% calls for no accuracy gain,
+   so it is **rejected, not deferred**. Do not re-add without re-measuring.
+
+### What is still open
+
+Item 7, **`test.json` at 1,700 claims**, is still the priority and today added a fifth item to
+its case. The routed pipeline in `src/` does not exist yet: `run_loop.py` handles one model per
+run, and nothing sequences 3B then 7B then the escalation decision. That has to be built before
+run 1 can happen.
+
+**Overleaf is still not started.** Owed since 7 August. Today is 15 August, the freeze is
+23 August.
 
 ---
 
