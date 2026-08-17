@@ -2569,10 +2569,33 @@ at n=700 predicts 4.90 against an exact 4.90, and pro700 + flash700 predicts 26.
 26.96.
 
 **Projected**, both remaining runs being flash only: run 2 is 11.9 CNY, run 1's cloud is 6.7 CNY,
-**18.6 CNY for both**, against 110.24 remaining at the last exact reading. About 17% of what is
-left.
+**18.6 CNY for both**.
 
-**Still owed:** a balance reading before and after every cloud run. Only the delta is exact.
+### THE ACCOUNT WAS TOPPED UP. 110.24 -> 468.07 CNY.
+
+Read 16 August immediately before starting `condition2_flash_v2_test1700`. The previous reading was
+110.24 on 11 August. **The only cloud spend in that window was `pipeline_trial`, about 0.09 CNY**,
+so roughly **358 CNY was paid into the account** between 11 and 16 August. `granted 0.00`, so it is
+a top-up and not promotional credit. That is the professor's money and he should be thanked for it,
+and told what it is being spent on.
+
+**Every budget note in this file written before today assumes 110 to 115 CNY remaining and should
+be read with that in mind.** The two big runs are now about **4% of the balance, not 17%**.
+
+**This does not licence switching to pro.** Pro is still roughly 5x flash per run in real billing,
+and the reason flash won was an accuracy tie at n=700, not affordability. Cost was the fourth
+argument, not the first.
+
+    balance readings, CNY
+      9 Aug  142.38   after the two n=102 runs
+     10 Aug  115.42   after both n=700 runs, delta 26.96
+     11 Aug  115.14   settlement lag
+     11 Aug  110.24   after flash v2 at n=700, delta 4.90
+     16 Aug  468.07   BEFORE condition2_flash_v2_test1700, after a ~358 top-up
+
+**Still owed:** the after-reading once run 2 finishes. Its delta gives the exact cost of a
+1,700-claim flash run, and will show whether 6.94 CNY per attributed USD holds at this scale or was
+fitted to n=700.
 
 ### Harness is at 210 checks
 

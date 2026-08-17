@@ -5792,9 +5792,25 @@ the figure to quote and USD is attribution.
 Against 110.24 CNY remaining at the last exact reading, 11 August. **Both runs cost about 17% of
 what is left.**
 
-**The live balance was not read**, because that needs the professor's key. Run
-`source .env && python3 test_scripts/api_cost_tally.py` for DeepSeek's own figure, and record the
-reading: only the delta between two readings is exact.
+### THE ACCOUNT WAS TOPPED UP BY ABOUT 358 CNY
+
+Read immediately before starting run 2: **468.07 CNY remaining, topped up 468.07, granted 0.00.**
+The previous reading was 110.24 on 11 August, and the only cloud spend in that window was
+`pipeline_trial` at about 0.09 CNY, so the rise is a payment into the account rather than an error.
+
+**Every budget note written before today assumes 110 to 115 CNY remaining.** The two big runs are
+now about 4% of the balance rather than 17%. It changes nothing about the design: flash was chosen
+on an accuracy tie at n=700 and on wall clock, with cost as the fourth argument, and pro is still
+about 5x flash per run in real billing.
+
+The reading is recorded in `api_cost_tally.py` alongside the earlier four. The after-reading is
+owed once run 2 finishes: its delta is the exact cost of a 1,700 claim flash run, and will show
+whether the 6.94 CNY per attributed USD rate holds at this scale or was fitted to n=700.
+
+**One operational note.** The balance line did not print at first because the instruction was
+`source .env`. If `.env` holds plain `KEY=value` lines with no `export`, a plain `source` sets the
+variable in the shell but does not export it to `python3`, so the script sees no key. The form that
+works is `set -a; source .env; set +a`.
 
 ### HARNESS: 189 -> 210
 
