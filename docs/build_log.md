@@ -5953,3 +5953,78 @@ the 16.0 assumed from n=700:
 
 **It is affordable and it is not comfortable.** The per-call figure is a floor. Worth putting to the
 professor before launching, together with the key question above.
+
+### Afternoon, 17 August: two free measurements on the held-out split, both replicate
+
+No GPU was available and the cloud budget is now uncertain, so the afternoon went to the two things
+that need neither. Both turned out to be replications, which is the pattern that has produced the
+strongest evidence in this project.
+
+#### RETRIEVAL RECALL ON test.json, and it costs nothing
+
+`measure_recall.py` now takes a split: `python3 test_scripts/measure_recall.py 10 test`. Upstream
+ships full rankings for both splits, so the whole comparison was already on disk. **No model calls,
+no cloud quota, no GPU.**
+
+    macro recall at k=10          testmini n=700    test.json n=1,700
+    ours, bm25                        74.60%            75.16%
+    text-embedding-3-large            68.01%            69.75%
+    upstream's own bm25               65.16%            64.29%
+    contriever-msmarco                33.48%            35.02%
+    ours, placeholder                 57.54%            56.75%
+
+**Our BM25 replicates to within 0.6 points on 1,700 claims it was never tuned on, and is slightly
+better there.** Element recall 70.5 -> 70.0 and all-gold 50.4 -> 49.4, so all three metrics hold.
+It beats the best published retriever by 5.4 points on the held-out split and beats upstream's own
+BM25 by 10, which is an implementation gap and not an algorithm gap.
+
+**Fusion is confirmed dead on the held-out split too.** RRF at a pool of 10 gives 74.95% against
+our BM25 alone at 75.16%, the same ordering as testmini's 74.06 against 74.60. The 5 August decision
+to freeze the retriever at BM25 with no dense arm now has held-out evidence behind it.
+
+Testmini still validates exactly against the section 3.4 figures, and reports 1,959 distinct gold
+elements, which is trap 8's corrected count. test.json has 4,805.
+
+#### ONE ERROR CATEGORY IS 63% OF KNOWLEDGE ERRORS, ON BOTH SPLITS
+
+`analyse_missing_info.py` gained the held-out run and a per-subset cut. The model-level table works
+on any run, so the mechanism from 2.11 could be tested on 1,700 unseen claims.
+
+The category is: the model says the document does not contain the information, then refutes, and is
+wrong. Same model, same prompt v2, knowledge claims only:
+
+                                  testmini n=200    test.json n=500
+    cites missing information         34.0%             38.4%
+    of those, then refutes            95.6%             98.4%
+    of those refutations, wrong       50.8%             47.6%
+    base rate, any refutation wrong   34.2%             35.8%
+
+A lift of 1.49x on testmini and 1.33x on test.json. **Citing missing information marks a refutation
+as substantially less reliable, on both splits.**
+
+The share of the error budget, which is what §9's taxonomy needed:
+
+                              testmini          test.json
+    knowledge errors        33/52 = 63.5%     90/142 = 63.4%
+    all errors              54/141 = 38.3%   158/385 = 41.0%
+
+**63.5% and 63.4%.** One failure mode is nearly two thirds of all knowledge errors on both splits,
+and about 40% of every error the cloud model makes. Written up as 2.17. **This is the first
+quantified category of the four-category taxonomy §9 has wanted since the start.**
+
+**Two limits, both recorded.** The 11 August diagnostic that ruled out retrieval as the cause used
+a gold-evidence run, which exists only for testmini, so this shows the mechanism is present at the
+same size and not that retrieval is excluded on test.json. And the matcher is a regex over model
+prose: spot-checked by reading on testmini in August, not re-read on test.json.
+
+#### The skills idea was considered and deferred, with reasons
+
+Testing a prompt change on the 3B needs a GPU night, and tonight's night is run 1. Prompt v2 was
++2.9 points at p = 0.002 on the cloud model and a **tie on the 3B**, p = 0.378, which is direct
+evidence that prompt edits do not move this 3B much. And the evaluation question got harder today:
+skills must be evaluated without tuning on the reported set, and `test.json` is now the reported set.
+
+**One thing did improve.** Selection was the blocking question on 12 August, because a per-subset
+skill selected by the benchmark's subset label is not deployable. **The numeric detector solves that
+for arithmetic claims**, at 0.984 held-out precision. A skill for arithmetic claims is now
+selectable in a way it was not five days ago. Recorded, not yet worth a night.

@@ -41,7 +41,10 @@ from src.run_loop import read_report
 
 # Upstream's shipped rankings. all/ holds the FULL ranking over every element in
 # the report, not just the top 10, so one loader serves any k for the k sweep.
-UPSTREAM_DIR = REPO_ROOT / "FinDVer" / "outputs" / "testmini_outputs" / "retriever_output" / "all"
+# Both splits are shipped, which is what makes a held-out recall measurement free.
+def upstream_dir(split):
+    return (REPO_ROOT / "FinDVer" / "outputs" / f"{split}_outputs"
+            / "retriever_output" / "all")
 
 DEFAULT_K = 10  # FINDVER's chosen setting, adopted unchanged by MACE
 RRF_C = 60      # the standard reciprocal-rank-fusion constant, not tuned
@@ -56,15 +59,19 @@ KNOWN = {
 }
 
 
-def load_gold():
+def load_gold(split="testmini"):
     """example_id -> (subset, frozenset of gold element indices).
 
     relevant_context is a tuple of ints indexing report["context"]. Checked on
     2 Aug 2026: id == list position for all 137,045 elements across all 600
     reports, so indices and element ids are interchangeable with no mapping.
+
+    frozenset also handles trap 8: relevant_context repeats an index on 5
+    testmini claims and 11 test claims, so the distinct gold count is lower than
+    the raw length. Recall is unaffected because it was always a set comparison.
     """
     gold = {}
-    for claim in load_claims():
+    for claim in load_claims(split):
         gold[claim.example_id] = (claim.subset, frozenset(claim.relevant_context))
     return gold
 
@@ -120,19 +127,19 @@ def aggregate(retrievals, gold):
     return out
 
 
-def load_upstream(name, k=DEFAULT_K):
+def load_upstream(name, k=DEFAULT_K, split="testmini"):
     """Read one of upstream's shipped rankings, truncated to top k.
 
     Each record's retrieved_paragraphs is a list of [element_id, score] pairs
     already sorted best-first, so the ids are pair[0] and truncation is a slice.
     """
-    with open(UPSTREAM_DIR / f"{name}.json") as f:
+    with open(upstream_dir(split) / f"{name}.json") as f:
         records = json.load(f)
     return {r["example_id"]: [pair[0] for pair in r["retrieved_paragraphs"][:k]]
             for r in records}
 
 
-def run_placeholder(k=DEFAULT_K):
+def run_placeholder(k=DEFAULT_K, split="testmini"):
     """Run src/placeholder_retriever.py over all 700 claims.
 
     The only retriever here that has to actually execute rather than be read
@@ -140,20 +147,20 @@ def run_placeholder(k=DEFAULT_K):
     says costs about 5 s in total.
     """
     retrievals = {}
-    for claim in load_claims():
+    for claim in load_claims(split):
         report = read_report(claim.report)
         retrievals[claim.example_id] = [e["id"] for e in retrieve(claim, report, k=k)]
     return retrievals
 
 
-def run_ours(retrieve_fn, k=DEFAULT_K):
+def run_ours(retrieve_fn, k=DEFAULT_K, split="testmini"):
     """Run one of our own retrievers over all 700 claims.
 
     Returns ranked order, best first, because RRF consumes rank positions.
     Reports are re-read per claim, about 5 s in total across all 700.
     """
     retrievals = {}
-    for claim in load_claims():
+    for claim in load_claims(split):
         report = read_report(claim.report)
         retrievals[claim.example_id] = [e["id"] for e in retrieve_fn(claim, report, k=k)]
     return retrievals
@@ -223,22 +230,32 @@ def print_table(title, rows):
 
 
 def main():
-    k = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_K
-    gold = load_gold()
-    print(f"{len(gold)} claims, "
-          f"{sum(len(g[1]) for g in gold.values())} gold elements, k={k}")
+    """Usage: measure_recall.py [k] [split]
 
-    upstream = {name: load_upstream(name, k) for name in KNOWN}
+    split defaults to testmini. Upstream ships full rankings for both splits, so
+    scoring the held-out 1,700 costs nothing but CPU: gold indices are on disk
+    and no model is involved anywhere in this file.
+    """
+    k = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_K
+    split = sys.argv[2] if len(sys.argv) > 2 else "testmini"
+
+    gold = load_gold(split)
+    print(f"split {split}: {len(gold)} claims, "
+          f"{sum(len(g[1]) for g in gold.values())} distinct gold elements, k={k}")
+
+    upstream = {name: load_upstream(name, k, split) for name in KNOWN}
     scored = {name: aggregate(r, gold) for name, r in upstream.items()}
-    ours_bm25 = run_ours(bm25_retrieve, k)
-    scored["ours, placeholder"] = aggregate(run_placeholder(k), gold)
+    ours_bm25 = run_ours(bm25_retrieve, k, split)
+    scored["ours, placeholder"] = aggregate(run_placeholder(k, split), gold)
     scored["ours, bm25"] = aggregate(ours_bm25, gold)
 
-    print_table(f"Recall at k={k}, all 700 testmini claims",
+    print_table(f"Recall at k={k}, all {len(gold)} {split} claims",
                 [(name, m["overall"]) for name, m in scored.items()])
 
-    # Validation. Only meaningful at k=10, which is what section 3.4 recorded.
-    if k == DEFAULT_K:
+    # Validation. Only meaningful at k=10 on testmini, which is what section 3.4
+    # recorded. On test.json there is nothing published to check against, so the
+    # guarantee that the scorer is right comes from it reproducing on testmini.
+    if k == DEFAULT_K and split == "testmini":
         print("\nValidation against the section 3.4 figures")
         ok = True
         for name, (macro, element, all_gold) in KNOWN.items():
@@ -251,8 +268,16 @@ def main():
                     ok = False
         print("    all figures reproduced" if ok else "    SCORER IS WRONG, do not use")
 
+    elif k == DEFAULT_K:
+        print(f"\n  No published figures exist for {split}, so nothing is validated here.")
+        print("  The scorer is trusted because it reproduces section 3.4 exactly on testmini.")
+
     print_table("Per subset, text-embedding-3-large",
                 [(s, scored["text-embedding-3-large"][s])
+                 for s in ("ie", "numeric", "knowledge")])
+
+    print_table("Per subset, ours, bm25",
+                [(s, scored["ours, bm25"][s])
                  for s in ("ie", "numeric", "knowledge")])
 
     # The union diagnostic: is fusion worth building?
@@ -269,8 +294,9 @@ def main():
     # an element ranked 30th by one and 4th by the other surface.
     print_table(f"RRF, bm25 + text-embedding-3, c={RRF_C}, returning k={k}",
                 [(f"pool = top {d} of each" if d else "pool = full ranking",
-                  aggregate(rrf([load_upstream("bm25", d or 10 ** 6),
-                                 load_upstream("text-embedding-3-large", d or 10 ** 6)],
+                  aggregate(rrf([load_upstream("bm25", d or 10 ** 6, split),
+                                 load_upstream("text-embedding-3-large",
+                                               d or 10 ** 6, split)],
                                 k=k), gold)["overall"])
                  for d in (k, 25, 50, 100, None)])
 

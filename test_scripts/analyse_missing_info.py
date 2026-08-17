@@ -39,6 +39,11 @@ MODEL_RUNS = {
     "7b":    "condition1_7b_full700",
     "flash": "condition2_deepseek_flash_full700",
     "pro":   "condition2_deepseek_pro_full700",
+    # Added 17 Aug. These two are the like-for-like pair: same model, same
+    # prompt v2, testmini against the held-out 1,700. The "flash" row above is
+    # prompt v1 and must not be compared with either of them.
+    "flashv2":      "condition2_flash_v2_full700",
+    "flashv2-test": "condition2_flash_v2_test1700",
 }
 
 # The phrase family, written out rather than left as "and so on", because the
@@ -90,12 +95,24 @@ def print_diagnostic(run, groups):
         print(f"  {label:24s} {len(ids):4d} {len(hits):9d} {len(hits) / len(ids):8.1%}")
 
 
-def print_model_table():
-    print("\nhow each model uses the phrase, all 700 claims per run\n")
-    print(f"  {'model':6s} {'cites missing':>16s} {'then refutes':>16s} {'those wrong':>16s} {'base refute':>12s}")
+def print_model_table(subset=None):
+    """How each model uses the phrase.
+
+    `subset` restricts to one FINDVER subset. The mechanism was found on
+    FDV-KNOW, so the knowledge-only cut is the one that tests it; the all-claims
+    cut dilutes it with two subsets where it was never claimed to operate.
+    """
+    scope = "all claims" if subset is None else f"{subset} claims only"
+    print(f"\nhow each model uses the phrase, {scope}\n")
+    print(f"  {'model':13s} {'n':>6s} {'cites missing':>16s} {'then refutes':>16s}"
+          f" {'those wrong':>16s} {'base refute':>12s}")
     for name, directory in MODEL_RUNS.items():
         run = load_run(directory)
         ids = sorted(run)
+        if subset is not None:
+            ids = [i for i in ids if run[i]["subset"] == subset]
+        if not ids:
+            continue
         cites = [i for i in ids if cites_missing(run[i])]
         refuted = [i for i in cites if run[i]["extracted_label"] is False]
         wrong = [i for i in refuted if run[i]["gold_label"] is not False]
@@ -105,7 +122,7 @@ def print_model_table():
         all_refuted = [i for i in ids if run[i]["extracted_label"] is False]
         all_wrong = [i for i in all_refuted if run[i]["gold_label"] is not False]
 
-        print(f"  {name:6s} {len(cites):8d} {len(cites) / len(ids):7.1%}"
+        print(f"  {name:13s} {len(ids):6d} {len(cites):8d} {len(cites) / len(ids):7.1%}"
               f" {len(refuted):8d} {len(refuted) / max(len(cites), 1):7.1%}"
               f" {len(wrong):8d} {len(wrong) / max(len(refuted), 1):7.1%}"
               f" {len(all_wrong) / max(len(all_refuted), 1):11.1%}")
@@ -135,6 +152,7 @@ def main():
 
     print_diagnostic(run, groups)
     print_model_table()
+    print_model_table("knowledge")
     print("\nspot-check a group by reading every match:")
     print("  python3 test_scripts/analyse_missing_info.py --show right")
 

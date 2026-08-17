@@ -2693,6 +2693,42 @@ Repriced on measured figures. The cloud arm measured 17.8 s per claim, not the a
 **Affordable, not comfortable, and 0.1408 is a floor rather than a forecast.** Put it to the
 professor before launching.
 
+### DONE 17 Aug, free, no GPU: two held-out measurements, both replicate
+
+**Retrieval recall on test.json.** `python3 test_scripts/measure_recall.py 10 test`. Upstream ships
+rankings for both splits, so this cost nothing but CPU.
+
+    macro recall at k=10       testmini      test.json
+    ours, bm25                  74.60%        75.16%
+    text-embedding-3-large      68.01%        69.75%
+    upstream's own bm25         65.16%        64.29%
+
+**Our BM25 replicates within 0.6 points on 1,700 claims it was never tuned on and beats the best
+published retriever by 5.4 points there.** All three metrics hold. **Fusion is dead on the held-out
+split too**: RRF 74.95% against BM25 alone 75.16%, the same ordering as testmini. The 5 August
+freeze on BM25 with no dense arm now has held-out evidence. Full detail in `paper_numbers.md` 2.16.
+
+**The knowledge error mechanism replicates, and it is 63% of knowledge errors.**
+
+                              testmini          test.json
+    knowledge errors        33/52 = 63.5%     90/142 = 63.4%
+    all errors              54/141 = 38.3%   158/385 = 41.0%
+
+The category: the model declares the evidence absent, refutes on that basis, and is wrong. **One
+failure mode is nearly two thirds of all knowledge errors on both splits.** This is the first
+quantified category of the four-category taxonomy §9 has wanted since the start. `paper_numbers.md`
+2.17.
+
+### SKILLS: deferred, with the reason written down
+
+Testing a 3B prompt needs a GPU night and tonight's is run 1. Prompt v2 was +2.9 points at
+p = 0.002 on the cloud model and a **tie on the 3B, p = 0.378**. And skills must be evaluated
+without tuning on the reported set, which `test.json` now is.
+
+**What did change: the numeric detector solves the selection problem** for arithmetic claims, at
+0.984 held-out precision. That was the blocking question on 12 August. A skill for arithmetic
+claims is now selectable. Recorded, not yet worth a night.
+
 ### What to do next, in order
 
 1. **Ask the professor the two questions above.** Free, and it gates how much the rest costs.

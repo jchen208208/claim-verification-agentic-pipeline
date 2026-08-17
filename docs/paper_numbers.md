@@ -1526,6 +1526,68 @@ Per subset: **ie 82.3%** (494/600), **numeric 77.2%** (463/600), **knowledge 71.
 ---
 
 
+### 2.16 **[NEW 17 Aug 2026] RETRIEVAL RECALL ON test.json. Our BM25 replicates and still beats the paid embedding.**
+
+Reproduce with: `python3 test_scripts/measure_recall.py 10 test`. No model calls, no cloud quota, no GPU: gold indices are on disk and scoring is set comparison. Upstream ships full rankings for both splits, which is what makes a held-out retrieval measurement free.
+
+Macro recall at k=10, the metric upstream's own `recall_evaluation.py` computes:
+
+| retriever | testmini, n=700 | **test.json, n=1,700** |
+|---|---|---|
+| **ours, bm25** | **74.60%** | **75.16%** |
+| text-embedding-3-large | 68.01% | 69.75% |
+| upstream's bm25 | 65.16% | 64.29% |
+| contriever-msmarco | 33.48% | 35.02% |
+| ours, placeholder | 57.54% | 56.75% |
+
+**Our BM25 replicates to within 0.6 points on 1,700 claims it was never tuned on, and it is slightly better there.** It beats the best published retriever by 6.6 points on testmini and 5.4 on test.json, and it beats upstream's own BM25 by about 10 points on both, which is an implementation gap rather than an algorithm gap.
+
+Element recall 70.5% -> 70.0% and all-gold 50.4% -> 49.4%, so all three metrics hold.
+
+Per subset, ours at k=10 on test.json: **ie 77.92%, numeric 80.92%, knowledge 64.94%.** Knowledge is the weakest subset for retrieval as well as for accuracy.
+
+**Fusion is confirmed dead on the held-out split too.** RRF of BM25 and text-embedding-3 at a pool of 10 gives 74.95% on test.json, below our BM25 alone at 75.16%, exactly as on testmini (74.06% against 74.60%). The 5 August decision to freeze the retriever at BM25 with no dense arm now has held-out evidence behind it.
+
+**What may be written.** *"A tuned BM25 baseline reaches 75.2% macro recall at k=10 on 1,700 held-out claims, 5.4 points above the best published retriever on the same benchmark, with no model inference and no API cost."*
+
+**Not supportable:** that better recall produces better accuracy. §"THE REAL RESULT" of 14 August established that retrieval quality and answer quality are close to decoupled on our 3B. **This is a retrieval result and must be reported as one.**
+
+---
+
+
+### 2.17 **[NEW 17 Aug 2026] ONE ERROR CATEGORY IS 63% OF KNOWLEDGE ERRORS, ON BOTH SPLITS**
+
+Reproduce with: `python3 test_scripts/analyse_missing_info.py`, which now carries the held-out run. §2.11 established the mechanism on testmini; this is its replication on 1,700 unseen claims.
+
+The category: **the model says the document does not contain the information, then refutes the claim, and is wrong.** Matched by an anchored phrase family, spot-checked by reading on 12 August, and `--show` prints every match in context.
+
+Same model and same prompt v2, testmini against test.json:
+
+| knowledge claims only | testmini, n=200 | test.json, n=500 |
+|---|---|---|
+| cites missing information | 34.0% | 38.4% |
+| of those, then refutes | 95.6% | 98.4% |
+| of those refutations, wrong | **50.8%** | **47.6%** |
+| base rate: any refutation, wrong | 34.2% | 35.8% |
+
+The lift over the base rate is 1.49x on testmini and 1.33x on test.json. **Citing missing information marks a refutation as substantially less reliable than the model's refutations in general, on both splits.**
+
+**The share of the error budget, which is the number for §9's taxonomy:**
+
+| | testmini | test.json |
+|---|---|---|
+| knowledge errors of this type | 33/52 = **63.5%** | 90/142 = **63.4%** |
+| all errors of this type | 54/141 = 38.3% | 158/385 = 41.0% |
+
+**63.5% and 63.4%.** One error category accounts for nearly two thirds of all knowledge-subset errors on both splits, and about 40% of every error the cloud model makes.
+
+**What may be written.** *"A single failure mode, the model declaring evidence absent and refuting on that basis, accounts for 63% of errors on the knowledge subset and 41% overall, replicated on 1,700 held-out claims."*
+
+**Two limits.** The 11 August diagnostic that excluded retrieval as the cause used a gold-evidence run, which exists only for testmini, so **the replication here shows the mechanism is present at the same size, not that retrieval is ruled out on test.json.** And the phrase matcher is a regex over model prose: it was spot-checked by reading on testmini, and has not been re-read on test.json.
+
+---
+
+
 ## 3. Deployment cost
 
 **The MacBook is the device of record.** Never print a GPU-derived number under a MacBook label; never mix machines in one table (§9.2).
