@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 16 August 2026.
+Last updated: 17 August 2026.
 
 ---
 
@@ -2626,6 +2626,95 @@ hand. **This belongs in the CLAUDE.md trap list, which is your file.**
 
 **Overleaf is still not started.** Owed since 7 August. Today is 16 August, the freeze is
 23 August.
+
+---
+
+
+## Where things stand, 17 August
+
+### CONDITION 2 IS MEASURED AT n=1,700. 77.4%. First number tuned on nothing.
+
+`results/condition2_flash_v2_test1700/`, **1,700 ok, 0 failed, 8.4 hours** on the MacBook with no
+GPU. Full detail in `paper_numbers.md` 2.15 and the build log for 17 August.
+
+    strict accuracy      77.4%     testmini was 79.9%
+    unparseable           1.4%     all 23 from truncation at num_predict 16k
+    per subset            ie 82.3%   numeric 77.2%   knowledge 71.6%
+
+**2.5 points below testmini, which is the direction predicted before the run**, because five
+configuration choices were made against testmini and tuned choices do not fully transfer.
+
+### THE REFUTED BIAS REPLICATES ON 1,700 HELD-OUT CLAIMS
+
+                                 testmini n=700    test.json n=1,700
+    predicted entailed               34.1%              33.9%
+    gold entailed                    50.0%              50.1%
+    accuracy on entailed             64.3%              61.7%
+    accuracy on refuted              95.4%              93.1%
+
+**Prompt v2 reduces the refuted bias and does not remove it, and the residue reproduces to within
+0.2 points on claims that played no part in designing v2.** A 31 point entailed/refuted gap on both
+sets. **This is the strongest evidence in the project**, because replication at n=1,700 on a
+held-out set is worth more than any single-set effect.
+
+### THE CLOUD BILL IS 18x THE ESTIMATE. ASK THE PROFESSOR BEFORE RUN 1.
+
+    balance before   468.07 CNY
+    balance after    228.72 CNY
+    delta            239.35 CNY      predicted 11.9
+
+**DeepSeek raised prices**, confirmed from their docs today: flash went from 0.14/0.28 to
+0.22/0.66 off-peak and 0.44/1.32 peak. **Even at peak this run should have cost about 54 CNY.**
+About 4.4x of the charge is unexplained.
+
+    11 Aug     4.90 CNY /   700 calls  = 0.0070 CNY per call
+    17 Aug   239.35 CNY / 1,700 calls  = 0.1408 CNY per call     20x
+
+Tokens per claim moved 12%, so this is pricing or billing, not usage. **Either the CNY list is far
+above the USD list, or the key is being used by someone else.** The ~358 CNY top-up between 11 and
+16 August is consistent with a shared account.
+
+**Two things to ask him, and the second has been owed since 10 August:**
+1. Is this key shared with anyone else?
+2. Read access to the account usage page, which settles it in one look.
+
+### RUN 1: 14.4 HOURS, 134 CNY, 58% OF THE BALANCE
+
+Repriced on measured figures. The cloud arm measured 17.8 s per claim, not the assumed 16.0.
+
+    3B on all 1,700       3.21 h
+    7B on all 1,700       6.47 h
+    cloud on about 56%    4.71 h
+    TOTAL                14.39 h      previously quoted as 13.8 h
+
+    cloud cost   ~950 calls x 0.1408 = 133.8 CNY
+    remaining after                    about 95 CNY
+
+**Affordable, not comfortable, and 0.1408 is a floor rather than a forecast.** Put it to the
+professor before launching.
+
+### What to do next, in order
+
+1. **Ask the professor the two questions above.** Free, and it gates how much the rest costs.
+2. **Run 1**, `configs/pipeline_test1700.json`, when the GPU is back. 14.4 h. Yields conditions
+   1 (3B), 1 (7B) and 4 from one job.
+3. **Overleaf.** Owed since 7 August. Today is 17 August, the freeze is 23 August. **Six days.**
+
+### Cost bookkeeping changes
+
+`api_cost_tally.py`: current rates added as `PRICING_CURRENT_PEAK`; **historical rates deliberately
+kept in `PRICING`**, because repricing old runs at today's list rewrites history and the 11 August
+run is known to have cost exactly 4.90 CNY; the CNY-per-USD ratio **withdrawn** as a planning tool
+after fitting two points and missing the third by 18x; `CNY_PER_CLOUD_CALL = 0.1408` added as the
+measured planning figure.
+
+    balance readings, CNY
+      9 Aug  142.38   after the two n=102 runs
+     10 Aug  115.42   after both n=700 runs, delta 26.96
+     11 Aug  115.14   settlement lag
+     11 Aug  110.24   after flash v2 at n=700, delta 4.90
+     16 Aug  468.07   after a ~358 top-up, before condition 2 at n=1,700
+     17 Aug  228.72   after it, delta 239.35
 
 ---
 

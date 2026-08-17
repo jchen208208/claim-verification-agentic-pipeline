@@ -29,13 +29,33 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_ROOT = REPO_ROOT / "results"
 
-# USD per million tokens, (input cache-miss, output). Published 8 August 2026.
-# DeepSeek's pricing page warns of a significant increase, so re-read it before
-# quoting any of this. Cache hits are cheaper and are not modelled: every run so
-# far reported cached_tokens 0, so assuming all-miss is exact, not conservative.
+# USD per million tokens, (input cache-miss, output). RE-READ 17 August 2026
+# from api-docs.deepseek.com. The 8 August figures, flash at 0.14/0.28 and pro
+# at 0.435/0.87, are STALE: prices rose roughly 3x on input and 4.7x on output.
+#
+# Rates now vary by time of day. Off-peak is half of peak; peak is 01:00-04:00
+# and 06:00-10:00 UTC. An overnight run spans both, so PEAK is used here as the
+# conservative attribution and the real figure sits somewhere below it.
+#
+#   flash   off-peak 0.22 / 0.66      peak 0.44 / 1.32
+#   pro     off-peak 0.66 / 1.98      peak 1.32 / 3.96
+#
+# Cache hits are cheaper and not modelled: every run so far reported
+# cached_tokens 0, so assuming all-miss is exact rather than conservative.
+# HISTORICAL rates, in force when every run below was billed. Kept as-is on
+# purpose: repricing old runs at today's list rewrites history, and the 11 Aug
+# flash run is known from a balance delta to have cost exactly 4.90 CNY.
 PRICING = {
     "deepseek-v4-pro": (0.435, 0.87),
     "deepseek-v4-flash": (0.14, 0.28),
+}
+
+# CURRENT rates, read 17 August, for projecting a run not yet made. Not used by
+# the table below. In practice prefer CNY_PER_CLOUD_CALL, which is measured and
+# needs no assumption about currency conversion.
+PRICING_CURRENT_PEAK = {
+    "deepseek-v4-pro": (1.32, 3.96),
+    "deepseek-v4-flash": (0.44, 1.32),
 }
 
 # Calls made by hand rather than through run.py, so they appear in no result
@@ -53,18 +73,32 @@ AD_HOC = [
     ("deepseek-v4-flash", 6, 20, "9 Aug, flash model-name probe, output estimated"),
 ]
 
-# CNY actually billed per USD of attribution, PER MODEL. These are not a spot
-# rate. They are derived from balance deltas on 10 and 11 August, which are the
-# only exact spend figures this project has, and the error is model-specific:
-# flash bills near the nominal 7.2, pro bills about 1.65x its USD list. Using a
-# flat rate understates pro by two thirds and makes pro look 3x flash per run
-# when it is really about 5x. The whole CNY column is derived through here so a
-# flat rate cannot be reintroduced by accident.
+# CNY per attributed USD. WITHDRAWN 17 August as a planning tool.
+#
+# These were derived from the 10 and 11 August balance deltas and reproduced
+# them exactly. They then failed catastrophically on the first run at n=1,700:
+# predicted 13 CNY, actual 239.35 CNY, 18x out. Even at the corrected PEAK rates
+# above the run should have cost about 54 CNY, so roughly 4.4x of that delta is
+# unexplained. Do not use a CNY-per-USD ratio for planning until it is.
+#
+# Use CNY_PER_CLOUD_CALL below instead. It is measured end to end and needs no
+# assumption about price lists, currency conversion or token accounting.
 CNY_PER_USD = {
     "deepseek-v4-flash": 6.94,
     "deepseek-v4-pro": 11.8,
 }
-CNY_PER_USD_FALLBACK = 7.2   # unpriced model: nominal spot, flagged in the output
+CNY_PER_USD_FALLBACK = 7.2
+
+# The planning figure, measured from balance deltas alone. One flash cloud call
+# on a ~3,700 token prompt, at whatever DeepSeek actually charges.
+#
+#   11 Aug   4.90 CNY / 700 calls    = 0.0070 CNY per call
+#   17 Aug 239.35 CNY / 1,700 calls  = 0.1408 CNY per call    20x higher
+#
+# Tokens per claim moved 12% between those runs, so this is a price change and
+# not a usage change. Use the LATEST figure and treat it as a floor, not a
+# forecast: it has moved 20x once already.
+CNY_PER_CLOUD_CALL = 0.1408
 
 
 def cny(model, usd):
@@ -219,6 +253,16 @@ def main():
         print("                 11 Aug 115.14 (no cloud calls that day; the 0.28 is settlement lag)")
         print("                 11 Aug 110.24 (after flash v2 at n=700, delta 4.90)")
         print("                 16 Aug 468.07 (BEFORE condition2_flash_v2_test1700)")
+        print("                 17 Aug 228.72 (AFTER it, delta 239.35 for 1,700 flash calls)")
+        print()
+        print("  THE 239.35 DELTA IS NOT EXPLAINED. Attribution at the corrected peak")
+        print("  rates gives about 54 CNY, so 4.4x of it is unaccounted for. Prices did")
+        print("  rise 3-4.7x since the 8 Aug table, which is now corrected above, but")
+        print("  that is not enough. Either the CNY list is far above the USD list, or")
+        print("  the key is being used by someone else. ASK THE PROFESSOR, and ask for")
+        print("  read access to the account usage page, which would settle it.")
+        print()
+        print("  PLAN WITH CNY_PER_CLOUD_CALL = 0.1408, measured, not with the USD column.")
         print("                        ^ the account was topped up by about 358 CNY between")
         print("                          11 and 16 Aug. Only pipeline_trial ran in that window,")
         print("                          about 0.09 CNY, so the rise is a payment and not an")

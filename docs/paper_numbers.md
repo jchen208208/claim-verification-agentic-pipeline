@@ -1482,6 +1482,50 @@ Round 1 compared the margin *against* the gate. Round 2 tested whether it *adds*
 ---
 
 
+### 2.15 **[NEW 17 Aug 2026] CONDITION 2 AT n=1,700 ON test.json. 77.4%, AND THE REFUTED BIAS REPLICATES.**
+
+Reproduce with: `python3 test_scripts/analyse_condition1.py condition2_flash_v2_test1700`.
+
+`deepseek-v4-flash`, prompt `baseline_v2`, BM25 at k=10, all 1,700 `test.json` claims. **1,700 ok, 0 failed**, 504 minutes, one `served_model` and one `system_fingerprint` so no model roll mid-run.
+
+| | testmini, n=700 | **test.json, n=1,700** |
+|---|---|---|
+| strict accuracy | 79.9% | **77.4%** |
+| FINDVER-compatible | 80.1% | 77.8% |
+| unparseable | 0.6% | 1.4%, all 23 from truncation |
+| seconds per claim | 16.0 | 17.8 |
+| output tokens, mean | 1,856 | 2,095 |
+
+**This is the first number in the project measured on a set nothing was tuned on.** It is 2.5 points below testmini, which is the direction predicted before the run: five configuration choices were made against testmini, and tuned choices do not fully transfer.
+
+Per subset: **ie 82.3%** (494/600), **numeric 77.2%** (463/600), **knowledge 71.6%** (358/500). Knowledge is still the weakest subset, consistent with every measurement since 10 August.
+
+#### The refuted bias replicates almost exactly
+
+| | testmini, n=700 | test.json, n=1,700 |
+|---|---|---|
+| predicted entailed | 34.1% | **33.9%** |
+| gold entailed | 50.0% | 50.1% |
+| accuracy on entailed claims | 64.3% | **61.7%** |
+| accuracy on refuted claims | 95.4% | **93.1%** |
+
+**A frontier model on the improved prompt still calls only a third of claims entailed when half of them are.** The gap between its accuracy on refuted claims and on entailed ones is 31 points on testmini and 31 points on test.json.
+
+**Why this matters more than the headline.** §2.12 established that FINDVER's shipped prompt carries a refuted bias costing a frontier model 21% of the benchmark, and prompt v2 was the fix. **v2 reduces the bias but does not remove it, and the residue reproduces to within 0.2 points on 1,700 claims that played no part in designing v2.** A finding that replicates on a held-out set of this size is the strongest evidence in the project.
+
+**What may be written.** *"Prompt phrasing accounts for a large share of the errors attributed to model capability on this benchmark, and a corrected prompt recovers only part of it: a frontier model still labels 34% of claims entailed where 50% are, on 1,700 held-out claims."*
+
+**Not supportable:** that v2 fixes the bias. It does not.
+
+#### One transient failure in 1,700 calls
+
+`numeric-test-223` failed with `http.client.IncompleteRead: IncompleteRead(0 bytes read)`: the HTTP response was cut off before any body arrived. Nothing to do with the claim or the prompt. Resume repaired it in one call.
+
+**0.06% transient failure rate over 8.4 hours of continuous cloud calls.** Small, but it is a real property of the cloud half that the local half does not have, and it belongs in any argument about graceful degradation.
+
+---
+
+
 ## 3. Deployment cost
 
 **The MacBook is the device of record.** Never print a GPU-derived number under a MacBook label; never mix machines in one table (§9.2).

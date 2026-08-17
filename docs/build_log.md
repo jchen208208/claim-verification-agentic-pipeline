@@ -5838,3 +5838,118 @@ Nothing ran on the GPU today. Everything above is design, code, harness and anal
 the four defects found today were found by reading or by a check rather than by a failed run:
 `route_one_claim`'s three bugs, the harness crashing on the new config, and the cost tally's blind
 spot. The fourth, the trial run, cost 14.2 minutes.
+
+## 17 August 2026 - condition 2 at n=1,700, the refuted bias replicates, and the cloud bill is 18x the estimate
+
+### THE RUN: 1,700 ok, 0 failed, 8.4 hours
+
+`configs/condition2_flash_v2_test1700.json`, flash on prompt v2, BM25 at k=10, all of `test.json`.
+Ran on the MacBook with no GPU and no Ollama, which is why it could happen while the GPU box was
+unavailable. Results in `results/condition2_flash_v2_test1700/`.
+
+    strict accuracy        77.4%      testmini was 79.9%
+    FINDVER-compatible     77.8%
+    unparseable             1.4%      all 23 from truncation, 16k num_predict
+    seconds per claim       17.8      testmini was 16.0
+    output tokens, mean     2,095     testmini was 1,856
+    served_model            one value, one fingerprint, no model roll mid-run
+
+Per subset: ie 82.3%, numeric 77.2%, knowledge 71.6%. Knowledge still weakest, as in every
+measurement since 10 August.
+
+**This is the first number in the project measured on a set nothing was tuned on**, and it came in
+2.5 points below testmini. That is the direction predicted before the run, for the stated reason:
+five configuration choices were made against testmini and tuned choices do not fully transfer.
+
+### THE REFUTED BIAS REPLICATES TO WITHIN 0.2 POINTS
+
+                                 testmini n=700    test.json n=1,700
+    predicted entailed               34.1%              33.9%
+    gold entailed                    50.0%              50.1%
+    accuracy on entailed claims      64.3%              61.7%
+    accuracy on refuted claims       95.4%              93.1%
+
+**A frontier model on the corrected prompt still calls a third of claims entailed when half are.**
+The entailed/refuted accuracy gap is 31 points on both sets.
+
+2.12 established that FINDVER's shipped prompt carries a refuted bias worth 21% of the benchmark,
+and v2 was the fix. **v2 reduces the bias and does not remove it, and the residue reproduces on
+1,700 claims that played no part in designing v2.** Replication at that size is the strongest
+evidence this project has produced. Written up as 2.15.
+
+### One transient failure in 1,700 calls
+
+`numeric-test-223`: `http.client.IncompleteRead: IncompleteRead(0 bytes read)`. The HTTP response
+was cut off before any body arrived. Not the claim, not the prompt, not our code. `elapsed_seconds`
+is None because there was never a response to time. Resume repaired it in one call, as designed.
+
+**0.06% transient failure rate over 8.4 hours of continuous cloud calls.** It is a real property of
+the cloud half that the local half does not have, and it belongs in any graceful-degradation
+argument.
+
+### THE COST IS 18x THE ESTIMATE AND 4.4x OF IT IS UNEXPLAINED
+
+    balance before   468.07 CNY   16 Aug, immediately before the run
+    balance after    228.72 CNY   17 Aug, after the retry
+    delta            239.35 CNY
+    predicted         11.9 CNY
+
+**DeepSeek raised prices**, confirmed by re-reading api-docs.deepseek.com today. The 8 August table
+in `api_cost_tally.py` was stale, and rates now vary by time of day:
+
+                      our 8 Aug table   current off-peak   current peak
+    flash input /1M       0.14              0.22              0.44
+    flash output /1M      0.28              0.66              1.32
+
+Peak is 01:00-04:00 and 06:00-10:00 UTC and off-peak is half of peak, so an overnight run spans
+both. **Repricing this run at current PEAK rates gives about 54 CNY. The charge was 239.35. About
+4.4x is unaccounted for.**
+
+The cleanest view is free of price lists and currency entirely:
+
+    11 Aug     4.90 CNY /   700 calls  = 0.0070 CNY per call
+    17 Aug   239.35 CNY / 1,700 calls  = 0.1408 CNY per call     20x
+
+**Tokens per claim moved 12% between those two runs.** A 20x cost change on 12% more work is a
+pricing or billing change, not a usage change.
+
+**Two candidate explanations, neither asserted.** Either the CNY price list sits far above the USD
+list, previously measured at 1.48x and needing about 4.4x now, or **the key is being used by
+someone other than us**. The ~358 CNY top-up between 11 and 16 August is consistent with an account
+someone else also draws on.
+
+**Action: ask the professor whether the key is shared, and ask for read access to the account usage
+page.** That request has been on the owed list since 10 August and would settle this in one look.
+
+### What changed in api_cost_tally.py, and one thing deliberately not changed
+
+**Current rates recorded** as `PRICING_CURRENT_PEAK`, used for projecting runs not yet made.
+
+**Historical rates deliberately left in `PRICING`.** Repricing old runs at today's list rewrites
+history: the 11 August flash run is known from a balance delta to have cost exactly 4.90 CNY, and
+at current rates the table claimed 19.37. Old runs keep the rates they were billed at.
+
+**The CNY-per-USD ratio is withdrawn as a planning tool.** It reproduced the 10 and 11 August
+deltas exactly and then missed by 18x at n=1,700. A ratio that fits two points and fails the third
+is not a model.
+
+**`CNY_PER_CLOUD_CALL = 0.1408` added**, measured end to end from balance deltas, needing no
+assumption about price lists, currency conversion or token accounting. **Treat it as a floor, not a
+forecast. It has already moved 20x once.**
+
+### RUN 1 IS 14.4 HOURS AND 58% OF THE REMAINING BALANCE
+
+Repriced on measured figures rather than estimates. The cloud arm measured 17.8 s per claim, not
+the 16.0 assumed from n=700:
+
+    3B on all 1,700       3.21 h
+    7B on all 1,700       6.47 h
+    cloud on about 56%    4.71 h
+    TOTAL                14.39 h        previously quoted as 13.8
+
+    cloud cost   ~950 calls x 0.1408 = 133.8 CNY
+    balance      228.72 -> about 95 CNY remaining
+                 58% of what is left, against the 4% quoted yesterday
+
+**It is affordable and it is not comfortable.** The per-call figure is a floor. Worth putting to the
+professor before launching, together with the key question above.
