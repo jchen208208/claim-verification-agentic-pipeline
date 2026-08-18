@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 17 August 2026.
+Last updated: 18 August 2026.
 
 ---
 
@@ -2751,6 +2751,79 @@ measured planning figure.
      11 Aug  110.24   after flash v2 at n=700, delta 4.90
      16 Aug  468.07   after a ~358 top-up, before condition 2 at n=1,700
      17 Aug  228.72   after it, delta 239.35
+
+---
+
+
+## Where things stand, 18 August
+
+### RUN 1 IS UNDER WAY, IN CHUNKS. 312 of 1,700 done, 0 failed.
+
+`results/condition4_pipeline_test1700/`. The GPU is only available in short windows, so the run is
+being taken in chunks. **No code change was needed**: `has_result` is true only for `status == "ok"`,
+so Ctrl-C and re-running the same command resumes exactly where it stopped. Verified with stubs
+before relying on it.
+
+    resume:  set -a; source .env; set +a
+             caffeinate -ims python3 run.py configs/pipeline_test1700.json 2>&1 \
+               | tee -a logs/pipeline_test1700.txt
+
+**Never delete the results directory between chunks. Always `tee -a`, never `tee`.**
+
+Chunking costs about **7 seconds of model warm-up per restart**, measured. Nothing else: per-claim
+timing is a stopwatch around one claim.
+
+### THE ROUTING PREDICTION HOLDS AT 57.4%
+
+    cloud calls        179/312 = 57.4%    predicted 56%, derived floor 54%
+      numeric_detector    95
+      disagreement        84
+    stage records      2 on 133, 3 on 179, never 1
+    seconds per claim  32.5 mean  ->  15.3 h for the full run, not 14.4
+
+The 16 August simulation predicted 56.5% with a 95% range of 54.3 to 58.7, and argued the live rate
+must exceed the derived 54.0% because independent noise can only add disagreements. **The live
+figure is inside that range and the mechanism holds.**
+
+### THE COST PANIC WAS MISDIRECTED. WITHDRAWN.
+
+    216.60 CNY  before chunk 1
+    214.94 CNY  after 179 cloud calls
+      1.66 CNY  delta = 0.0093 CNY per call
+
+    11 Aug   0.0070 per call
+    17 Aug   0.1408 per call   <- OUTLIER, 15x the two either side
+    18 Aug   0.0093 per call
+
+**At 0.0093 per call the 1,700 call condition 2 run should have cost about 16 CNY. The balance
+dropped 239.35.** Our usage cannot account for it. Yesterday's conclusion that prices had risen 15x
+is withdrawn: prices did rise, confirmed from DeepSeek's docs, but 3 to 4.7x on the list, not 15x in
+practice.
+
+**Second fact pointing the same way: the balance fell 228.72 to 216.60 overnight with no calls from
+us at all.** 12.12 CNY. The 11 August settlement lag was 0.28.
+
+**Two concrete things to put to the professor**, no longer a suspicion:
+1. **12 CNY left the account overnight with nothing of ours running.**
+2. **A run whose own measured per-call rate says 16 CNY coincided with a 239 CNY drop.**
+
+Ask whether the key is shared, and ask for read access to the usage page.
+
+**Revised: run 1's cloud arm costs about 9 CNY, not the 134 quoted on 17 August.**
+
+### Accuracy so far: 76.0%, and NOT to be acted on
+
+237/312, **95% CI 71.2% to 80.7%**. Claims are shuffled with seed 0 so the subsample is unbiased,
+but the interval covers condition 2's 77.4% comfortably. **It cannot yet distinguish beating, tying
+or losing to cloud-alone.** No decision may rest on it: stopping or adjusting on a partial result is
+how tuning-on-the-evaluation-set happens, and five configuration choices have already been made
+against the set this paper reports.
+
+### What to do next, in order
+
+1. **Finish run 1.** 1,388 claims left, about 12.5 h, in whatever chunks the GPU allows.
+2. **Ask the professor the two cost questions.** Free, and it is now specific.
+3. **Overleaf.** Owed since 7 August. Today is 18 August, the freeze is 23 August. **Five days.**
 
 ---
 

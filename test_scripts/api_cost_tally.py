@@ -92,13 +92,20 @@ CNY_PER_USD_FALLBACK = 7.2
 # The planning figure, measured from balance deltas alone. One flash cloud call
 # on a ~3,700 token prompt, at whatever DeepSeek actually charges.
 #
-#   11 Aug   4.90 CNY / 700 calls    = 0.0070 CNY per call
-#   17 Aug 239.35 CNY / 1,700 calls  = 0.1408 CNY per call    20x higher
+#   11 Aug     4.90 CNY /   700 calls  = 0.0070 CNY per call
+#   17 Aug   239.35 CNY / 1,700 calls  = 0.1408 CNY per call   <- OUTLIER
+#   18 Aug     1.66 CNY /   179 calls  = 0.0093 CNY per call
 #
-# Tokens per claim moved 12% between those runs, so this is a price change and
-# not a usage change. Use the LATEST figure and treat it as a floor, not a
-# forecast: it has moved 20x once already.
-CNY_PER_CLOUD_CALL = 0.1408
+# CORRECTED 18 Aug. The 17 August figure was fitted to one delta and is 15x the
+# two measurements either side of it. At 0.0093 per call the 1,700 call run
+# should have cost about 16 CNY; the balance dropped 239.35. Our usage cannot
+# account for that, and the balance also fell 12.12 CNY overnight with no calls
+# from us at all, against a known settlement lag of 0.28.
+#
+# Prices did rise, confirmed from DeepSeek's docs, but by 3-4.7x on the list and
+# not 15x in practice. The remaining explanation that fits both observations is
+# that something other than our runs draws on this account. Ask the professor.
+CNY_PER_CLOUD_CALL = 0.0093
 
 
 def cny(model, usd):
@@ -254,13 +261,17 @@ def main():
         print("                 11 Aug 110.24 (after flash v2 at n=700, delta 4.90)")
         print("                 16 Aug 468.07 (BEFORE condition2_flash_v2_test1700)")
         print("                 17 Aug 228.72 (AFTER it, delta 239.35 for 1,700 flash calls)")
+        print("                 18 Aug 216.60 (BEFORE run 1 chunk 1. 12.12 GONE OVERNIGHT with")
+        print("                        no calls from us. The 11 Aug settlement lag was 0.28.)")
+        print("                 18 Aug 214.94 (AFTER chunk 1, delta 1.66 for 179 cloud calls")
+        print("                        = 0.0093 per call, in line with 11 Aug, 15x below 17 Aug)")
         print()
-        print("  THE 239.35 DELTA IS NOT EXPLAINED. Attribution at the corrected peak")
-        print("  rates gives about 54 CNY, so 4.4x of it is unaccounted for. Prices did")
-        print("  rise 3-4.7x since the 8 Aug table, which is now corrected above, but")
-        print("  that is not enough. Either the CNY list is far above the USD list, or")
-        print("  the key is being used by someone else. ASK THE PROFESSOR, and ask for")
-        print("  read access to the account usage page, which would settle it.")
+        print("  THE 239.35 DELTA IS NOT OURS. Measured per-call cost on 18 Aug is")
+        print("  0.0093 CNY, so 1,700 calls is about 16 CNY, not 239. Two facts to put")
+        print("  to the professor: 12 CNY left the account overnight with nothing of")
+        print("  ours running, and a run whose own per-call rate says 16 CNY coincided")
+        print("  with a 239 CNY drop. Ask whether the key is shared, and ask for read")
+        print("  access to the usage page.")
         print()
         print("  PLAN WITH CNY_PER_CLOUD_CALL = 0.1408, measured, not with the USD column.")
         print("                        ^ the account was topped up by about 358 CNY between")

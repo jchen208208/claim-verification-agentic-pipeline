@@ -6028,3 +6028,96 @@ skills must be evaluated without tuning on the reported set, and `test.json` is 
 skill selected by the benchmark's subset label is not deployable. **The numeric detector solves that
 for arithmetic claims**, at 0.984 held-out precision. A skill for arithmetic claims is now
 selectable in a way it was not five days ago. Recorded, not yet worth a night.
+
+## 18 August 2026 - run 1 chunk 1, and the cost panic was misdirected
+
+### Chunking works, and it was verified before it was needed
+
+Run 1 is 15 hours and the GPU is only available in short windows, so the run is being taken in
+chunks. **No code change was needed.** `logger.has_result` returns true only for `status == "ok"`,
+so Ctrl-C and re-running the same command picks up exactly where it stopped.
+
+Verified with stubs before relying on it: a stub raising `KeyboardInterrupt` partway through stops
+the run, the two completed claims are on disk as `ok`, the in-flight claim is simply not written,
+and resume reports `2 ok, 0 failed, 2 skipped, out of 4`.
+
+**The clean interrupt is a direct benefit of the `except Exception:` fix from 16 August.** A bare
+`except` catches `KeyboardInterrupt`, which would have written the interrupted claim as `failed` and
+carried on to the next one.
+
+Two operational rules: never delete the results directory between chunks, and resume with `tee -a`
+rather than `tee` or each chunk overwrites the log.
+
+**Warm-up is the only cost of chunking, measured from the trial run:** the first 3B call of a
+session is 9.2 s against a 6.8 s median and the first 7B call is 17.1 s against 12.6 s, so about
+**7 s per restart**. Ten chunks costs 70 seconds on a 15 hour job. Per-claim `elapsed_seconds` is a
+stopwatch around one claim and the analysis sums per-claim times, so nothing else is affected.
+
+### CHUNK 1: 312 claims, 0 failed, and the routing prediction holds
+
+    cloud calls        179/312 = 57.4%     predicted 56%, derived floor 54%
+      numeric_detector    95
+      disagreement        84
+    stage records      2 on 133 claims, 3 on 179, never 1
+    seconds per claim  32.5 mean, 25.6 median
+    local-only claims  22.1 s mean, against 20.5 predicted
+
+**57.4% against a predicted 56%.** The 16 August simulation took the derived 54.0% from stored
+files, argued the live rate must come in higher because independent noise can only add
+disagreements, and put it at 56.5% with a 95% range of 54.3 to 58.7. The live figure sits inside
+that range. **The prediction and its stated mechanism both hold.**
+
+Timing is slightly worse than estimated: 32.5 s per claim gives **15.3 hours for the full run**
+rather than 14.4. `test.json` reports are a little heavier than testmini's.
+
+### THE COST PANIC WAS MISDIRECTED. OUR CALLS COST 0.009 CNY, NOT 0.14.
+
+Balance readings around chunk 1:
+
+    216.60 CNY   before
+    214.94 CNY   after 179 cloud calls
+      1.66 CNY   delta  =  0.0093 CNY per cloud call
+
+    per-call, all three measurements
+      11 Aug, flash n=700       0.0070
+      17 Aug, flash n=1,700     0.1408    <- the outlier, 15x the others
+      18 Aug, chunk 1           0.0093
+
+**Two independent measurements either side of it agree, and the middle one is 15x both.** At
+0.0093 per call, the 1,700 call condition 2 run should have cost about **16 CNY**. The balance
+dropped **239.35**.
+
+**So the 17 August conclusion is withdrawn.** `CNY_PER_CLOUD_CALL = 0.1408` was fitted to a single
+delta that our own usage cannot account for, and yesterday's write-up treated it as a price change.
+It is not: prices did rise, confirmed from DeepSeek's docs, but by 3 to 4.7x on the list, not 15x
+in practice, and this chunk shows our real per-call cost is unchanged in order of magnitude since
+11 August.
+
+**A second fact points the same way.** The balance was 228.72 after the condition 2 run on
+17 August and **216.60 the next morning, with no cloud calls from us in between. 12.12 CNY gone
+while nothing of ours was running.** The 11 August settlement lag was 0.28 CNY, so this is 43x that.
+
+**The honest position: something other than our runs is drawing on this account.** Not asserted as
+fact, but it is now the explanation that fits both observations, and the alternative, a 15x
+price spike that reverts within a day, fits neither.
+
+**What to put to the professor**, now two concrete facts rather than a suspicion:
+1. **12 CNY left the account overnight with nothing of ours running.**
+2. **A run whose own measured per-call rate says 16 CNY coincided with a 239 CNY drop.**
+Ask whether the key is shared, and ask for read access to the usage page.
+
+**Revised projection: run 1's cloud arm costs about 9 CNY, not the 134 quoted yesterday.**
+
+### Accuracy so far, and why it is not to be acted on
+
+**237/312 = 76.0%, 95% CI 71.2% to 80.7%.** Claims are shuffled with seed 0, so the first 312 are a
+random subsample and the figure is unbiased, but the interval is about ±5 points and **covers
+condition 2's 77.4% comfortably**. It cannot yet distinguish the routed system beating, tying or
+losing to cloud-alone.
+
+Recorded because it exists, and flagged: **no decision may rest on it.** Stopping or adjusting on a
+partial result is how tuning-on-the-evaluation-set happens, and this project has already made five
+configuration choices against the set it reports.
+
+Split by who answered: local-decided claims 73.7% (n=133), cloud-decided 77.7% (n=179). Both far too
+small to read.
