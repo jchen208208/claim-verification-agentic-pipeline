@@ -3,17 +3,51 @@
 The key belongs to the professor, so spending on it has to be reportable at any
 time and traceable to a run rather than to a lump sum.
 
-Two independent figures, and they answer different questions.
+**REWORKED 19 August 2026. Read this before quoting any figure here.**
 
-    from result files   exact token counts we recorded, priced at the published
-                        USD rates. Attributes every cent to a named experiment.
-    live balance        DeepSeek's own number, in CNY, authoritative for what was
-                        actually charged.
+This file used to say that a balance delta was the only exact spend figure, and
+that the token attribution was a secondary estimate. **That is now inverted.** A
+balance delta exactly measures what the ACCOUNT spent. It measures what WE spent
+only if we are the sole user of the key, and three observations say we are not:
 
-They will not match exactly. The account is denominated in CNY and DeepSeek's
-CNY price list is not the USD list at spot rate, so treat the USD figure as an
-attribution of where the money went and the CNY balance as the truth about how
-much. Record the balance each time this runs and the delta becomes exact.
+    window                calls     drop CNY   attributed   gap
+    condition 2 run        1700       239.35        53.86   +185.49
+    IDLE, no run              0        12.12         0.00    +12.12
+    run 1 chunk 1           179         1.66         5.56     -3.90
+    run 1 chunk 2           252        27.30         8.76    +18.54
+    run 1 chunk 3           116         3.75         4.09     -0.34
+
+Windows are taken from result-file write timestamps and attribution from the
+cloud stage's own token counts at peak rates. Two windows come in BELOW our own
+attribution, and chunk 1's negative offsets chunk 2's positive, which is what
+settlement lag looks like. Grouped to absorb it, run 1 billed 32.71 against
+18.41 attributed, a factor of 1.8x and close to the 1.48x CNY-versus-USD gap
+measured on 10 August. The condition 2 run plus the idle night after it billed
+251.47 against 53.86, a factor of 4.7x.
+
+So ONE event is anomalous, not the account in general.
+
+That still leaves the token attribution as the better cost figure, for a reason
+that holds either way: a balance delta is a difference between two readings, so
+it measures everything that happened between them, including other users,
+settlement lag from an earlier run, and price changes. Attribution measures only
+what we sent.
+
+So the two figures have these jobs:
+
+    token attribution   THE COST FIGURE. Exact token counts recorded per claim
+                        in our own result files, priced at a stated rate card.
+                        Reproducible, auditable, and unaffected by anyone else's
+                        usage of the key. This is what may go in the paper.
+    balance readings    A MONITORING SIGNAL, not a measurement. Useful for
+                        spotting that the account is draining. Useless for
+                        attributing that drain to a run.
+
+**For the paper, quote tokens and USD at the stated rate card, not CNY.** The
+CNY conversion has never been verified against a clean window and the account is
+not exclusively ours. Cost claims in the paper are comparative anyway, routed
+against cloud-alone, and a ratio is rate-card independent as long as one card is
+used throughout.
 
 Usage:
     python3 test_scripts/api_cost_tally.py
@@ -51,8 +85,8 @@ PRICING = {
 }
 
 # CURRENT rates, read 17 August, for projecting a run not yet made. Not used by
-# the table below. In practice prefer CNY_PER_CLOUD_CALL, which is measured and
-# needs no assumption about currency conversion.
+# the table below. Quote USD at this card for the paper: it is auditable from
+# our own token counts and does not depend on who else uses the key.
 PRICING_CURRENT_PEAK = {
     "deepseek-v4-pro": (1.32, 3.96),
     "deepseek-v4-flash": (0.44, 1.32),
@@ -81,16 +115,19 @@ AD_HOC = [
 # above the run should have cost about 54 CNY, so roughly 4.4x of that delta is
 # unexplained. Do not use a CNY-per-USD ratio for planning until it is.
 #
-# Use CNY_PER_CLOUD_CALL below instead. It is measured end to end and needs no
-# assumption about price lists, currency conversion or token accounting.
+# Superseded 19 August: the balance-delta method it was replaced by has failed
+# too, because the account is not exclusively ours. Token attribution is the
+# cost figure now. See the module docstring.
 CNY_PER_USD = {
     "deepseek-v4-flash": 6.94,
     "deepseek-v4-pro": 11.8,
 }
 CNY_PER_USD_FALLBACK = 7.2
 
-# The planning figure, measured from balance deltas alone. One flash cloud call
-# on a ~3,700 token prompt, at whatever DeepSeek actually charges.
+# WITHDRAWN 19 August as a cost figure. It was derived from one balance delta,
+# in the single window that happened to look clean, and the account has since
+# been shown to carry spending that is not ours. Kept only as a rough order of
+# magnitude for planning how many calls a run makes, never for reporting cost.
 #
 #   11 Aug     4.90 CNY /   700 calls  = 0.0070 CNY per call
 #   17 Aug   239.35 CNY / 1,700 calls  = 0.1408 CNY per call   <- OUTLIER
@@ -240,10 +277,14 @@ def main():
     print("=" * 96)
     print(f"{'TOTAL, estimated':<78}{total:>8.3f}{total_cny:>8.2f}")
     print()
-    print("  CNY is the figure to quote. The account is billed in CNY and the")
-    print("  USD column is attribution: it says where the money went, not how much.")
-    print("  Per-model rates come from the 10 and 11 August balance deltas, so the")
-    print("  CNY column inherits their uncertainty. Only a balance delta is exact.")
+    print("  USD IS THE FIGURE TO QUOTE, and the token counts behind it. They come")
+    print("  from our own per-claim result files, so they are exact for OUR usage,")
+    print("  reproducible, and unaffected by anyone else spending on this key.")
+    print()
+    print("  The CNY column is an UNVERIFIED conversion. Its per-model rates were")
+    print("  fitted to the 10 and 11 August balance deltas, and balance deltas have")
+    print("  since been shown to include spending that is not ours. Do not put the")
+    print("  CNY column in the paper. See the module docstring.")
 
     info, error = live_balance()
     print("\nLive account balance, DeepSeek's own figure")
@@ -265,13 +306,23 @@ def main():
         print("                        no calls from us. The 11 Aug settlement lag was 0.28.)")
         print("                 18 Aug 214.94 (AFTER chunk 1, delta 1.66 for 179 cloud calls")
         print("                        = 0.0093 per call, in line with 11 Aug, 15x below 17 Aug)")
+        print("                 19 Aug 187.64 (during run 1 chunk 2, delta 27.30 for 254 of")
+        print("                        our calls = 0.1075 per call, 11.5x the 18 Aug figure)")
         print()
-        print("  THE 239.35 DELTA IS NOT OURS. Measured per-call cost on 18 Aug is")
-        print("  0.0093 CNY, so 1,700 calls is about 16 CNY, not 239. Two facts to put")
-        print("  to the professor: 12 CNY left the account overnight with nothing of")
-        print("  ours running, and a run whose own per-call rate says 16 CNY coincided")
-        print("  with a 239 CNY drop. Ask whether the key is shared, and ask for read")
-        print("  access to the usage page.")
+        print()
+        print("  THE ACCOUNT CARRIES SPENDING THAT IS NOT OURS. Three windows:")
+        print("     17 Aug  condition 2 run    -239.35   our tokens ~16    gap ~223")
+        print("     17-18   idle, zero calls    -12.12   our tokens   0    gap   12")
+        print("     18-19   run 1 chunk 2       -27.30   our tokens ~2.4   gap  ~25")
+        print()
+        print("  The middle row settles it: money left on a night with no API calls")
+        print("  from this project. Our own per-call cost also measured 0.0093 CNY in")
+        print("  one window and 0.1075 in another on identical work; peak against")
+        print("  off-peak is 2x, not 11x.")
+        print()
+        print("  So a balance delta measures the ACCOUNT, not us. Use the token")
+        print("  attribution above for cost. Use these readings only to notice drain.")
+        print("  ASK THE PROFESSOR: is the key shared, and can you read the usage page.")
         print()
         print("  PLAN WITH CNY_PER_CLOUD_CALL = 0.1408, measured, not with the USD column.")
         print("                        ^ the account was topped up by about 358 CNY between")

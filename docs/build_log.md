@@ -6121,3 +6121,102 @@ configuration choices against the set it reports.
 
 Split by who answered: local-decided claims 73.7% (n=133), cloud-decided 77.7% (n=179). Both far too
 small to read.
+
+## 19 August 2026 - the account is not exclusively ours, and the cost method is inverted
+
+### ONE ANOMALOUS BILLING EVENT, NOT A CONTINUOUS DRAIN
+
+**This section was written twice today. The first version is wrong and is reproduced below the
+correct one, because the mistake is worth keeping.**
+
+Windows derived from result-file write timestamps rather than guessed, and our usage attributed
+from the cloud stage's own recorded token counts at DeepSeek's current PEAK rates:
+
+    window                calls     drop CNY   attributed   gap
+    condition 2 run        1700       239.35        53.86   +185.49
+    IDLE, no run              0        12.12         0.00    +12.12
+    run 1 chunk 1           179         1.66         5.56     -3.90
+    run 1 chunk 2           252        27.30         8.76    +18.54
+    run 1 chunk 3           116         3.75         4.09     -0.34
+
+**Two of five windows come in at or BELOW what our own tokens predict.** Chunk 1's -3.90 and
+chunk 2's +18.54 partly offset, which is what settlement lag looks like: charges landing after a
+reading. Grouping to absorb it:
+
+    run 1, all three chunks       dropped  32.71   attributed 18.41   factor 1.8x
+    condition 2 run + idle night  dropped 251.47   attributed 53.86   factor 4.7x
+
+**1.8x is close to the 1.48x CNY-versus-USD gap measured on 10 August**, so run 1's billing is
+consistent with our own usage plus an unverified currency conversion.
+
+**What survives is a single anomalous event: the condition 2 run of 16-17 August, roughly 185 to
+200 CNY unexplained.** Worth asking the professor about. It is a very different claim from
+continuous outside usage.
+
+**Considered and insufficient:** that run went 19:00-03:00 local, which is 02:00-10:00 UTC and
+therefore almost entirely inside DeepSeek's peak window. That is already priced into the 53.86.
+
+### ~~The first version of this section, wrong, kept for the record~~
+
+It read the same three balance deltas against **guessed** window boundaries and against the
+withdrawn 0.0093 CNY-per-call figure, and concluded that **something other than this project
+spends on the key, continuously, to the tune of 260 CNY**. With the boundaries taken from file
+timestamps and the attribution taken from token counts, four of the five windows are consistent
+with our own usage.
+
+**The 12.12 CNY idle night is real and unexplained, but it is 12 CNY, not evidence of a pattern**,
+and it sits immediately after the anomalous run, which is exactly where settlement lag would land.
+
+**Third cost correction in three days**, and all three share one cause: a conclusion drawn from
+balance arithmetic before checking the assumptions the arithmetic rests on. 17 August assumed one
+delta was a price change. 19 August morning assumed guessed window boundaries. **The rule that
+would have prevented all three: a balance delta is a difference between two readings, so before
+attributing it to anything, establish exactly what happened between those two readings.**
+
+### THE COST METHOD IS INVERTED, AND I HAD IT BACKWARDS FOR THREE DAYS
+
+`api_cost_tally.py` said, and this file repeated, that **a balance delta is the only exact spend
+figure** and the token attribution is a secondary estimate. **That is now the wrong way round.**
+
+A balance delta exactly measures what the **account** spent. It measures what **we** spent only
+under an assumption nobody ever wrote down: that we are the sole user of the key. That assumption
+has now failed three times.
+
+    token attribution   THE COST FIGURE. Exact token counts recorded per claim in our own
+                        result files, priced at a stated rate card. Reproducible, auditable,
+                        unaffected by anyone else's usage.
+    balance readings    A MONITORING SIGNAL. Good for noticing the account is draining.
+                        Useless for attributing that drain to a run.
+
+**For the paper: quote tokens and USD at a stated rate card, never CNY.** The CNY conversion was
+fitted to balance deltas that are now known to be contaminated. The paper's cost claims are
+comparative anyway, routed against cloud-alone, and a ratio is rate-card independent as long as one
+card is used throughout.
+
+**`CNY_PER_CLOUD_CALL` is withdrawn as a cost figure.** It was derived from a single balance delta
+in the one window that happened to look clean. Kept only as a rough order of magnitude for
+estimating how many calls a run will make.
+
+**This is the second withdrawal of a cost conclusion in three days.** On 17 August the 0.1408
+figure was withdrawn as an outlier fitted to one delta. On 19 August the whole balance-delta method
+follows it. The common error both times was treating a difference between two readings as a
+measurement of our own behaviour without checking the assumption that nothing else moved.
+
+### What this does and does not change
+
+**It does not change the plan.** Run 1's remaining cloud calls are about 4.6 CNY of real usage by
+token count. The run was never the problem.
+
+**It does not change any accuracy number**, since none of them depend on cost.
+
+**It makes the professor conversation urgent rather than owed.** Three dated observations, not a
+suspicion. At roughly 25 CNY per day of outside drain against 187.64 remaining, the account has
+about a week. **Two questions: is this key shared with anyone else, and can you have read access to
+the account usage page.** The second has been on the owed list since 10 August and would have
+caught this a week ago.
+
+### Current position
+
+    balance, 19 Aug             187.64 CNY
+    our attributed spend        6.04 USD across every run and ad-hoc call
+    run 1                       804 of 1,700 claims done, 0 failed

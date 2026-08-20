@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 18 August 2026.
+Last updated: 19 August 2026.
 
 ---
 
@@ -2824,6 +2824,78 @@ against the set this paper reports.
 1. **Finish run 1.** 1,388 claims left, about 12.5 h, in whatever chunks the GPU allows.
 2. **Ask the professor the two cost questions.** Free, and it is now specific.
 3. **Overleaf.** Owed since 7 August. Today is 18 August, the freeze is 23 August. **Five days.**
+
+---
+
+
+## Where things stand, 19 August
+
+### ONE ANOMALOUS BILLING EVENT. Cost method inverted.
+
+**Corrected the same day.** An earlier version of this section claimed continuous outside usage of
+about 260 CNY. It used guessed window boundaries. With boundaries taken from result-file timestamps
+and usage attributed from recorded token counts at peak rates:
+
+    window                calls     drop     attributed    gap
+    condition 2 run        1700   239.35          53.86   +185.49
+    IDLE, no run              0    12.12           0.00    +12.12
+    run 1 chunk 1           179     1.66           5.56     -3.90
+    run 1 chunk 2           252    27.30           8.76    +18.54
+    run 1 chunk 3           116     3.75           4.09     -0.34
+
+**Two windows come in below our own attribution**, and chunk 1's negative offsets chunk 2's
+positive, which is what settlement lag looks like. Grouped:
+
+    run 1, all chunks             32.71 against 18.41 attributed   1.8x
+    condition 2 run + idle night 251.47 against 53.86 attributed   4.7x
+
+**1.8x is close to the 1.48x CNY-versus-USD gap measured 10 August.** Run 1's billing is consistent
+with our own usage. **What survives is one anomalous event: the condition 2 run of 16-17 August,
+185 to 200 CNY unexplained.**
+
+**THE COST METHOD IS INVERTED.** This file said a balance delta was the only exact spend figure.
+**Wrong.** A balance delta exactly measures the ACCOUNT. It measures US only if we are the sole
+user, which has now failed three times.
+
+    token attribution   THE COST FIGURE. Exact per-claim token counts from our own result
+                        files, priced at a stated card. Auditable, unaffected by others.
+    balance readings    A MONITORING SIGNAL only. Cannot attribute a drain to a run.
+
+**For the paper: tokens and USD at a stated rate card. Never CNY.** The CNY conversion was fitted
+to deltas now known to be contaminated. `CNY_PER_CLOUD_CALL` is withdrawn as a cost figure.
+
+**Second cost withdrawal in three days.** The 0.1408 per-call figure went on 17 August; the whole
+balance-delta method follows it. Both times the error was reading a difference between two
+readings as a measurement of our own behaviour.
+
+### ASK THE PROFESSOR, with the corrected story
+
+One unexplained event, not a pattern: **the condition 2 run of 16-17 August cost 4.7x what our own
+token counts predict at peak rates**, about 185 CNY unaccounted for. Every window since is
+consistent with our usage. Balance now 183.89 CNY, and run 1's remaining calls are a few CNY, so
+**there is no budget emergency.**
+
+1. **Is this key shared with anyone else?**
+2. **Can you have read access to the account usage page?** Owed since 10 August, and it would have
+   caught this a week ago.
+
+### Run 1 status
+
+**804 of 1,700 done, 0 failed.** Roughly 900 left, about 7.5 h at the clean rate.
+
+    routed accuracy   75.8% at n=794    95% CI 72.8 to 78.8, covers condition 2's 77.4
+    cloud calls       54.2%             predicted 56%, derived floor 54%
+    per subset        ie 75.6%  numeric 78.1%  knowledge 73.1%
+
+**Part of chunk 2 shared the GPU with a game**, with no recorded boundary. Median per-claim time is
+robust to it; the mean is not. **Report the median and state that some claims ran under
+contention.** Do not fit an exclusion window to the data.
+
+### What to do next, in order
+
+1. **Finish run 1.**
+2. **The two professor questions above.**
+3. **Overleaf.** Owed since 7 August. Today is 19 August, the freeze is 23 August. **Four days.**
 
 ---
 
