@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 19 August 2026.
+Last updated: 20 August 2026.
 
 ---
 
@@ -2896,6 +2896,128 @@ contention.** Do not fit an exclusion window to the data.
 1. **Finish run 1.**
 2. **The two professor questions above.**
 3. **Overleaf.** Owed since 7 August. Today is 19 August, the freeze is 23 August. **Four days.**
+
+---
+
+
+## Where things stand, 20 August
+
+### RUN 1 IS IN ITS FINAL BLOCK. 1,306 of 1,700 done, 0 failed.
+
+    claims done        1,306 of 1,700     status ok on every one, 0 failed
+    cloud calls          692 = 53.0%      predicted 56%, derived floor 54%
+    remaining            394 claims       about 3.6 h at the observed rate
+
+**Throughput, from result-file timestamps rather than a stopwatch.** A clean block runs 105 to 110
+claims an hour. The 18 August blocks that ran slower are the ones that shared the GPU with a game,
+which is the contention already recorded on 19 August. Nothing new to exclude.
+
+    08-18 13h-20h    794 claims    the long first day, part under contention
+    08-19 10h-11h    219 claims    clean
+    08-19 19h-21h    261 claims    clean
+    08-20 11h+       final block   running now
+
+### A CLEAN COST WINDOW IS NOW OPEN. Read the balance the moment run 1 ends.
+
+**A boundary was recorded today with both ends exact**, which is the thing every previous cost
+window lacked:
+
+    20 Aug, mid-run    1,298 claims    689 cloud calls    165.74 CNY
+
+**Read the balance again immediately when run 1 finishes, and put nothing else on the key in
+between.** That closes a window whose start and end are both known from result files instead of
+guessed. The three hypotheses separate cleanly at that size:
+
+    only our usage, peak rates       ~7 CNY     213 calls at ~0.0337 CNY per call
+    the 1.8x run-1 multiplier       ~13 CNY
+    the 4.7x condition-2 anomaly    ~34 CNY
+
+### The 19 August window is ambiguous and is NOT being scored
+
+Balance went 183.89 to 165.74, a drop of **18.15 CNY**. What we attribute to ourselves depends
+entirely on when 183.89 was read, and the 19 August section is self-contradictory about that:
+
+    if read at   804 claims /  ~436 calls    253 calls since   ~8.5 attributed   2.1x
+    if read at 1,021 claims /   547 calls    142 calls since   ~4.8 attributed   3.8x
+
+**The second reading matches the record better.** The 19 August chunk table lists 179 + 252 + 116 =
+**547 calls**, and 547 is exactly the cumulative cloud-call count at the end of the 08-19 11h block,
+which is 1,021 claims. So that table ran through 1,021 and the "804 of 1,700 done" line in the same
+section was already stale when the balance was read.
+
+**No multiplier is being claimed for this window.** It falls between the 1.8x accepted on 19 August
+as consistent with our own usage and the 4.7x condition 2 anomaly. Choosing the boundary that
+produces the preferred answer is the exact error the 19 August correction was written about. The
+window above replaces it, at no cost.
+
+**Budget is not a constraint on finishing.** 394 claims is about 209 more calls, roughly 7 CNY at
+peak rates and under 30 even at the worst multiplier ever observed, against 165.74 remaining.
+
+### SKILLS ARE NOT THE FIX. Both candidate targets checked, free, no GPU, no cloud.
+
+`test_scripts/analyse_skill_targets.py`, run 19 August. It reads stored result files and the
+benchmark's own `execution_result` field. **testmini only**: `test.json` ships no `execution_result`,
+so none of the numeric half transfers to the reported split.
+
+**NUMERIC: the local failure is sharp, concentrated, and already solved by a rule we deployed.**
+Refuted numeric claims split by how far the asserted number sits from the truth:
+
+    accuracy on refuted numeric      tight <0.1%      mid 0.1-1%       loose >1%
+      3B                            43.2% (16/37)   65.0% (13/20)   86.4% (57/66)
+      7B                            43.2% (16/37)   75.0% (15/20)   89.4% (59/66)
+      cloud v2                      86.5% (32/37)   95.0% (19/20)   92.4% (61/66)
+
+    predicted "entailed", where gold is refuted every time
+      3B                                 57%             35%             14%
+      7B                                 57%             25%             11%
+      cloud v2                           14%              5%              5%
+
+    loose minus tight
+      3B          +43.1%   z = 4.62   SIGNIFICANT
+      7B          +46.2%   z = 5.05   SIGNIFICANT
+      cloud v2     +5.9%   z = 0.98   not significant
+
+**When a claim is nearly right, the local models wave it through.** They cannot compute to better
+than one part in a thousand, so a claim that is off by 0.05% reads as true to them. The cloud model
+does not share the weakness. 37 of 125 refuted numeric claims, 29.6%, sit in that band.
+
+**This is a mechanism result, not a to-do.** `escalate_numeric` is `true` in
+`configs/pipeline_test1700.json`, so every numeric claim in run 1 already goes to cloud. The
+analysis explains WHY always-escalate-numeric beat the gate at p < 0.05 on 12 August, which is
+worth more in the paper than an unexplained rule. Matcher validation: 122 of 125 entailed claims
+match gold within 1%, and entailed claims assert the gold value by definition, so that is the
+matcher testing itself.
+
+**KNOWLEDGE: no target exists for the local models.** The cloud's dominant failure, declaring the
+evidence absent and refuting on that basis, which is 63% of knowledge errors on both splits (2.17),
+does not explain the local models at all:
+
+    model       cites missing   then refutes   those wrong   base refute wrong   lift
+    3B                 38.5%          81.8%         41.3%               41.7%   0.99x
+    7B                 53.0%          66.0%         27.1%               26.3%   1.03x
+    cloud v2           34.0%          95.6%         50.8%               34.2%   1.48x
+
+A lift of 0.99 means the phrase carries no information for the 3B. It refutes wrongly just as often
+when it does not cite missing evidence. **A skill aimed at that mode on the 3B would be aimed at
+nothing.**
+
+**Knowledge is still the weakest subset in run 1 at 73.1%, and we do not have a mechanism for it on
+the local models.** Say that rather than inventing a target.
+
+**SKILLS ARE CLOSED FOR THIS PAPER.** Added to the 17 August reasons, which stand: a 3B prompt test
+costs a GPU night, and prompt v2 was +2.9 points at p = 0.002 on cloud but a tie on the 3B at
+p = 0.378. Skills become a future-work paragraph. The numeric detector at 0.984 held-out precision
+means an arithmetic skill is selectable, so the idea is recorded as viable and unfunded, not dead.
+
+### What to do next, in order
+
+1. **Finish run 1.** 394 claims, about 3.6 h.
+2. **Read the balance the moment it ends**, before anything else touches the key.
+3. **Overleaf.** Owed since 7 August. Today is 20 August, the freeze is 23 August. **Three days.**
+   The project exists from 10 August with the NeurIPS template and is shared with him. What does not
+   exist is any text in it. Two things still owed inside it: `\@workshoptitle` is unset, and
+   `checklist.tex` is the main-conference questionnaire.
+4. **The two professor questions**, which the clean cost window may answer without him.
 
 ---
 
