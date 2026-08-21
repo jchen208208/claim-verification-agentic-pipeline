@@ -6220,3 +6220,113 @@ caught this a week ago.
     balance, 19 Aug             187.64 CNY
     our attributed spend        6.04 USD across every run and ad-hoc call
     run 1                       804 of 1,700 claims done, 0 failed
+
+---
+
+## 20 August 2026 - run 1 is complete, condition 4 ties cloud alone at 57% of the cost, and the cost window closes clean
+
+The largest single result of the project, and the last one that needed a GPU.
+
+**Run 1 finished. 1,700 of 1,700, status ok on every claim, 0 failed.** `configs/pipeline_test1700.json`, the routed 3B to 7B to `deepseek-v4-flash` pipeline, over the whole of `test.json`. It ran in chunks across 18, 19 and 20 August, 15.76 hours of summed wall clock, median 26.0 seconds per claim. Part of 18 August shared the GPU with a game and no boundary was recorded, so the median is the figure to quote and the mean is contaminated.
+
+Built `test_scripts/analyse_run1.py`, which regenerates every number below from stored result files with no model calls. Written up as `paper_numbers.md` §2.18, §2.18.1 and §2.19.
+
+### The headline
+
+Because `skip_local_when_escalating` is false, every claim carries a 3B verdict and a 7B verdict alongside the routed one, so one job produced three conditions on identical claims. Condition 2 was already run at the same n on the same split, so the cloud arm pairs against these claims too.
+
+    3B alone      59.8% (1016/1700)
+    7B alone      67.8% (1153/1700)
+    routed        75.8% (1289/1700)
+    cloud alone   77.4% (1315/1700)
+
+Paired McNemar, routed against cloud alone: 116 to 142 on 258 disagreements, p = 0.119. A tie, at 56.6% of the cloud tokens, with 46.6% of claims answered entirely on-device. That is the claim the project was built to make, and it is now measured on 1,700 claims that nothing was tuned on.
+
+The routed figure was 75.8% at n=794 mid-run and 75.8% at the end. It was stable long before the run finished.
+
+### What complicates it
+
+The tie is not uniform. FDV-IE is a significant loss: routed 77.5% against cloud 82.3%, 40 to 69 on 109 disagreements, p = 0.0070. FDV-MATH and FDV-KNOW are ties. This goes beside the headline in the paper, not behind it.
+
+Decomposing the FDV-IE loss found the mechanism. On the 219 escalated FDV-IE claims the routed system slightly beats cloud alone, 78.5% to 76.7%. The entire deficit is on the 381 claims where the 3B and 7B agreed, no call was made, and the cloud would have scored 85.6% against our 76.9%.
+
+Both local models are `qwen2.5-coder`, sharing weights, tokenizer and training data. When they agree on an FDV-IE claim they are often agreeing on the same mistake, and the gate reads that as confidence. Agreement between two models of one family is correlated error, not independent confirmation. This is a finding worth reporting rather than a defect to hide.
+
+It cannot be fixed and re-run. `test.json` has now been touched once, as the 12 August protocol requires. Any gate change from here is future work, or it is tuned on the reported split and the held-out defence is gone.
+
+### What went right, and it is the part that justifies the design
+
+Escalation earns its cost. On the 908 claims where the cloud was called, the 3B would have scored 45.7% and the 7B 60.8%. The cloud scored 75.8%. That is +15.0 points on exactly the claims we chose to pay for.
+
+Both triggers contribute independently. Disagreement escalations, n=459, went from 57.3% under the 7B to 73.4%, +16.1 points and +74 claims. Numeric-detector escalations, n=449, went from 64.4% to 78.2%, +13.8 points and +62 claims.
+
+The numeric detector does work that disagreement cannot do by construction: it fires where the two locals agree and are wrong together. Of the 1,125 claims where the locals agreed, 333 were escalated anyway by the detector, and the local verdict on those was only 62.8% correct. This is the direct evidence for why always-escalate-numeric beat the gate on 12 August.
+
+Two rows in the routing table look like a failure and are not. Accuracy where the cloud was called is 75.8%, accuracy where the claim was kept local is 75.9%. Those being equal is the gate succeeding: the claims kept local score 75.9% on a 7B whose all-claim accuracy is 67.8%, so the gate is retaining the claims the local tier handles well.
+
+### The refuted bias, replicated a fourth time
+
+    arm            gold entailed    gold refuted   says entailed
+    3B alone              49.8%           69.7%           39.5%
+    7B alone              68.4%           67.3%           49.2%
+    routed                67.1%           84.6%           41.1%
+    cloud alone           61.7%           93.1%           33.9%
+    gold                  50.1%           49.9%
+
+The cloud model answers entailed on a third of claims where half are entailed. The routed system beats it on entailed claims by 5.4 points and loses on refuted by 8.5, which is the likely mechanism behind the FDV-IE result. The 7B alone is the only nearly calibrated arm the project has produced.
+
+### The ceiling
+
+Perfect selection over 3B, 7B and cloud would score 84.8%. Perfect selection over the two local models alone, with no cloud calls at all, would score 79.9% and beat the frontier cloud model outright. Neither is implementable and neither may be reported as a system result, but they bound the headroom: 9.0 points to the three-way oracle, 4.1 to a cloud-free one.
+
+### The unparseable rate exists now
+
+`paper_numbers.md` §5 has carried "any unparseable rate for our configuration" as unsupported since 2 August, on the ground that 0 of 12 is not a rate. 1,700 is.
+
+    3B 1.65% (28/1700)   7B 2.82% (48/1700)   cloud 1.65% (15/908)   routed 0.94% (16/1700)
+
+Routing suppresses unparseable output, because a claim ends unparseable only when the arm that wins the vote produced garbage.
+
+One error made and caught today: the first version of that table computed the cloud rate over all 1,700 claims and reported 88.9%. `verdict_cloud` is None on the 792 claims where no call was made, which is not an unparseable response. The denominator is calls made.
+
+Other integrity checks: 0 context overflow, 15 truncated by length, gold evidence present in 50.2% of prompts, 0 locals skipped, extraction source anchored on 1,681 of 1,700.
+
+### The cost window closed clean, and the shared-key worry is answered for now
+
+Five balance readings taken by hand around the final block, with call counts read from result files at both ends rather than guessed. This is the measurement the 19 August cost-method inversion asked for.
+
+    window     689 -> 908 cloud calls  =  219 calls
+    balance   165.74 -> 162.45 CNY     =  3.29 CNY drop
+    measured                              0.0150 CNY per call
+
+The drop is well below our own attribution. The 19 August CNY peak rate card predicted 7.38 CNY, so the actual is 0.45x of it. Nobody else was spending on the key during this window.
+
+The two rate cards on record disagree by a factor of four about what a call should cost, which is one more reason the paper quotes USD and token counts and never CNY.
+
+Condition 2 on 16-17 August cost 0.1408 CNY per call. This window cost 0.0150, on the same model at similar tokens per call. That is 9.4x. The 16-17 August event was real, large and stands alone, and every window measured since is consistent with our own usage. Run 1's full cloud arm at the measured rate is 13.64 CNY, against the 134 CNY quoted on 17 August.
+
+The 19 August window stays unscored. Its start boundary is ambiguous between 804 and 1,021 claims, giving either 2.1x or 3.8x, and choosing the boundary that produces the preferred answer is the exact error the 19 August correction was written about. The window above replaces it at no cost.
+
+### Skills were checked and closed
+
+`test_scripts/analyse_skill_targets.py`, written 19 August and run before deciding anything. It reads stored result files and FINDVER's own `execution_result` field. No model calls, no GPU, no quota. testmini only, because `test.json` ships none of those fields.
+
+Numeric: splitting refuted numeric claims by how far the asserted value sits from the truth found the local failure and it is sharp. On claims within 0.1% of the truth the 3B scores 43.2% and answers entailed on 57% of them, where gold is refuted every time. On claims more than 1% off it scores 86.4%. Loose minus tight is +43.1 points at z = 4.62 for the 3B and +46.2 at z = 5.05 for the 7B. The cloud model's gap is +5.9 at z = 0.98, not significant.
+
+The local models cannot compute to better than one part in a thousand, so a claim off by 0.05% reads as true to them. The matcher was validated first: 122 of 125 entailed claims match gold within 1%, and entailed claims assert the gold value by definition, so that is the matcher testing itself.
+
+This is already solved. `escalate_numeric` is true in the shipped config, so every numeric claim goes to cloud, and run 1 shows that buys +13.8 points. What the analysis provides is the mechanism behind a rule that previously worked for unexplained reasons.
+
+Knowledge: the cloud's dominant failure mode, declaring the evidence absent and refuting on that basis, does not explain the local models at all. Lift over the base refutation error rate is 0.99x for the 3B and 1.03x for the 7B, against 1.48x for the cloud. A lift of 0.99 means the phrase carries no information. A skill aimed at that mode on the 3B would be aimed at nothing.
+
+FDV-KNOW is still the weakest subset in the routed pipeline at 72.0%, and we do not have a mechanism for it on the local models. That is recorded as an open gap rather than filled with a guess.
+
+Skills are closed for this paper and become a future-work paragraph. The numeric detector at 0.984 held-out precision means an arithmetic skill is selectable, which was the blocking question on 12 August, so the idea is viable and unfunded rather than dead.
+
+### Documentation
+
+`paper_numbers.md` gained §2.18, §2.18.1 and §2.19, and its §5 list of unsupportable claims gained five entries and resolved three: the unparseable rate, any 7B number, and the gap condition 4 had to close.
+
+### Where this leaves the schedule
+
+Every condition the plan asked for now has a held-out number. The results are frozen and nothing further needs the GPU. Overleaf is the only thing left before the 23 August freeze, and it is still empty. Owed since 7 August.

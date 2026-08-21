@@ -15,7 +15,7 @@ The last column is the one that matters. Two comparability failures have already
 5. A number measured on one machine is never placed in a table with a number from another (§9.2).
 6. Anything unverified is marked as such and may not be written as fact.
 
-Last updated: 14 August 2026.
+Last updated: 20 August 2026.
 
 ---
 
@@ -1588,6 +1588,274 @@ The lift over the base rate is 1.49x on testmini and 1.33x on test.json. **Citin
 ---
 
 
+### 2.18 **[NEW 20 Aug 2026] RUN 1: THE ROUTED PIPELINE AT n=1,700 ON test.json. 75.8%, A TIE WITH CLOUD ALONE AT 57% OF THE COST.**
+
+Reproduce with: `python3 test_scripts/analyse_run1.py`.
+
+**This is condition 4, and it is the paper's central result.** `configs/pipeline_test1700.json`, the routed 3B to 7B to `deepseek-v4-flash` pipeline, over all 1,700 claims of `test.json`. Local arms on `baseline_v1`, cloud arm on `baseline_v2`, BM25 at k=10, temperature 0, seeds 0.
+
+**Nothing in this run was tuned on `test.json`.** The retriever, k, the local models, the prompts and the gate were all chosen against testmini. That is the protocol adopted on 12 August (§9.4) and this is the first time it has been cashed in.
+
+**One job produced three conditions.** `skip_local_when_escalating` is `false`, so every claim carries a 3B verdict and a 7B verdict alongside the routed one. Condition 1 at 3B, condition 1 at 7B and condition 4 are therefore measured on identical claims in identical conditions. Condition 2 was run separately at the same n on the same split (§2.15), so the cloud-alone arm is paired against these claims too.
+
+#### Integrity, checked before any accuracy figure was read
+
+| | |
+|---|---|
+| claims | 1,700 |
+| status `ok` | 1,700 |
+| failed | **0** |
+| context overflow | **0** |
+| truncated by length | 15 |
+| gold evidence present in prompt | 853 = 50.2% |
+| locals skipped | 0 |
+| extraction source | `anchored` 1,681, `none` 15, `bare` 3, `hedged` 1 |
+
+#### The unparseable rate for our configuration, finally measurable
+
+§5 has carried "any unparseable rate for our configuration" as unsupported since 2 August, on the ground that 0 of 12 is not a rate. **1,700 claims is a rate.**
+
+| arm | unparseable | denominator |
+|---|---|---|
+| 3B | **1.65%** | 28 / 1,700 |
+| 7B | **2.82%** | 48 / 1,700 |
+| cloud | **1.65%** | 15 / 908 calls made |
+| **routed** | **0.94%** | 16 / 1,700 |
+
+**Routing suppresses unparseable output**, because a claim ends unparseable only when the arm that wins the vote produced garbage. The cloud denominator is calls actually made, not 1,700; using 1,700 gives a meaningless 88.9% and that error was made and caught on 20 August.
+
+#### The headline, strict scoring
+
+| arm | strict accuracy | 95% CI |
+|---|---|---|
+| 3B alone | 59.8% (1016/1700) | 57.4 – 62.1 |
+| 7B alone | 67.8% (1153/1700) | 65.6 – 70.0 |
+| **routed (condition 4)** | **75.8% (1289/1700)** | **73.7 – 77.8** |
+| cloud alone (condition 2, §2.15) | 77.4% (1315/1700) | 75.3 – 79.3 |
+
+**Routing adds 8.0 points over the 7B alone and 16.0 over the 3B.** The routed figure was 75.8% at n=794 mid-run and 75.8% at n=1,700, so it was stable long before the end.
+
+#### Routed against cloud alone, paired McNemar on the same claims
+
+| | routed right, cloud wrong | cloud right, routed wrong | disagreements | p | verdict |
+|---|---|---|---|---|---|
+| **all** | 116 | 142 | 258 | **0.1194** | **tie** |
+| FDV-IE, n=600 | 40 | 69 | 109 | **0.0070** | **SIGNIFICANT, routed loses** |
+| FDV-MATH, n=600 | 29 | 28 | 57 | 1.0000 | tie |
+| FDV-KNOW, n=500 | 47 | 45 | 92 | 0.9170 | tie |
+
+**The overall tie decomposes into one significant loss and two ties.** This must be stated, not hidden behind the aggregate. Condition 4 does not beat cloud alone and does not lose to it overall; it loses on FDV-IE specifically.
+
+#### Per subset, all four arms
+
+| arm | FDV-IE | FDV-MATH | FDV-KNOW |
+|---|---|---|---|
+| 3B alone | 63.3% (380/600) | 57.3% (344/600) | 58.4% (292/500) |
+| 7B alone | 68.5% (411/600) | 66.5% (399/600) | 68.6% (343/500) |
+| **routed** | **77.5% (465/600)** | **77.3% (464/600)** | **72.0% (360/500)** |
+| cloud alone | 82.3% (494/600) | 77.2% (463/600) | 71.6% (358/500) |
+| escalation rate | 36.5% | 79.8% | 42.0% |
+
+#### THE FDV-IE LOSS IS ENTIRELY IN THE CLAIMS THE GATE KEPT LOCAL
+
+| subset | kept local | routed | cloud alone | gap | escalated | routed | cloud alone | gap |
+|---|---|---|---|---|---|---|---|---|
+| FDV-IE | n=381 | 76.9% | 85.6% | **-8.7** | n=219 | 78.5% | 76.7% | +1.8 |
+| FDV-MATH | n=121 | 75.2% | 76.0% | -0.8 | n=479 | 77.9% | 77.5% | +0.4 |
+| FDV-KNOW | n=290 | 74.8% | 73.8% | +1.0 | n=210 | 68.1% | 68.6% | -0.5 |
+
+**On escalated FDV-IE claims the routed system slightly beats cloud alone.** The entire deficit sits on the 381 FDV-IE claims where the 3B and the 7B agreed, no call was made, and the cloud would have scored 85.6%.
+
+**The mechanism, and it is a finding in its own right: agreement between two models of the same family is correlated error, not independent confirmation.** `qwen2.5-coder:3b` and `qwen2.5-coder:7b` share weights, tokenizer and training data. When they agree on an FDV-IE claim they are frequently agreeing on the same mistake, and the gate reads that as confidence. **Supportable phrasing: "our confidence gate treats agreement between two models from one family as evidence of correctness; on FDV-IE that agreement is correlated error and costs 8.7 points against a model that would have answered those claims correctly."**
+
+#### ESCALATION EARNS ITS COST, and both triggers contribute independently
+
+On the 908 claims where the cloud was called:
+
+| what the claim would have scored | |
+|---|---|
+| 3B would have said | 45.7% (415/908) |
+| 7B would have said | 60.8% (552/908) |
+| **cloud gave, and was used** | **75.8% (688/908)** |
+
+**+15.0 points on exactly the claims we chose to pay for.** Split by why they were escalated:
+
+| trigger | n | 7B would score | cloud scored | delta | claims gained |
+|---|---|---|---|---|---|
+| `disagreement` | 459 | 57.3% | 73.4% | **+16.1** | +74 |
+| `numeric_detector` | 449 | 64.4% | 78.2% | **+13.8** | +62 |
+
+**The numeric detector does work that disagreement cannot.** It fires on claims where the two locals agree and are wrong together, which is by construction invisible to a disagreement gate. This is the direct evidence for why always-escalate-numeric beat the gate on 12 August (§2.13.2), and it matches §2.19: the locals confidently agree that a nearly-correct number is correct.
+
+#### Routing behaviour
+
+| | |
+|---|---|
+| cloud called | 908 = **53.4%** (predicted 56%, derived floor 54%) |
+| escalation reason | none 792, `disagreement` 459, `numeric_detector` 449 |
+| final source | cloud 908, `local_b` 792 |
+| locals agree | 1,125 = 66.2% |
+| accuracy where locals agree | 72.0% (810/1125), CI 69.3 – 74.5 |
+| accuracy where locals differ | 74.4% (428/575), CI 70.7 – 77.8 |
+| accuracy where cloud called | 75.8% (688/908), CI 72.9 – 78.4 |
+| accuracy where kept local | 75.9% (601/792), CI 72.8 – 78.7 |
+
+**The last two lines are equal and that is the gate working, not failing.** Claims kept local score 75.9% on a 7B whose all-claim accuracy is 67.8%, so the gate is successfully retaining the claims the local tier handles well. Note that "locals agree" (72.0%) is lower than "kept local" (75.9%) because 333 claims where the locals agreed were escalated anyway by the numeric detector, and the local verdict on those was only 62.8% correct.
+
+#### THE LABEL BIAS REPLICATES, AND ROUTING PARTLY CORRECTS IT
+
+| arm | gold entailed | gold refuted | says "entailed" |
+|---|---|---|---|
+| 3B alone | 49.8% (424/851) | 69.7% (592/849) | 39.5% |
+| 7B alone | 68.4% (582/851) | 67.3% (571/849) | **49.2%** |
+| **routed** | **67.1% (571/851)** | **84.6% (718/849)** | 41.1% |
+| cloud alone | 61.7% (525/851) | 93.1% (790/849) | **33.9%** |
+| gold | 50.1% | 49.9% | — |
+
+**Fourth independent replication of the refuted bias**, now on 1,700 held-out claims. The cloud model answers entailed on a third of claims where half are entailed.
+
+**The routed system beats cloud alone on entailed claims by 5.4 points** (67.1% against 61.7%) and loses on refuted by 8.5 (84.6% against 93.1%). The 7B alone is the only nearly calibrated arm in the project at 49.2%. This is the most likely mechanism behind the FDV-IE result and behind §2.10's finding that the prompt carries a refuted bias.
+
+#### THE CEILING: perfect selection among verdicts we already hold
+
+| | accuracy | 95% CI |
+|---|---|---|
+| oracle over 3B / 7B / cloud | 84.8% (1441/1700) | 83.0 – 86.4 |
+| **oracle over 3B / 7B only, no cloud at all** | **79.9% (1359/1700)** | **78.0 – 81.8** |
+| routed, actual | 75.8% | 73.7 – 77.8 |
+| cloud alone | 77.4% | 75.3 – 79.3 |
+
+**Perfect selection between the two local models alone would score 79.9% and beat the frontier cloud model outright, with zero cloud calls.** Not implementable, and it must never be reported as a system result. It bounds the headroom: 9.0 points sit between our gate and the three-way oracle, and 4.1 points sit between our gate and a cloud-free oracle.
+
+#### Cost, from our own recorded token counts
+
+| | calls | input tokens | output tokens | USD at flash list |
+|---|---|---|---|---|
+| **routed cloud arm** | 908 | 3,400,854 | 2,106,383 | **$1.066** |
+| cloud alone, same n | 1,700 | 6,319,626 | 3,560,933 | $1.882 |
+| **routed / cloud alone** | | | | **56.6%** |
+
+**USD and token counts are the figures to quote (§3.5, and the 19 Aug cost-method inversion).** They come from per-claim result files, so they are exact for our usage and unaffected by anyone else spending on the key.
+
+Wall clock: **15.76 hours summed, median 26.0 s per claim.** Report the median. Part of 18 August ran with the GPU shared by a game, with no recorded boundary, so the mean is contaminated and the median is not. Do not fit an exclusion window to the data.
+
+#### What may be written
+
+- *"On 1,700 held-out claims the routed pipeline scores 75.8% against a cloud-only baseline's 77.4%. The difference is not significant (paired McNemar, 258 disagreements, p = 0.119), and the routed system uses 56.6% of the cloud tokens with 46.6% of claims answered entirely on-device."*
+- *"Escalation raises accuracy by 15.0 points on the claims it selects, from 60.8% under the local 7B to 75.8%."*
+- *"The routed system is not uniformly equivalent: it loses 4.8 points on FDV-IE (p = 0.007) and ties on the other two subsets."*
+- *"A single failure mode explains the FDV-IE deficit. Where our two local models agree, the gate keeps the claim on-device; on FDV-IE those agreements are correlated errors and the cloud model would have answered 85.6% of them correctly."*
+
+#### What may NOT be written
+
+- **"The routed pipeline matches cloud performance."** Unqualified, this is false on FDV-IE. Always carry the subset breakdown.
+- **"The routed pipeline beats the cloud."** It does not. It ties overall and loses on one subset.
+- **Either oracle as a system result.** Both are upper bounds computed with knowledge of the gold label.
+- **Any CNY cost figure.** See §2.18.1.
+- **A per-claim latency for the target device.** Every timing here is the GPU box. The MacBook figure is separate and unmeasured for the routed pipeline (§3.5).
+
+---
+
+
+### 2.18.1 **[NEW 20 Aug 2026] THE FIRST COST WINDOW WITH BOTH ENDS EXACT. No third-party spending during run 1.**
+
+Balance readings taken by hand around run 1's final block, with the call count read from result files at each end rather than guessed. **This is the measurement the 19 August cost-method inversion asked for.**
+
+| | |
+|---|---|
+| window | 689 → 908 cloud calls = **219 calls** |
+| balance | 165.74 → 162.45 CNY = **3.29 CNY drop** |
+| **measured cost per cloud call** | **0.0150 CNY** |
+
+**The drop is well below our own attribution, so nobody else was spending on the key during this window:**
+
+| attribution on record | predicted drop | ratio to actual |
+|---|---|---|
+| 19 Aug CNY peak rate card | 7.38 CNY | **0.45x** |
+| USD list card at 7.1 CNY/USD | 1.83 CNY | 1.80x |
+
+**The two rate cards on record disagree by a factor of four about what a call should cost.** 0.0150 CNY per call is the measured figure; both attributions are assumptions and neither is confirmed. This is another reason the paper quotes USD and tokens rather than CNY.
+
+**The 16-17 August condition 2 event was real, large, and stands alone.**
+
+| window | CNY per call | model |
+|---|---|---|
+| run 1 final block, 20 Aug, exact boundaries | **0.0150** | `deepseek-v4-flash` |
+| condition 2, 16-17 Aug | **0.1408** | `deepseek-v4-flash` |
+
+**9.4x, on the same model at similar tokens per call.** Every window measured since is consistent with our own usage. Run 1's full cloud arm at the measured rate is **13.64 CNY**, against the 134 CNY quoted on 17 August.
+
+**The 19 August window remains unscored and must stay that way.** Its start boundary is ambiguous between 804 and 1,021 claims, giving 2.1x or 3.8x, and choosing the boundary that produces the preferred answer is exactly the error the 19 August correction was written about. The window above replaces it.
+
+---
+
+
+### 2.19 **[NEW 20 Aug 2026] WHERE THE LOCAL MODELS FAIL ON ARITHMETIC, AND WHY NO PROMPT SKILL WAS BUILT**
+
+Reproduce with: `python3 test_scripts/analyse_skill_targets.py`.
+
+**testmini only.** `test.json` ships no `execution_result`, `python_calculation` or knowledge fields (16 Aug trap), so the numeric half of this analysis cannot be replicated on the reported split. This is development-set evidence and is labelled as such.
+
+The question it was built to answer: before spending a GPU night on a per-subset prompt "skill", is there an identifiable failure for a skill to target, or are the errors diffuse?
+
+#### NUMERIC: the local failure is sharp and sits at small margins
+
+FINDVER ships `execution_result`, its own computed answer, for every numeric claim on testmini. Refuted numeric claims split by how far the asserted value sits from the truth:
+
+| band | claims | share of refuted numeric |
+|---|---|---|
+| tight, <0.1% | 37 | 29.6% |
+| mid, 0.1–1% | 20 | 16.0% |
+| loose, >1% | 66 | 52.8% |
+
+| accuracy on refuted numeric | tight <0.1% | mid 0.1–1% | loose >1% |
+|---|---|---|---|
+| 3B | **43.2% (16/37)** | 65.0% (13/20) | 86.4% (57/66) |
+| 7B | **43.2% (16/37)** | 75.0% (15/20) | 89.4% (59/66) |
+| cloud v2 | 86.5% (32/37) | 95.0% (19/20) | 92.4% (61/66) |
+
+| answers "entailed", where gold is refuted every time | tight | mid | loose |
+|---|---|---|---|
+| 3B | **57%** | 35% | 14% |
+| 7B | **57%** | 25% | 11% |
+| cloud v2 | 14% | 5% | 5% |
+
+| loose minus tight | delta | z | |
+|---|---|---|---|
+| 3B | +43.1% | 4.62 | **SIGNIFICANT** |
+| 7B | +46.2% | 5.05 | **SIGNIFICANT** |
+| cloud v2 | +5.9% | 0.98 | not significant |
+
+**When a claim is nearly right, the local models wave it through.** They cannot compute to better than one part in a thousand, so a claim off by 0.05% reads as true. The cloud model does not share the weakness. **Matcher validation: 122 of 125 entailed claims match gold within 1%**, and entailed claims assert the gold value by definition, so that is the matcher testing itself before any conclusion rests on it. Sign and scale allowances are validated in the script rather than assumed.
+
+**This is a mechanism result, not an open action.** `escalate_numeric` is `true` in the shipped config, so every numeric claim already goes to cloud, and §2.18 shows that escalation buys +13.8 points on numeric-detector claims. **Supportable: "our local models fail specifically on refuted arithmetic claims whose asserted value is within 0.1% of the truth, answering entailed on 57% of them; this is why unconditional escalation of arithmetic claims outperforms a disagreement gate."**
+
+#### KNOWLEDGE: the cloud's dominant failure mode does NOT explain the local models
+
+§2.17 established that one mode, declaring the evidence absent and refuting on that basis, is 63% of knowledge errors for the cloud model on both splits. Extending the same matcher to the local models:
+
+| model | cites missing | then refutes | those wrong | base rate: any refutation wrong | lift |
+|---|---|---|---|---|---|
+| 3B | 38.5% | 81.8% | 41.3% | 41.7% | **0.99x** |
+| 7B | 53.0% | 66.0% | 27.1% | 26.3% | **1.03x** |
+| cloud v2 | 34.0% | 95.6% | 50.8% | 34.2% | 1.48x |
+
+**A lift of 0.99 means the phrase carries no information for the 3B.** It refutes wrongly just as often when it does not cite missing evidence. **The mode is specific to the cloud model.** A skill or a filter aimed at it on the 3B would be aimed at nothing.
+
+FDV-KNOW remains the weakest subset in the routed pipeline at 72.0% (§2.18), and **we do not have a mechanism for it on the local models.** Say that rather than inventing a target.
+
+#### Why no skill was built, recorded so the decision is traceable
+
+1. The numeric target is real but **already handled** by unconditional escalation.
+2. The knowledge target **does not exist** for the local models.
+3. Testing a 3B prompt costs a GPU night, and prompt v2 gave +2.9 points at p = 0.002 on cloud but **a tie on the 3B at p = 0.378** (§2.13).
+4. A skill must be evaluated without tuning on the reported set, and `test.json` is now spent.
+
+**The numeric detector at 0.984 held-out precision (§2.13.4) means an arithmetic skill is selectable**, which was the blocking question on 12 August. The idea is viable and unfunded, and belongs in future work rather than in the results.
+
+---
+
+
 ## 3. Deployment cost
 
 **The MacBook is the device of record.** Never print a GPU-derived number under a MacBook label; never mix machines in one table (§9.2).
@@ -1877,12 +2145,12 @@ Listed so they are not written by accident.
 - **"Nobody has done X."** The citation sweep found 23 papers citing FINDVER with MACE the only method evaluated on it, but that was abstract-level screening. **Supportable phrasing: "we found no other method evaluated on FINDVER."**
 - **"Better retrieval improves accuracy."** Assumed throughout, still not established causally. **[UPDATED 10 Aug]** There is now real observational evidence at n=700 (§2.6.1): the cloud models score 8 to 11 points higher on claims where the gold evidence reached the prompt, and the 3B scores **0.3 points lower**. **This is confounded** — claims BM25 succeeds on may simply be easier — so 8 to 11 points is an **upper bound** on what better retrieval buys the cloud tier, not an estimate. **Supportable: "the local model's accuracy is unchanged by whether the gold evidence is present."** The null result is not exposed to the confound. Not supportable: any projected accuracy gain from a stated recall gain.
 - ~~**"Higher k improves accuracy."**~~ **[ANSWERED 8 Aug 2026, and the answer is no.]** At n=102, k=10→k=20 raised all-gold recall 10.8 points (gained on 11 claims, lost on 0) and strict accuracy fell 4 points. Paired: 44 disagreements, 18 to k=20 and 22 to k=10 — statistically tied. **Supportable: "a 10.8-point recall gain produced no measurable accuracy gain at 87% more prompt tokens."** Not supportable: "k=20 is worse." See §2.3.
-- ~~**Any unparseable rate for our configuration.** 0 of 12 is not a rate.~~ **[MEASURED 8 Aug 2026 at n=102: 0.0% at k=10, 3.9% at k=20.]** 0 of 102 is a usable figure and is the basis for §2.3's claim that our strict and FINDVER-compatible scores coincide.
-- **Any 7B number.** Not re-measured since week 1.
+- ~~**Any unparseable rate for our configuration.** 0 of 12 is not a rate.~~ **[MEASURED 8 Aug 2026 at n=102: 0.0% at k=10, 3.9% at k=20.]** 0 of 102 is a usable figure and is the basis for §2.3's claim that our strict and FINDVER-compatible scores coincide. **[SUPERSEDED 20 Aug 2026 at n=1,700, §2.18: 3B 1.65%, 7B 2.82%, cloud 1.65%, routed 0.94%.]** These are the rates to quote. The cloud denominator is calls made (908), not claims (1,700).
+- ~~**Any 7B number.** Not re-measured since week 1.~~ **[MEASURED 10 Aug at n=700 (§2.6.3) and 20 Aug at n=1,700 on the held-out split (§2.18): 67.8%, CI 65.6–70.0.]** The 7B is also the only nearly calibrated arm in the project, answering entailed on 49.2% of claims where gold is 50.1%.
 - ~~**[NEW 9 Aug] Anything about conditions 2 or 3 being reproducible or deterministic.**~~ **[MEASURED 9 Aug, and the answer is that they are not.]** Three calls on `numeric-val-41`, `deepseek-v4-pro`, temperature 0, identical payloads. Two sharing `seed` 0 produced **different responses**, 1,235 against 1,357 completion tokens, different text and different reasoning. A third at `seed` 12345 gave 1,883. Identical `system_fingerprint` on all three, so this is not a model roll. **`seed` and `temperature` are accepted and ignored.** All three reached the same, correct, verdict, but that is one claim sampled three times and is not evidence of verdict stability. **Supportable: "the cloud model does not honour seed or temperature; our condition 2 figure is a single sample, not a reproducible measurement."** This is a limitation to state plainly, and it is on-topic for a workshop about real-world constraints: the cloud half of an edge-cloud system is not reproducible even when the edge half is.
 - ~~**[NEW 9 Aug] Any condition 2 result.**~~ **[MEASURED 9 Aug, see §2.6.]** Pro 71.6% strict, flash 75.5%, against the edge baseline's 66.7%. **Three caveats travel with those numbers and must not be dropped:** pro's figure is a floor depressed by 5 truncations at the 8,000 cap; pro and flash are statistically tied, not 4 points apart; and pro's FINDVER-compatible 75.5% is inflated by a lucky coin flip and must not be quoted.
 - ~~**[NEW 9 Aug] Any final condition 2 number for pro.** 71.6% was produced at `max_tokens` 8000, which truncated 5 numeric claims. **A re-run at 16,000 is owed before this enters the paper.**~~ **[DONE 10 Aug at n=700. Pro is 77.3% strict, unparseable 4.9% → 0.3%.]** The truncation diagnosis was correct. See §2.6.1.
-- ~~**[NEW 9 Aug] "Our pipeline matches the cloud model."** The gap to close is now measured: **4.9 points to pro, 8.8 to flash**, on strict scoring at n=102.~~ **[MEASURED 10 Aug at n=700. The gap is 15.9 points to pro and 15.6 to flash**, p < 0.001 on both.] The n=102 figure was wrong by a factor of three because two biases stacked: the 3B was inflated by an easy sample and pro was depressed by truncation. See §2.6.1. **This is the gap condition 4 has to close and it is much larger than the project believed for two days.**
+- ~~**[NEW 9 Aug] "Our pipeline matches the cloud model."** The gap to close is now measured: **4.9 points to pro, 8.8 to flash**, on strict scoring at n=102.~~ **[MEASURED 10 Aug at n=700. The gap is 15.9 points to pro and 15.6 to flash**, p < 0.001 on both.] The n=102 figure was wrong by a factor of three because two biases stacked: the 3B was inflated by an easy sample and pro was depressed by truncation. See §2.6.1. **This is the gap condition 4 has to close and it is much larger than the project believed for two days.** **[CLOSED 20 Aug 2026 at n=1,700 on test.json, §2.18. Condition 4 scores 75.8% against cloud alone's 77.4%: 258 disagreements, p = 0.119, a statistical tie, at 56.6% of the cloud tokens.]** The supportable sentence is a tie at 57% of the cost, never a win, and it must carry the FDV-IE loss.
 - **[NEW 10 Aug] A high absolute score as the paper's accomplishment.** Framing is already recorded in architecture plan §9.2: beating condition 2 is a bonus, matching condition 3 at a fraction of the cost is the paper. **Three facts constrain what a high number would mean.** Published 2024 best on testmini is Claude-3.5-Sonnet **75.0% RAG** (77.2% long-context, which we may not cite since we are RAG-only), and our single cloud call already sits at **77.0%**. Human non-expert is **86.7%** and human expert **93.3%**. And MACE, the only published method evaluated on FINDVER, **tied** the baselines at 0.76 rather than beating them. **A 90%+ result would sit above non-expert human and 13 points above our own single-call cloud baseline, on a benchmark where the one published method produced no gain at all.** Treat it as a signal to audit for a scoring or leakage bug before treating it as a result. **There is also no leaderboard** (checked 3 Aug), so "state of the art on FINDVER" cannot be established by submission, only by comparison against the published table.
 - **[NEW 10 Aug] Beating a number without saying which number, and without a significance test.** Beating 77% **is** worth reporting, and the conditions are recorded in §2.6.2 so the sentence is written correctly the first time. **Two different 77%s are in play and they are not the same claim:** our own condition 2 flash at 77.0% strict, n=700, which is a fully controlled internal comparison; and the best published 2024 RAG figure of 75.0%, which is an external comparison confounded by a different extractor, retriever and temperature. Report both, with different confidence.
 - **[NEW 10 Aug] "The edge tier is faster" or "the edge tier is slower," unqualified.** It reverses with the machine: 6.8 s per claim on the GPU box against flash's 12.7 s, and ~420 s per claim on the 2017 MacBook. §3.5. Name the machine or do not make the claim.
@@ -1892,3 +2160,9 @@ Listed so they are not written by accident.
 - **[NEW 9 Aug] "We selected the best local model."** Two 3B variants were compared, and `qwen3:4b` was rejected on speed without an accuracy measurement. **Supportable: "among the models that meet the latency budget of the target device, code tuning made no measurable difference."**
 - ~~**Any fusion gain for the local dense arm.**~~ **Resolved 5 August at n=700: there is none worth taking.** See §1.6. Untuned fusion is +0.00; the tuned gain is rejected on the same test-set-selection ground as the `k1`/`b` sweep.
 - **Any pipeline latency.** The 7.0 min figure is `baseline_v1` with the placeholder retriever, no code execution, no table parsing, no cloud round trip.
+- **[NEW 20 Aug] "The routed pipeline matches cloud performance," unqualified.** True overall (p = 0.119) and **false on FDV-IE**, where it loses 4.8 points at p = 0.007. §2.18. Every statement of the tie must carry the subset breakdown.
+- **[NEW 20 Aug] "The routed pipeline beats the cloud."** It does not. 75.8% against 77.4%, and the sign of the difference favours the cloud.
+- **[NEW 20 Aug] Either oracle figure as a system result.** 84.8% over 3B/7B/cloud and 79.9% over the two local models are computed with knowledge of the gold label. They bound headroom and are not implementable. The 79.9% is a striking sentence, that a perfect selector over two local models would beat a frontier model with no cloud calls, and it must be written as an upper bound every time.
+- **[NEW 20 Aug] Any CNY cost figure.** §2.18.1: the two rate cards on record disagree by 4x, and balance deltas have been shown to include spending that is not ours. Quote USD and token counts.
+- **[NEW 20 Aug] Any claim that the 16-17 August billing anomaly is ongoing.** §2.18.1 measured a window with both ends exact and found 0.0150 CNY per call against condition 2's 0.1408, a 9.4x difference. **Supportable: one anomalous window, every window since consistent with our own usage.** Not supportable: that the key is shared, which remains unanswered by the professor.
+- **[NEW 20 Aug] Anything about the FDV-IE gate leak that implies we fixed it.** It was found on the reported split, which is spent. Any gate change from here is future work, or it is tuned on `test.json` and the held-out defence is gone (§9.4).
