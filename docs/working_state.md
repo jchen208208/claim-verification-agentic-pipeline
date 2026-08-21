@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 20 August 2026.
+Last updated: 21 August 2026.
 
 ---
 
@@ -3160,6 +3160,127 @@ Every condition the plan asked for now has a held-out number:
 Plus retrieval recall replicated on the held-out split (75.16% macro, §2.16), the knowledge error
 taxonomy replicated (63.4%, §2.17), the numeric failure mechanism (§2.19), and the cost table
 (§2.18). **The results are frozen. Nothing further needs the GPU.**
+
+---
+
+
+## Where things stand, 21 August — THE PAPER PLAN, and where to pick up
+
+**Results are frozen. Nothing left needs the GPU or the cloud. The only remaining work is writing.**
+Freeze is 23 August, deadline is 29 August 23:59 AoE.
+
+### PICK UP HERE after restarting the session
+
+1. **Restart Claude Code to enable browser tools.** The Claude in Chrome extension is installed but
+   browser tools were **not** enabled in the 20-21 August session, and `/chrome` did not turn them on.
+   A restart should give a one-time prompt. Verify the browser tools actually load before planning
+   any Overleaf walkthrough around them.
+2. **Answer the three open questions at the bottom of this section.** They decide the draft.
+3. **Then draft**, sections 2, 3 and 4 first, because they do not depend on the framing decision.
+
+### DECIDED: `paper/` in the repo, one-way flow to Overleaf
+
+**Not yet created.** Git does not track empty directories, so it appears with the first `.tex` file.
+
+    repo paper/     source of truth. Lives beside the results that produced every number.
+                    Claude edits here.
+    Overleaf        where it compiles, where the professor and the industry co-authors
+                    comment, and where submission happens. Paste or upload.
+
+**The flow is one-way, repo to Overleaf.** If anything is edited directly in Overleaf, say so, and it
+gets pulled back so the repo does not go stale.
+
+**Open, worth checking once inside Overleaf:** whether the plan includes git sync. That would collapse
+the two copies into one and remove the drift risk. It is believed to be a paid feature; this has
+**not** been verified and must not be assumed. Failing that, uploading a `.tex` file over the old one
+beats pasting into the editor.
+
+**Two things still owed inside the Overleaf project** from 10 August: `\@workshoptitle` is unset, and
+`checklist.tex` is the main-conference questionnaire, which the workshop probably does not require.
+
+### DECIDED: the two framings combine. One argument, two moves.
+
+The question was whether to lead with the system result or with the discoveries. **Both, and it is
+stronger than either alone, because the second move is what makes the first credible.**
+
+    Move 1   A routed edge-cloud pipeline matches a cloud-only baseline on 1,700 held-out
+             claims at 57% of the cloud cost, with 47% of claims never leaving the device.
+
+    Move 2   That aggregate hides structure that matters to anyone deploying it. The tie is
+             a significant loss on one subset offset by ties elsewhere, and we identify why:
+             the confidence signal the gate relies on is correlated error.
+
+A paper making only move 1 invites "so what, and did you check?" **Move 2 is the check.** It also
+fits the venue better: *On-Device Intelligence: Foundation Models under Real-World Constraints* is a
+workshop about what breaks in practice.
+
+### The contributions, in the order they should be listed
+
+1. **A routed pipeline that ties a frontier cloud model at 57% of the cost** on a held-out split,
+   with no training. §2.18.
+2. **Same-family model agreement is correlated error.** Two `qwen2.5-coder` models agreeing predicts
+   correctness far less well than it appears; on FDV-IE it costs 8.7 points against a model that
+   would have answered those claims correctly. §2.18.
+3. **Unconditional escalation of arithmetic claims beats a disagreement gate, and we show why.**
+   Local models answer entailed on 57% of refuted claims whose asserted number is within 0.1% of the
+   truth. A disagreement gate cannot see that failure, because both models make it. §2.19, §2.18.
+4. **An error taxonomy on the held-out split**, including one mode that is 63% of knowledge-subset
+   errors. §2.17.
+
+### THE REAL PROBLEM IS SPACE, NOT FRAMING
+
+**There is roughly three times more material than fits in five pages.** Deciding what is cut IS the
+plan. Competing for the same space:
+
+    retrieval result        our BM25 beats text-embedding-3-large by 5.4 points on the
+                            held-out split, no model, no API. Genuinely good, and NOT part
+                            of the argument above.
+    16 published baselines  about a third of a page
+    the oracles             incl. "perfect selection over two local models beats the cloud"
+    cost + reproducibility  incl. the cloud model ignoring seed and temperature
+    tuning disclosure       testmini for development, test.json touched once
+
+**Claude's recommendation, not yet accepted:** retrieval gets two sentences and a number rather than
+a section, because it does not feed the argument and §1 of `paper_numbers.md` already forbids
+claiming accuracy gains from it. The oracle gets one sentence in results. Reproducibility goes in
+limitations. That frees most of a page.
+
+**Counter-consideration, which is why this is not decided:** a lot of the project's work went into
+retrieval, and cutting it to two sentences may not be what is wanted.
+
+### Proposed section budget, 5 pages excluding references
+
+    1  Introduction            ~0.75 pp   problem, setting, the four contributions
+    2  Related work            ~0.5  pp   FINDVER, MACE, RAG, edge-cloud routing
+    3  Method                  ~1.25 pp   BM25 retriever, the two local models, the gate,
+                                          the numeric detector
+    4  Experimental setup      ~0.5  pp   splits, scoring, the testmini/test protocol
+    5  Results                 ~1.5  pp   four conditions, subset breakdown, escalation
+                                          value, cost
+    6  Limitations & future    ~0.5  pp   tuning disclosure, FDV-IE leak, skills
+
+**Sections 2, 3 and 4 depend on no result and no framing decision. They can be drafted immediately.**
+Section 5's tables come straight from `paper_numbers.md` §2.18.
+
+### THREE OPEN QUESTIONS, and they gate the draft
+
+1. **Retrieval: a section, or two sentences?**
+2. **Does the published-baselines comparison table go in?** It costs about a third of a page and is
+   an external comparison confounded by a different extractor, retriever and temperature (§2.1,
+   and the §5 warning about which 77% is which).
+3. **Has the professor said what he expects to see in it?** He is a co-author. Cutting something he
+   is expecting is worse than being tight on space.
+
+### Constraints on the writing that are already settled and must not be relitigated
+
+- **Double-blind.** No author names, no identifying repository link in the submitted PDF.
+- **Non-archival.** A fuller version can go to an archival venue later, so material cut for space is
+  not lost forever. This makes the cuts above much easier to accept.
+- **Five pages excluding references, NeurIPS 2026 template, OpenReview.** Plan §1.1.
+- **The FDV-IE leak is written up as a finding, never fixed and re-run.** `test.json` is spent.
+- **USD and tokens for cost, never CNY.** §2.18.1.
+- **Neither oracle may be presented as a system result.** Upper bounds only.
+- **"We found no other method evaluated on FINDVER."** Never "nobody has."
 
 ---
 
