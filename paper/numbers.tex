@@ -1,0 +1,245 @@
+% numbers.tex
+%
+% Every number either paper cites, defined once.
+% Both neurips_2026.tex (workshop, 5 pages) and long.tex \input this file,
+% so the two papers cannot drift apart.
+%
+% Rule: a macro is added here only after the figure exists in docs/paper_numbers.md
+% with an n and a reproducing script. See that file's rule 1.
+% The section number in each comment points into docs/paper_numbers.md.
+%
+% Naming: LaTeX control sequences cannot contain digits, so 3B is ThreeB
+% and 7B is SevenB throughout.
+
+
+% ---------------------------------------------------------------------------
+% Splits and sample sizes
+% ---------------------------------------------------------------------------
+
+\newcommand{\nDev}{700}                  % testmini, development split
+\newcommand{\nTest}{1{,}700}             % test.json, held-out split
+\newcommand{\nIE}{600}
+\newcommand{\nMATH}{600}
+\newcommand{\nKNOW}{500}
+
+
+% ---------------------------------------------------------------------------
+% Headline accuracy, strict scoring, n = 1,700 held out. Section 2.18
+% ---------------------------------------------------------------------------
+
+\newcommand{\accThreeB}{59.8\%}
+\newcommand{\accThreeBcount}{1016/1700}
+\newcommand{\accThreeBci}{57.4--62.1}
+
+\newcommand{\accSevenB}{67.8\%}
+\newcommand{\accSevenBcount}{1153/1700}
+\newcommand{\accSevenBci}{65.6--70.0}
+
+\newcommand{\accRouted}{75.8\%}
+\newcommand{\accRoutedcount}{1289/1700}
+\newcommand{\accRoutedci}{73.7--77.8}
+
+\newcommand{\accCloud}{77.4\%}
+\newcommand{\accCloudcount}{1315/1700}
+\newcommand{\accCloudci}{75.3--79.3}
+
+\newcommand{\gainOverSevenB}{8.0}        % routed minus 7B alone
+\newcommand{\gainOverThreeB}{16.0}       % routed minus 3B alone
+
+
+% ---------------------------------------------------------------------------
+% Routed against cloud alone, paired McNemar on identical claims. Section 2.18
+% ---------------------------------------------------------------------------
+
+\newcommand{\mcnemarAllP}{0.119}
+\newcommand{\mcnemarAllDisagree}{258}
+\newcommand{\mcnemarAllRoutedWins}{116}
+\newcommand{\mcnemarAllCloudWins}{142}
+
+\newcommand{\mcnemarIEP}{0.007}          % the one significant result, routed loses
+\newcommand{\mcnemarIEDisagree}{109}
+\newcommand{\mcnemarMATHP}{1.000}
+\newcommand{\mcnemarKNOWP}{0.917}
+
+
+% ---------------------------------------------------------------------------
+% Per subset, all four arms. Section 2.18
+% ---------------------------------------------------------------------------
+
+\newcommand{\accThreeBIE}{63.3\%}
+\newcommand{\accThreeBMATH}{57.3\%}
+\newcommand{\accThreeBKNOW}{58.4\%}
+
+\newcommand{\accSevenBIE}{68.5\%}
+\newcommand{\accSevenBMATH}{66.5\%}
+\newcommand{\accSevenBKNOW}{68.6\%}
+
+\newcommand{\accRoutedIE}{77.5\%}
+\newcommand{\accRoutedMATH}{77.3\%}
+\newcommand{\accRoutedKNOW}{72.0\%}
+
+\newcommand{\accCloudIE}{82.3\%}
+\newcommand{\accCloudMATH}{77.2\%}
+\newcommand{\accCloudKNOW}{71.6\%}
+
+\newcommand{\escRateIE}{36.5\%}
+\newcommand{\escRateMATH}{79.8\%}
+\newcommand{\escRateKNOW}{42.0\%}
+
+
+% ---------------------------------------------------------------------------
+% Contribution 2: same-family agreement is correlated error. Section 2.18
+% The whole FDV-IE deficit sits on claims the gate kept local.
+% ---------------------------------------------------------------------------
+
+\newcommand{\keptLocalIEn}{381}
+\newcommand{\keptLocalIERouted}{76.9\%}
+\newcommand{\keptLocalIECloud}{85.6\%}
+\newcommand{\keptLocalIEGap}{8.7}        % points, routed below cloud
+
+\newcommand{\escalatedIEn}{219}
+\newcommand{\escalatedIERouted}{78.5\%}
+\newcommand{\escalatedIECloud}{76.7\%}   % routed is slightly ahead here
+
+
+% ---------------------------------------------------------------------------
+% Escalation earns its cost. Section 2.18
+% ---------------------------------------------------------------------------
+
+\newcommand{\cloudCalls}{908}
+\newcommand{\escWouldThreeB}{45.7\%}
+\newcommand{\escWouldSevenB}{60.8\%}
+\newcommand{\escCloudGave}{75.8\%}
+\newcommand{\escGain}{15.0}              % points over the 7B on the same claims
+
+\newcommand{\trigDisagreeN}{459}
+\newcommand{\trigDisagreeSevenB}{57.3\%}
+\newcommand{\trigDisagreeCloud}{73.4\%}
+\newcommand{\trigDisagreeGain}{16.1}
+
+\newcommand{\trigNumericN}{449}
+\newcommand{\trigNumericSevenB}{64.4\%}
+\newcommand{\trigNumericCloud}{78.2\%}
+\newcommand{\trigNumericGain}{13.8}
+
+
+% ---------------------------------------------------------------------------
+% Routing behaviour. Section 2.18
+% ---------------------------------------------------------------------------
+
+\newcommand{\escalationRate}{53.4\%}     % claims that called the cloud
+\newcommand{\onDeviceRate}{46.6\%}       % claims answered entirely on device
+\newcommand{\localsAgreeRate}{66.2\%}
+\newcommand{\accKeptLocal}{75.9\%}
+\newcommand{\accCloudCalled}{75.8\%}
+
+
+% ---------------------------------------------------------------------------
+% Cost, from our own recorded token counts. Section 2.18, and 2.18.1 and 3.5
+% USD and tokens only. Never CNY.
+% ---------------------------------------------------------------------------
+
+\newcommand{\costRouted}{\$1.066}
+\newcommand{\costCloud}{\$1.882}
+\newcommand{\costRatio}{56.6\%}
+\newcommand{\tokensRoutedIn}{3{,}400{,}854}
+\newcommand{\tokensRoutedOut}{2{,}106{,}383}
+\newcommand{\tokensCloudIn}{6{,}319{,}626}
+\newcommand{\tokensCloudOut}{3{,}560{,}933}
+\newcommand{\medianLatency}{26.0}        % seconds per claim, GPU box, report median not mean
+
+
+% ---------------------------------------------------------------------------
+% Oracles. Upper bounds only. Neither may be presented as a system result.
+% Section 2.18
+% ---------------------------------------------------------------------------
+
+\newcommand{\oracleThreeWay}{84.8\%}
+\newcommand{\oracleThreeWayci}{83.0--86.4}
+\newcommand{\oracleLocalOnly}{79.9\%}    % beats the cloud with zero cloud calls
+\newcommand{\oracleLocalOnlyci}{78.0--81.8}
+
+
+% ---------------------------------------------------------------------------
+% Unparseable output. Section 2.18
+% Cloud denominator is calls made, not 1,700.
+% ---------------------------------------------------------------------------
+
+\newcommand{\unparseThreeB}{1.65\%}
+\newcommand{\unparseSevenB}{2.82\%}
+\newcommand{\unparseCloud}{1.65\%}
+\newcommand{\unparseRouted}{0.94\%}
+
+
+% ---------------------------------------------------------------------------
+% Retrieval, macro recall at k = 10. Section 1 and 2.16
+% These are retrieval results. They may NOT be written as accuracy drivers.
+% ---------------------------------------------------------------------------
+
+\newcommand{\recallOursDev}{74.60\%}
+\newcommand{\recallOursTest}{75.16\%}
+\newcommand{\recallEmbedDev}{68.01\%}    % text-embedding-3-large, best published
+\newcommand{\recallEmbedTest}{69.75\%}
+\newcommand{\recallUpstreamBMDev}{65.16\%}
+\newcommand{\recallUpstreamBMTest}{64.29\%}
+\newcommand{\recallContrieverDev}{33.48\%}
+\newcommand{\recallContrieverTest}{35.02\%}
+
+\newcommand{\recallGainDev}{6.6}         % points over best published, testmini
+\newcommand{\recallGainTest}{5.4}        % points over best published, held out
+
+\newcommand{\recallElementTest}{70.0\%}
+\newcommand{\recallAllGoldTest}{49.4\%}
+
+\newcommand{\recallOursIETest}{77.92\%}
+\newcommand{\recallOursMATHTest}{80.92\%}
+\newcommand{\recallOursKNOWTest}{64.94\%}
+
+% Why ours beats upstream's BM25: an implementation gap, priced.
+\newcommand{\ablationIDF}{2.51}          % Lucene IDF, points
+\newcommand{\ablationPunct}{2.02}        % dropping punctuation tokens, points
+\newcommand{\ablationStem}{0.06}         % stemming, worth nothing
+\newcommand{\tableInflation}{1.81}       % punctuation inflates table length this much
+\newcommand{\paraInflation}{1.13}        % against this for paragraphs
+
+% Fusion is dead on both splits.
+\newcommand{\recallFusionTest}{74.95\%}  % below our BM25 alone
+
+
+% ---------------------------------------------------------------------------
+% Contribution 4: the error taxonomy. Section 2.17
+% ---------------------------------------------------------------------------
+
+\newcommand{\missingInfoKnowDev}{63.5\%}
+\newcommand{\missingInfoKnowTest}{63.4\%}
+\newcommand{\missingInfoAllTest}{41.0\%}
+\newcommand{\missingInfoCiteRateTest}{38.4\%}
+\newcommand{\missingInfoWrongTest}{47.6\%}
+\newcommand{\missingInfoBaseTest}{35.8\%}
+
+
+% ---------------------------------------------------------------------------
+% The refuted bias, replicated four times. Section 2.18
+% Share of claims each arm answers "entailed", where gold is 50.1% entailed.
+% ---------------------------------------------------------------------------
+
+\newcommand{\saysEntailedThreeB}{39.5\%}
+\newcommand{\saysEntailedSevenB}{49.2\%}  % the only nearly calibrated arm
+\newcommand{\saysEntailedRouted}{41.1\%}
+\newcommand{\saysEntailedCloud}{33.9\%}
+\newcommand{\saysEntailedGold}{50.1\%}
+
+\newcommand{\entailedRouted}{67.1\%}
+\newcommand{\entailedCloud}{61.7\%}
+\newcommand{\refutedRouted}{84.6\%}
+\newcommand{\refutedCloud}{93.1\%}
+
+
+% ---------------------------------------------------------------------------
+% The target device. Hard constraint, not a result. CLAUDE.md and section 3.1
+% ---------------------------------------------------------------------------
+
+\newcommand{\deviceLatency}{7}           % minutes per example, 3B on the MacBook
+\newcommand{\deviceSecPerToken}{0.0641}
+\newcommand{\deviceRsq}{0.995}
+\newcommand{\deviceMeanPrompt}{6{,}610}  % tokens

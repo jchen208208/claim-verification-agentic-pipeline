@@ -3190,10 +3190,21 @@ Freeze is 23 August, deadline is 29 August 23:59 AoE.
 **The flow is one-way, repo to Overleaf.** If anything is edited directly in Overleaf, say so, and it
 gets pulled back so the repo does not go stale.
 
-**Open, worth checking once inside Overleaf:** whether the plan includes git sync. That would collapse
-the two copies into one and remove the drift risk. It is believed to be a paid feature; this has
-**not** been verified and must not be assumed. Failing that, uploading a `.tex` file over the old one
-beats pasting into the editor.
+**CLOSED 21 Aug: git sync is not available.** Checked inside the project. The Integrations panel
+lists GitHub, Git, Dropbox, ReadCube and Zotero, and every one is marked Premium. The account is
+free, so the two-copy setup stands and the drift risk stays real. Uploading a `.tex` file over the
+old one is the transfer method, through File, Upload file. Keep the repo filename identical to the
+Overleaf one so an upload overwrites cleanly.
+
+**Also checked 21 Aug, same visit.** The project is still the untouched stock template. Line 23 is
+`\usepackage[dblblindworkshop]{neurips_2026}`, which is correct. Line 64 is still
+`\title{Formatting Instructions For NeurIPS 2026}` and the author block is still
+`David S.~Hippocampus`. There is no `\workshoptitle` line at all, so that item is still owed and
+needs the workshop's exact name string. Collaborator chat is empty.
+
+**No LaTeX is installed on the MacBook.** No `pdflatex`, `xelatex`, `lualatex`, `latexmk`, `tectonic`
+and no MacTeX. Overleaf is therefore the only compiler, and page count can only be read from an
+Overleaf compile. Installing MacTeX is about 5 GB and was rejected on time grounds.
 
 **Two things still owed inside the Overleaf project** from 10 August: `\@workshoptitle` is unset, and
 `checklist.tex` is the main-conference questionnaire, which the workshop probably does not require.
@@ -3262,14 +3273,37 @@ retrieval, and cutting it to two sentences may not be what is wanted.
 **Sections 2, 3 and 4 depend on no result and no framing decision. They can be drafted immediately.**
 Section 5's tables come straight from `paper_numbers.md` §2.18.
 
-### THREE OPEN QUESTIONS, and they gate the draft
+### THREE OPEN QUESTIONS — 1 and 2 CLOSED 21 Aug, 3 still open
 
-1. **Retrieval: a section, or two sentences?**
-2. **Does the published-baselines comparison table go in?** It costs about a third of a page and is
-   an external comparison confounded by a different extractor, retriever and temperature (§2.1,
-   and the §5 warning about which 77% is which).
-3. **Has the professor said what he expects to see in it?** He is a co-author. Cutting something he
-   is expecting is worse than being tight on space.
+1. ~~**Retrieval: a section, or two sentences?**~~ **A SECTION. Decided 21 Aug.** It stays in the
+   workshop paper as prose and must cover the things we tried, not just the headline recall figure.
+   That means decomposition, dense fusion, the weak-arm result and the `k1`/`b` sweep, all as
+   negative results. Written, in `paper/draft_retrieval_workshop.tex`, about 320 words. It closes on
+   the decoupling, that recall and accuracy are close to independent in our pipeline, because §5
+   forbids writing the gain as an accuracy driver.
+2. ~~**Does the published-baselines comparison table go in?**~~ **NO. Decided 21 Aug, reversing an
+   earlier yes.** Cut from the workshop paper: the 16 published baselines and the retriever
+   comparison table. **Both stay in the long paper.**
+3. **Has the professor said what he expects to see in it?** Still open. He is a co-author. Cutting
+   something he is expecting is worse than being tight on space. Email drafted 21 Aug, not yet sent.
+
+### DECIDED 21 Aug: two papers, written at the same time
+
+Not one paper then a compression of it. A 5-page workshop submission and a longer version for a
+later archival venue, drafted alongside each other so they stay consistent. The venue is
+non-archival, which is what makes this legal, and it is also what makes the workshop cuts painless:
+nothing cut is lost, it moves to the other paper.
+
+**The mechanism that keeps them consistent is `paper/numbers.tex`.** Every figure either paper cites
+is a LaTeX macro defined once there, with its `paper_numbers.md` section in a comment beside it.
+Neither paper types a number literally. Retyping 75.8% in two documents is how they drift, and the
+professor will be reading both.
+
+**Tables: workshop keeps one, the four arms by subset.** Everything else is prose or moves to the
+long paper. Note that cutting a table does not always save space. For a block of numbers a table is
+more compact than prose, so the surviving table is the one that pays for itself.
+
+**`long.tex` does not exist yet.** Only the workshop file has been started.
 
 ### Constraints on the writing that are already settled and must not be relitigated
 

@@ -1,0 +1,112 @@
+% WORKSHOP PAPER. 5 pages excluding references.
+% Filename matches the Overleaf file so an upload overwrites it cleanly. Do not rename.
+% The pristine template body is kept beside this as template_original.tex.
+%
+% Option 6, workshop with double-blind review. Verified in neurips_2026.sty:
+% dblblindworkshop leaves \if@anonymous true, so the author block renders as
+% "Anonymous Author(s)" automatically. sglblindworkshop would NOT.
+
+\usepackage[dblblindworkshop]{neurips_2026}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{xcolor}
+
+% Every number lives in numbers.tex so this paper and long.tex cannot disagree.
+\input{numbers}
+
+% TITLE IS A PLACEHOLDER AND NEEDS YOUR APPROVAL.
+\title{Routing Financial Claim Verification Between On-Device and Cloud Models}
+
+% Fills the first-page footnote: "... (NeurIPS 2026). Workshop: <this>."
+% Was unset since 10 August.
+\workshoptitle{On-Device Intelligence: Foundation Models under Real-World Constraints}
+
+% Double-blind. The style file replaces this block with "Anonymous Author(s)",
+% so nothing here reaches the PDF. It is filled in for the camera-ready only.
+\author{%
+  Anonymous Author(s) \\
+  Affiliation \\
+  Address \\
+  \texttt{email} \\
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Verifying a financial claim against a regulatory filing requires reading a document far
+longer than a small model's context window, and sending every filing to a frontier model
+is expensive. We build a claim verification pipeline that runs two small models on device
+and calls a cloud model only when a disagreement gate or an arithmetic detector fires. On
+\nTest{} held-out claims from FINDVER the routed pipeline scores \accRouted{} against a
+cloud-only baseline's \accCloud{}. The difference is not significant (paired McNemar,
+\mcnemarAllDisagree{} disagreements, $p = \mcnemarAllP{}$), and the routed system uses
+\costRatio{} of the cloud tokens with \onDeviceRate{} of claims answered entirely on
+device. That aggregate hides structure that matters to anyone deploying it. The tie is a
+significant loss on one subset offset by ties on the others, and we identify the cause:
+the gate reads agreement between two models of the same family as confidence, and on that
+subset the agreement is correlated error worth \keptLocalIEGap{} points. We report a BM25
+retriever that reaches \recallOursTest{} macro recall with no neural model and no API
+call, \recallGainTest{} points above the strongest retriever published on this benchmark,
+and an error taxonomy in which one failure mode accounts for \missingInfoKnowTest{} of
+knowledge-subset errors.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+% TODO. ~0.75 pages. Problem, setting, and the four contributions in this order:
+%   1. routed pipeline ties frontier cloud at 57% of the cost, no training
+%   2. same-family model agreement is correlated error
+%   3. unconditional escalation of arithmetic claims beats a disagreement gate, and why
+%   4. an error taxonomy on the held-out split
+% Framing settled 21 Aug: move 1 is the system result, move 2 is the check that makes it
+% credible. See working_state.md.
+
+\section{Related work}
+\label{sec:related}
+
+% TODO. ~0.5 pages. FINDVER, MACE, RAG, edge-cloud routing.
+% Phrasing constraint: "we found no other method evaluated on FINDVER." Never "nobody has."
+
+\section{Method}
+\label{sec:method}
+
+% TODO. ~1.1 pages. BM25 retriever, the two local models, the gate, the numeric detector.
+
+\input{draft_retrieval_workshop}
+
+\section{Experimental setup}
+\label{sec:setup}
+
+% TODO. ~0.4 pages. Splits, strict scoring with the unparseable rate beside it,
+% and the testmini/test protocol: everything tuned on testmini, test.json touched once.
+
+\section{Results}
+\label{sec:results}
+
+% TODO. ~1.6 pages. The one surviving table goes here (four arms by subset), then
+% escalation value, the FDV-IE mechanism, and cost as prose.
+% The 16 published baselines and the retriever comparison table are cut from this paper
+% and live in long.tex.
+
+\section{Limitations and future work}
+\label{sec:limitations}
+
+% TODO. ~0.4 pages. Tuning disclosure, the FDV-IE gate leak as a finding never fixed,
+% and the cloud model ignoring seed and temperature.
+
+% \input{checklist.tex}
+% Commented out. checklist.tex is the NeurIPS main-conference questionnaire and the
+% workshop probably does not require it. UNVERIFIED: check the workshop's call for papers
+% before submitting. Template says checklist pages do not count toward the limit anyway.
+
+\end{document}
