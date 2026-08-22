@@ -84,7 +84,43 @@ knowledge-subset errors.
 
 % TODO. ~1.1 pages. BM25 retriever, the two local models, the gate, the numeric detector.
 
-\input{draft_retrieval_workshop}
+% Retrieval. Numbers from numbers.tex; provenance in docs/paper_numbers.md
+% sections 1, 1.2, 1.5, 1.7, 2.8, 2.8.2, 2.16 and 4.5.
+\subsection{Retrieval}
+\label{sec:retrieval}
+
+Reports in this benchmark are too long to fit in a prompt, so every system evaluated on
+it retrieves first. Our retriever is BM25 over the report's own context elements. It runs
+no neural model and makes no API call. On the held-out split it reaches \recallOursTest{}
+macro recall at $k{=}10$, against \recallEmbedTest{} for \texttt{text-embedding-3-large},
+the strongest retriever reported on this benchmark, and \recallUpstreamBMTest{} for the
+benchmark's own BM25. Element recall is \recallElementTest{} and \recallAllGoldTest{} of
+claims receive every element they need.
+
+The eleven point gap to the benchmark's own BM25 is implementation rather than
+algorithm, and we can account for it on the development split. Lucene's IDF variant is
+worth \ablationIDF{} points and discarding punctuation tokens \ablationPunct{}. Stemming
+is worth nothing. The punctuation result has a mechanism behind it: treating punctuation
+as tokens inflates measured element length by \tableInflation{}$\times$ for tables against
+\paraInflation{}$\times$ for paragraphs, so BM25's length normalisation penalises tables
+and pushes them below the cut. Tables are roughly 18\% of elements and carry much of this
+benchmark's evidence. We report this as a measurement, not as a design insight. Our
+tokenizer discards punctuation because it was reused from an evidence-checking utility,
+and the mechanism was found afterwards.
+
+Three upgrades we expected to help did not. Decomposing a claim into sub-claims and merging
+six ways of ranking never beat querying with the whole claim, and at matched candidate
+count the single query wins by 3.2 points. Fusing a dense arm into the ranking gains
+nothing untuned, and a weak arm actively harms: reciprocal rank fusion gives every list an
+equal vote, so adding a 33\% retriever costs 5.1 points. Sweeping $k_1$ and $b$ moves the
+score inside its own noise.
+
+We report these as retrieval results only. In our pipeline, retrieval quality and answer
+quality are close to decoupled. Supplying perfect evidence does not raise accuracy
+($p = 0.116$), removing a third of the evidence does not lower it ($p = 1.000$), and
+raising $k$ from 10 to 20 buys 10.8 points of recall and no measurable accuracy at 87\%
+more prompt tokens. A recall gain on this benchmark should not be assumed to be a
+verification gain.
 
 \section{Experimental setup}
 \label{sec:setup}

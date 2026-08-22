@@ -3312,9 +3312,23 @@ workshop paper is the only one making trade-offs.
 
 ### 21 Aug: THE OVERLEAF LOOP IS PROVEN, and the paper compiles
 
-Uploaded `neurips_2026.tex`, `numbers.tex` and `draft_retrieval_workshop.tex` through File, Upload
-file, overwriting the stock template. It compiled. **The current draft is 2 pages** with only the
-title block, the abstract and the retrieval section written; every other section is a stub comment.
+Uploaded through File, Upload file, overwriting the stock template. It compiled. **The current draft
+is 2 pages** with only the title block, the abstract and the retrieval section written; every other
+section is a stub comment. Compile status: 0 errors, 1 warning, and the warning is
+`Command \showhyphens has changed`, a package-level redefinition notice unrelated to our text.
+
+**The workshop paper is one file.** The retrieval section was briefly a separate
+`draft_retrieval_workshop.tex`, named that because it was written before the main document existed.
+It was merged into `neurips_2026.tex` on 21 August and the stray file deleted from both the repo and
+Overleaf. Retrieval is not shared content, since the workshop version is prose and the long version
+keeps the tables, so there was nothing to gain from splitting it out.
+
+    paper/
+      neurips_2026.tex        workshop paper, single file, filename matches Overleaf
+      numbers.tex             shared macros, the only file both papers \input
+      neurips_2026.sty        template style, unchanged
+      checklist.tex           unchanged, currently not \input
+      template_original.tex   pristine copy of the shipped template
 
 The loop works: draft in the repo, upload, compile, read the page count off the screen. That matters
 because there is no LaTeX on the MacBook, so an Overleaf compile is the only way to know the length.
@@ -3324,6 +3338,35 @@ double-blind is working. Every `numbers.tex` macro resolved, so the shared-numbe
 
 **One bug of mine, caught and fixed.** The first upload dropped `\documentclass{article}`. It was
 re-uploaded with the line restored.
+
+### 21 Aug: A SECOND BALANCE DROP, THIS ONE WITH NO RUN OF OURS AT ALL
+
+Balance read by hand on 21 August: **144.48 CNY**, against **162.45 CNY** on 20 August.
+**A drop of 17.97 CNY.**
+
+**We made no cloud calls in that window.** Verified against the result files, not assumed: the
+newest file anywhere under `results/` is `condition4_pipeline_test1700/numeric-test-188.json` at
+20 August 16:42:48, and nothing under `results/` or `logs/` has been written on 21 August. Results
+have been frozen since run 1 finished.
+
+**Two readings, and they cannot be separated without a call count.**
+
+1. At the 20 August measured rate of 0.0150 CNY per call, 17.97 CNY is about 1,200 calls. We made
+   none. That points at someone else on the key.
+2. The higher rate card on record (19 Aug, 0.0337 CNY per call) would put run 1's whole cloud arm at
+   about 30 CNY rather than 13.64. If charges post late, part of the drop could still be ours.
+
+**What kills reading 1 outright, and what does not.** The drop of 17.97 CNY is larger than run 1's
+entire cloud arm at the measured rate, 13.64 CNY for all 908 calls. So a late-posting tail explains
+the drop only if the measured rate is wrong by roughly a factor of two. The 20 August window had
+both boundaries exact, which is why that rate is the one on record. **Neither reading is confirmed.**
+
+**This changes what may be said.** §2.18.1's "one anomalous window, every window since consistent
+with our own usage" was true on 20 August and **is no longer true**. Do not repeat it.
+
+**This is the argument for asking for read access to the usage page after all.** A balance delta
+without a call count cannot be attributed to anyone. The request was dropped from the 21 August
+email draft; this reading is a reason to put it back.
 
 ### CORRECTED 21 Aug: `\workshoptitle` was never owed for the submission
 
