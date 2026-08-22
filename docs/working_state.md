@@ -3305,6 +3305,40 @@ more compact than prose, so the surviving table is the one that pays for itself.
 
 **`long.tex` does not exist yet.** Only the workshop file has been started.
 
+**The long paper keeps all the relevant tables.** Space is not a limitation there, so nothing gets
+cut for length: the 16 published baselines, the retriever comparison, the k sweep, the BM25
+ablation, the negative-results table, the oracles and the full cost breakdown all go in. The
+workshop paper is the only one making trade-offs.
+
+### 21 Aug: THE OVERLEAF LOOP IS PROVEN, and the paper compiles
+
+Uploaded `neurips_2026.tex`, `numbers.tex` and `draft_retrieval_workshop.tex` through File, Upload
+file, overwriting the stock template. It compiled. **The current draft is 2 pages** with only the
+title block, the abstract and the retrieval section written; every other section is a stub comment.
+
+The loop works: draft in the repo, upload, compile, read the page count off the screen. That matters
+because there is no LaTeX on the MacBook, so an Overleaf compile is the only way to know the length.
+
+**Two things confirmed in the rendered PDF.** The author block renders as "Anonymous Author(s)", so
+double-blind is working. Every `numbers.tex` macro resolved, so the shared-number mechanism works.
+
+**One bug of mine, caught and fixed.** The first upload dropped `\documentclass{article}`. It was
+re-uploaded with the line restored.
+
+### CORRECTED 21 Aug: `\workshoptitle` was never owed for the submission
+
+`working_state.md` has carried "`\@workshoptitle` is unset" as an outstanding item since 10 August.
+Reading `neurips_2026.sty` lines 389 to 402 shows why it never mattered. The workshop name reaches
+the page through `\@trackname`, and `\@trackname` is only used when `\if@neuripsfinal` is true.
+In submission mode the first-page footnote is the fixed string "Submitted to 40th Conference on
+Neural Information Processing Systems (NeurIPS 2026). Do not distribute."
+
+**So the workshop title appears in the camera-ready only, never in the submitted PDF.** It is now set
+anyway, so the camera-ready is correct when it comes. Treat this item as closed, not outstanding.
+
+**`checklist.tex` is commented out** in the workshop file, with a note in the source. Still
+unverified whether the workshop wants a checklist. Check the call for papers.
+
 ### Constraints on the writing that are already settled and must not be relitigated
 
 - **Double-blind.** No author names, no identifying repository link in the submitted PDF.
