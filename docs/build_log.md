@@ -6330,3 +6330,119 @@ Skills are closed for this paper and become a future-work paragraph. The numeric
 ### Where this leaves the schedule
 
 Every condition the plan asked for now has a held-out number. The results are frozen and nothing further needs the GPU. Overleaf is the only thing left before the 23 August freeze, and it is still empty. Owed since 7 August.
+
+
+---
+
+
+## 21 August 2026 - the paper exists, the Overleaf loop is proven, and a balance drop arrives with no run behind it
+
+First writing session. No model ran, no GPU, no cloud call. Everything below is Overleaf, LaTeX, and reading files already on disk.
+
+### Browser tools work, which unblocked the whole session
+
+The 20-21 August entry left "restart Claude Code to enable browser tools" as pickup item 1, unresolved. They load. No prompt was needed, and `/chrome` was not the problem. Every Overleaf step below was done through Chrome rather than by hand.
+
+### Git sync is not available, and now that is checked rather than believed
+
+The docs have carried "worth checking once inside Overleaf: whether the plan includes git sync, believed to be paid, not verified" since 20 August. The Integrations panel lists GitHub, Git, Dropbox, ReadCube and Zotero, and every one is marked Premium. The account is free.
+
+So the two-copy setup stands and the drift risk stays real. The transfer method is File, Upload file, overwriting by filename. That is why the repo file is named `neurips_2026.tex` and must not be renamed: an upload only overwrites cleanly when the names match.
+
+### The project was the stock template, and there was no text in it at all
+
+Opened for the first time since 10 August. Three files, all untouched. Line 23 was `\usepackage[dblblindworkshop]{neurips_2026}`, which is correct. Line 64 was still `\title{Formatting Instructions For NeurIPS 2026}` and the author block was still `David S.~Hippocampus` of Cranberry-Lemon University. The collaborator chat was empty.
+
+The project source was downloaded and extracted into `paper/`, with the shipped template body preserved as `paper/template_original.tex` before anything was overwritten.
+
+### Anonymisation was verified rather than trusted
+
+`neurips_2026.sty` defaults `\if@anonymous` to true. `sglblindworkshop` explicitly sets it false. `dblblindworkshop` leaves it alone. So option 6 anonymises the author block automatically and the stock Hippocampus block was never going to reach the PDF. Confirmed in the rendered output, which prints "Anonymous Author(s)".
+
+Worth recording that option 5 would have leaked it. The choice made on 10 August was right for a reason nobody had checked.
+
+### `\workshoptitle` was never owed for the submission, and that item is now closed
+
+Carried as outstanding since 10 August. The workshop name reaches the page through `\@trackname`, and `neurips_2026.sty` lines 389 to 402 use `\@trackname` only when `\if@neuripsfinal` is true. In submission mode the first-page footnote is a fixed string, "Submitted to 40th Conference on Neural Information Processing Systems (NeurIPS 2026). Do not distribute."
+
+The workshop title therefore appears in the camera-ready only. It is set now so that version is correct when it comes, but it was never a submission blocker. An item that sat on the list for eleven days turned out to be a non-item, and five minutes of reading the style file would have closed it at any point.
+
+### There is no LaTeX on the MacBook, so Overleaf is the only compiler
+
+No `pdflatex`, `xelatex`, `lualatex`, `latexmk` or `tectonic`, and no MacTeX. Installing it is about 5 GB and was rejected on time grounds with eight days left.
+
+This matters more than it sounds. Five pages is the binding constraint on this paper and page count cannot be estimated from a `.tex` file. The working loop is now: draft in the repo, upload, compile in Overleaf, read the page count off the screen. That loop was deliberately proven today, while nothing was at stake, rather than discovered to be broken under deadline pressure.
+
+### `numbers.tex`, and why two papers need it
+
+Every figure either paper cites is now a LaTeX macro defined once in `paper/numbers.tex`, with its `paper_numbers.md` section in a comment beside it. Neither paper types a number literally.
+
+This exists because of the decision to write both papers at the same time. Retyping 75.8% in two documents is how they drift, and the professor will be reading both. The retrieval block carries a comment saying those figures may not be written as accuracy drivers, because §1 forbids it and that is easy to forget at 2am.
+
+### The paper compiles, at 2 pages
+
+Uploaded, overwrote the template, compiled. Title block, abstract and retrieval section written; every other section is a stub comment. Errors 0, warnings 1, and the warning is `Command \showhyphens has changed`, a package-level redefinition notice unrelated to our text.
+
+The abstract is written for real and carries the tie, the significance test, the cost ratio, the on-device share, the correlated-error finding, the retrieval number and the taxonomy, all through macros.
+
+**One bug, mine.** The first upload dropped `\documentclass{article}`. It was caught in the editor before compiling rather than after, and re-uploaded with the line restored. The cause was writing a fresh preamble instead of editing the template's, which is exactly the transcription risk that motivated downloading the source in the first place.
+
+### The retrieval section carries three of the four negative results
+
+Written as prose with no tables, about 320 words, and merged directly into `neurips_2026.tex`. It was briefly a separate `draft_retrieval_workshop.tex`, named that because it was written before the main document existed. The name outlived its accuracy within the hour and the file was merged and deleted.
+
+It covers decomposition beaten by the whole claim at matched candidate count, fusion gaining nothing untuned with a weak arm costing 5.1 points, and the parameter sweep landing inside its own noise. Three negative results in 65 words, so space was never the constraint on reporting them.
+
+It closes by stating that recall and answer quality are close to decoupled in our pipeline, with all three tests: perfect evidence at p = 0.116, removing a third of the evidence at p = 1.000, and k=10 to k=20 buying 10.8 points of recall and no accuracy at 87% more tokens.
+
+**One error of mine in that draft, caught on re-reading.** The gap to upstream's BM25 was written as 2.51 points, which is the IDF ablation figure, not the gap. It is about eleven points. Fixed before upload.
+
+### Decisions taken
+
+Retrieval gets a section rather than two sentences, and it must cover what we tried rather than only the headline recall figure.
+
+The 16 published baselines and the retriever comparison table are cut from the workshop paper and kept in the long paper. This reverses an earlier yes on the baselines table, which is fine because the long paper now exists to hold it.
+
+Two papers, written at the same time rather than one compressed into the other. A five page workshop submission and a longer version for a later archival venue. The venue is non-archival, which permits it, and it makes every workshop cut painless because nothing is lost.
+
+The long paper keeps all relevant tables. Space is not a constraint there.
+
+**A note on cutting tables.** Cutting a table does not always save space. For a block of numbers a table is more compact than prose, so the workshop paper keeps the one table that pays for itself, the four arms by subset, and cuts the ones that exist for completeness.
+
+### Two things I got wrong, both corrected in the session
+
+**"`test.json` is spent" was over-generalised.** I gave it as the reason a skill could not be built now. The user pushed back correctly: developing on `testmini` and evaluating once on `test.json` is the protocol architecture plan §9.4 already commits to, and it is what run 1 did. The real distinction is where the motivation comes from, not where the evaluation happens. The FDV-IE gate weakness was found by looking at run 1's `test.json` output, so a fix for it is motivated by the reported split. A numeric skill is motivated entirely by testmini evidence, because `test.json` ships no `execution_result` field, so it is cleanly developable and reportable. The docs said "spent" about the gate and I applied it to everything.
+
+**The sandbox was not dropped for the reason we remembered.** The user recalled it as "it does not know when to use an arithmetic script." The 11 August evening entry records three measurements instead. The motivating example was a transcription error rather than a computation error, so Python would have returned the same wrong answer. Prose arithmetic already produces the correct value 64.4% of the time, leaving 36 points of headroom rather than the near-total gap assumed. And computed-value correctness barely predicts verdict correctness, 34.8% overlap against 41% expected by chance, with 73 claims reaching the right verdict having never produced the right number. The magnitude trap the tier was built around fires on 8 of 250 responses.
+
+Also corrected in passing: §2.19 reason 3 says testing a 3B prompt costs a GPU night. For a numeric-only test on testmini's 250 claims at about 6.6 s per claim that is roughly half an hour per arm. Compute was never the blocker on a narrow test.
+
+### A second balance drop, and this one has no run behind it
+
+Balance read by hand: **144.48 CNY, against 162.45 on 20 August. A drop of 17.97 CNY.**
+
+We made no cloud calls in that window, and that was verified against the result files rather than assumed. The newest file anywhere under `results/` is `condition4_pipeline_test1700/numeric-test-188.json` at 20 August 16:42:48, and nothing under `results/` or `logs/` was written on 21 August.
+
+Two readings, and they cannot be separated from a balance alone. At the 20 August measured rate of 0.0150 CNY per call, 17.97 CNY is about 1,200 calls we did not make. Alternatively, if the higher rate card on record is true, run 1's cloud arm cost about 30 CNY rather than 13.64 and part of this could be our own charges posting late.
+
+What weighs against the second reading: the drop is larger than run 1's entire cloud arm at the measured rate, 13.64 CNY for all 908 calls. For late posting to explain it, the measured rate would have to be wrong by roughly a factor of two, and that measurement had both boundaries exact, which is why it is the one on record.
+
+**This retires a sentence.** §2.18.1's "one anomalous window, every window since consistent with our own usage" was true yesterday and is not true today. It must not be repeated.
+
+It also revives the read-access request. A balance delta with no call count cannot be attributed to anyone, which is the position we are now in twice. The request had been dropped from the professor email earlier in the same session and was put back.
+
+### The email to the professor
+
+Drafted, revised four times, not yet sent. It carries the four held-out numbers, the FDV-IE loss stated rather than hidden behind the aggregate, the two-paper plan, the skills component as work in progress with a commitment to develop on testmini and run once on test if it works, the four dropped components including the sandbox, the retrieval result with its honest limit, and two questions: whether the industry co-authors have been asked, and whether anyone else is using the API key.
+
+Every term that is ours rather than standard is explained in plain language in it, including what an oracle upper bound is, which was the revision that prompted the rest.
+
+### The gap nobody had named
+
+Every latency figure in the project is the GPU box. §2.18 forbids quoting a per-claim latency for the target device, and for a workshop called *Foundation Models under Real-World Constraints* that is the number a reviewer will look for first. There is a MacBook figure for the 3B alone, about 420 s per claim, and an unverified estimate of 706 s for the 7B, but nothing for the routed pipeline.
+
+A small routed sample on the MacBook is roughly 19 minutes per claim, so 20 to 30 claims in one overnight. It needs no GPU and competes with nothing else. Recommended and not yet run.
+
+### Where this leaves the schedule
+
+The 23 August freeze applies to results, which have been frozen since 20 August. Writing is the only remaining work. `long.tex` does not exist and sections 1 through 6 of the workshop paper are stubs. Eight days to the deadline.

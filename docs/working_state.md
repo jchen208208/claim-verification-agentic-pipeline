@@ -3169,14 +3169,71 @@ taxonomy replicated (63.4%, §2.17), the numeric failure mechanism (§2.19), and
 **Results are frozen. Nothing left needs the GPU or the cloud. The only remaining work is writing.**
 Freeze is 23 August, deadline is 29 August 23:59 AoE.
 
-### PICK UP HERE after restarting the session
+### PICK UP HERE — updated end of 21 August
 
-1. **Restart Claude Code to enable browser tools.** The Claude in Chrome extension is installed but
-   browser tools were **not** enabled in the 20-21 August session, and `/chrome` did not turn them on.
-   A restart should give a one-time prompt. Verify the browser tools actually load before planning
-   any Overleaf walkthrough around them.
-2. **Answer the three open questions at the bottom of this section.** They decide the draft.
-3. **Then draft**, sections 2, 3 and 4 first, because they do not depend on the framing decision.
+~~Restart to enable browser tools.~~ **DONE. They work.** Overleaf is driven through Chrome.
+~~Answer the three open questions.~~ **1 and 2 closed, 3 still open** and waiting on the professor.
+
+The paper now exists and compiles at 2 pages. What is left is writing, plus two decisions.
+
+1. **Draft sections 2, 3 and 4** into both papers. Related work, Method, Experimental setup. None of
+   them depends on a result or on any open decision, so they can be written now.
+2. **Create `long.tex`.** It does not exist. It is where the 16 published baselines, the retriever
+   comparison, the k sweep, the BM25 ablation, the negative-results table, the oracles and the full
+   cost breakdown live.
+3. **Send the professor email.** Drafted, revised, not sent. Its last paragraph was rewritten after
+   the 21 August balance reading, because the previous wording said every window since 16-17 August
+   matched our own usage and that is no longer true.
+4. **DECIDE: the MacBook latency run.** Time-sensitive, because it costs a night and eight remain.
+   See the section below. It needs no GPU and blocks nothing else.
+5. **DECIDE: the arithmetic skill.** Not time-sensitive in the same way, because it needs the GPU
+   machine rather than the Mac. The protocol for it is settled, see below.
+
+### THE MISSING NUMBER: no target-device latency for the routed pipeline
+
+**Every timing in this project is the GPU box.** §2.18 forbids quoting a per-claim latency for the
+target device, and for a workshop called *Foundation Models under Real-World Constraints* that is
+the first number a reviewer will look for.
+
+What exists: about 420 s per claim for the 3B on the MacBook (§3.5), and an **unverified estimate**
+of 706 s for the 7B. What does not exist: anything for the routed pipeline on the MacBook.
+
+Rough cost. Both locals run on every claim, since `skip_local_when_escalating` is false, so a claim
+is roughly 420 + 706 seconds plus a cloud round trip when it escalates. **About 19 minutes per
+claim, so 20 to 30 claims in one overnight.** Memory is fine: 3B and 7B resident is about 7.5 GB of
+16 GB. It needs no GPU and competes with nothing.
+
+**This is arguably better value than the skill**, because it fills a hole the venue cares about
+rather than adding a component that may not work.
+
+### THE SKILL: the protocol objection was wrong and is withdrawn
+
+Recorded because it was stated as a blocker and it was not one.
+
+**Develop on `testmini`, evaluate once on `test.json` is legitimate.** That is architecture plan
+§9.4's own decision rule and it is what run 1 did. "`test.json` is spent" was said about the FDV-IE
+gate and should not have been generalised.
+
+**The distinction is where the motivation comes from, not where the evaluation happens.**
+
+- **FDV-IE gate fix: motivated by `test.json`.** We only know that gate leaks because we read run 1's
+  output. Fixing it costs the paper the sentence "nothing was tuned on the reported split." That is
+  a disclosure decision, not a prohibition. **The user has decided to pursue it anyway.** The clean
+  way to keep both is to develop every skill on `testmini` only and disclose in Limitations that the
+  IE weakness was identified on `test.json`.
+- **Numeric skill: motivated by `testmini`.** §2.19's evidence is testmini-only, because `test.json`
+  ships no `execution_result`. Cleanly developable and reportable with no disclosure cost.
+
+**What still argues against a numeric skill**, unchanged by the above. The failure is arithmetic
+precision: the models answer entailed on 57% of refuted claims whose number is within 0.1% of the
+truth. A prompt does not make a 3B compute to one part in a thousand, and prompt v2 already gave a
+tie on the 3B at p = 0.378. What would fix it is code execution, and **there is no sandbox in
+`src/`**; it was dropped on 11 August. Also, the tight band is 37 claims, far too few to detect
+anything but a large effect, which is §4.5's own methodological finding turned on ourselves.
+
+**Correction to §2.19 reason 3.** It says testing a 3B prompt costs a GPU night. For a numeric-only
+test on testmini's 250 claims at about 6.6 s per claim that is roughly half an hour per arm.
+Compute was never the blocker on a narrow test.
 
 ### DECIDED: `paper/` in the repo, one-way flow to Overleaf
 
@@ -3251,27 +3308,39 @@ plan. Competing for the same space:
     cost + reproducibility  incl. the cloud model ignoring seed and temperature
     tuning disclosure       testmini for development, test.json touched once
 
-**Claude's recommendation, not yet accepted:** retrieval gets two sentences and a number rather than
-a section, because it does not feed the argument and §1 of `paper_numbers.md` already forbids
-claiming accuracy gains from it. The oracle gets one sentence in results. Reproducibility goes in
-limitations. That frees most of a page.
+**~~Claude's recommendation~~ REJECTED 21 Aug.** The recommendation was that retrieval gets two
+sentences rather than a section, on the ground that it does not feed the main argument. **Overruled,
+and correctly.** A lot of the project's work went into retrieval, and it is now §3.1 as prose,
+written, covering the three negative results as well as the recall figure. The §1 constraint still
+holds inside it: the section states outright that recall and accuracy are close to decoupled.
 
-**Counter-consideration, which is why this is not decided:** a lot of the project's work went into
-retrieval, and cutting it to two sentences may not be what is wanted.
+**What paid for it:** the 16 published baselines and the retriever comparison table, both cut from
+the workshop paper and kept in the long one. The oracle gets one sentence in results.
+Reproducibility goes in limitations. Those still stand.
 
-### Proposed section budget, 5 pages excluding references
+### Section budget, 5 pages excluding references — REVISED 21 Aug
 
-    1  Introduction            ~0.75 pp   problem, setting, the four contributions
-    2  Related work            ~0.5  pp   FINDVER, MACE, RAG, edge-cloud routing
-    3  Method                  ~1.25 pp   BM25 retriever, the two local models, the gate,
-                                          the numeric detector
-    4  Experimental setup      ~0.5  pp   splits, scoring, the testmini/test protocol
-    5  Results                 ~1.5  pp   four conditions, subset breakdown, escalation
-                                          value, cost
-    6  Limitations & future    ~0.5  pp   tuning disclosure, FDV-IE leak, skills
+Revised after the decisions above. Retrieval gains a subsection and the published-baselines table is
+gone, which is what pays for it.
 
-**Sections 2, 3 and 4 depend on no result and no framing decision. They can be drafted immediately.**
-Section 5's tables come straight from `paper_numbers.md` §2.18.
+    1    Introduction          ~0.65 pp   problem, setting, the four contributions
+    2    Related work          ~0.40 pp   FINDVER, MACE, RAG, edge-cloud routing
+    3    Method                ~1.10 pp   the two local models, the gate, the numeric
+                                          detector, and why no sandbox
+    3.1    Retrieval           ~0.40 pp   WRITTEN. BM25, the three negative results,
+                                          and the recall/accuracy decoupling
+    4    Experimental setup    ~0.40 pp   splits, strict scoring with the unparseable
+                                          rate, the testmini/test protocol
+    5    Results               ~1.60 pp   ONE table, four arms by subset, then escalation
+                                          value, the FDV-IE mechanism and cost as prose
+    6    Limitations & future  ~0.45 pp   tuning disclosure, FDV-IE leak, seed/temperature,
+                                          skills as future work
+
+**Reality check against the compile.** With only the title block, abstract and §3.1 written, the PDF
+is 2 pages. Everything else is a stub. Do not trust these estimates; upload and read the page count.
+
+**Sections 2, 3 and 4 depend on no result and no open decision.** Draft them first.
+Section 5's table comes straight from `paper_numbers.md` §2.18.
 
 ### THREE OPEN QUESTIONS — 1 and 2 CLOSED 21 Aug, 3 still open
 
