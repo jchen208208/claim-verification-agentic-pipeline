@@ -1,0 +1,221 @@
+% LONG PAPER. No page limit, for a later archival venue.
+%
+% This is NOT a superset of neurips_2026.tex produced by copy and paste. The two papers
+% are written alongside each other and share exactly one thing, numbers.tex, so that a
+% corrected figure propagates to both. Prose is written separately because a five page
+% argument and a full account are different documents, not one document at two lengths.
+%
+% What lives here and not in the workshop paper:
+%   the 16 published baselines          table, section 4.1
+%   the retriever comparison            table, section 3.1
+%   the BM25 ablation                   table, section 3.1
+%   the k sweep                         table, section 3.1
+%   claim decomposition, six merges     table, section 3.1
+%   the oracles                         table, section 5
+%   the full cost breakdown             table, section 5
+%
+% Compiled with the plain article class, not the NeurIPS style, because this is not a
+% NeurIPS submission and the workshop template's page furniture is wrong for it.
+
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{natbib}
+
+% Same macros as the workshop paper. This is the only shared file.
+\input{numbers}
+
+\title{Routing Financial Claim Verification Between On-Device and Cloud Models:
+       A Full Account}
+
+% Not double-blind. This version is not under anonymous review.
+% TODO: fill in once the author list is settled with the industry co-authors.
+\author{TODO}
+\date{Draft, \today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This is the extended version of a five page workshop paper. It reports the same system and
+the same held-out results, and adds the material the page limit excluded: the comparison
+against sixteen published baselines, the retrieval study in full, the oracle upper bounds,
+the complete cost accounting, and the components we built, measured and discarded. On
+\nTest{} held-out claims from FINDVER a routed pipeline running two small models on device
+and escalating selectively to a frontier cloud model scores \accRouted{} against a
+cloud-only baseline's \accCloud{}, a difference that is not statistically significant
+(paired McNemar, \mcnemarAllDisagree{} disagreements, $p = \mcnemarAllP{}$), while using
+\costRatio{} of the cloud tokens and answering \onDeviceRate{} of claims entirely on
+device. We show that the aggregate parity conceals a significant loss on one subset, and
+we identify its cause in the confidence signal the gate relies upon.
+\end{abstract}
+
+\tableofcontents
+
+\section{Introduction}
+\label{sec:long-intro}
+
+% TODO. Longer than the workshop introduction and differently structured. The workshop
+% version compresses the four contributions into a list; here they can each get a
+% paragraph, and the deployment setting can be motivated properly rather than asserted.
+
+\section{Related work}
+\label{sec:long-related}
+
+% TODO. Expand the workshop section. Room here for TART, ProTrix, OpenTab, GraphOTTER,
+% TableRAG, FISCAL and FinVerBench individually rather than compressed into one sentence
+% each, and for the leaderboard finding: FINDVER promised an evaluation platform that was
+% never launched, and email submission was retired in July 2026.
+%
+% The supportable phrasing is "we found no other method evaluated on FINDVER" and never
+% "nobody has." The citation sweep was abstract-level screening of 23 citing papers, not
+% a full-text sweep. See docs/paper_numbers.md section 5.
+
+\section{Method}
+\label{sec:long-method}
+
+% TODO. The workshop Method is compressed. Here the pipeline can be given properly:
+% the loader and its data traps, the prompt versions, the extraction levels, and the
+% resume logic. Section 3.1 below is the part that differs most between the two papers.
+
+\subsection{Retrieval}
+\label{sec:long-retrieval}
+
+% The workshop paper states these results in prose across three paragraphs. Here they get
+% the tables, because the retrieval study is a substantial part of the project's work and
+% compressing it was the single largest cut the page limit forced.
+
+Table~\ref{tab:retrievers} compares our BM25 implementation against the retrievers whose
+rankings the benchmark ships, on both splits, using the macro recall metric the
+benchmark's own evaluation script computes.
+
+\begin{table}[ht]
+\centering
+\caption{Macro recall at $k{=}10$. The development column is the split every design
+decision was made against; the test column was read once. Our implementation replicates
+to within 0.6 points on \nTest{} claims it was never tuned on.}
+\label{tab:retrievers}
+\begin{tabular}{lrr}
+\toprule
+retriever & development, $n{=}\nDev{}$ & test, $n{=}\nTest{} $ \\
+\midrule
+ours, BM25                       & \recallOursDev{}        & \recallOursTest{} \\
+\texttt{text-embedding-3-large}  & \recallEmbedDev{}       & \recallEmbedTest{} \\
+benchmark's BM25                 & \recallUpstreamBMDev{}  & \recallUpstreamBMTest{} \\
+\texttt{contriever-msmarco}      & \recallContrieverDev{}  & \recallContrieverTest{} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% TODO tables still to add here, all from docs/paper_numbers.md:
+%   the seven-row BM25 ablation                       section 1.2
+%   the k sweep from 5 to 30                          section 1.3
+%   claim decomposition, eight merge strategies       section 1.7
+%   fusion including the weak-arm result              section 1.5
+%   per-subset recall                                 sections 1.4 and 2.16
+%
+% Also belongs here and not in the workshop paper: the two methodological findings from
+% section 4.5. First, any multi-query retriever must be compared against a single-query
+% one at matched candidate count, since the decomposition union scored 76.14% against
+% 57.88% purely by holding 30 candidates against 10. Second, a sample sized to detect a
+% large effect cannot be reused to detect a small one.
+
+\subsection{The local tier}
+% TODO. Includes the model selection study the workshop paper omits entirely: qwen3:4b
+% rejected on latency, qwen2.5:3b tied with the Coder variant on accuracy and lost on
+% format compliance. Both from docs/paper_numbers.md sections 2.5 and 2.5.1.
+% Carry the warning that every n=102 accuracy figure is inflated by an unknown amount.
+
+\subsection{The escalation gate}
+% TODO. As the workshop paper, plus the detector development history: the three Tier 1
+% candidates dropped after held-out precision fell, and the Tier 2 extenders that score
+% better by F1 and were still not adopted. docs/paper_numbers.md section 2.13.4.
+
+\subsection{Why arithmetic is escalated rather than executed}
+% TODO. As the workshop paper, with the full 11 August measurement table.
+
+\section{Experimental setup}
+\label{sec:long-setup}
+
+% TODO. As the workshop paper, plus the material compressed out of it: the label
+% extractor's development against 11,200 upstream response and label pairs, the extraction
+% levels, and the data traps that had to be handled in the loader.
+
+\subsection{Comparison against published baselines}
+\label{sec:long-baselines}
+
+% TODO. The sixteen-model table, cut from the workshop paper for space and restored here.
+% From docs/paper_numbers.md sections 2.1 and 2.4.1.
+%
+% MANDATORY CAVEAT, do not drop it. Our figures are strictly scored and the published ones
+% resolve unrecoverable verdicts by a coin flip. Any table mixing the two must use the
+% benchmark-compatible convention, and the strict figures belong in a separate table with
+% the unparseable rate beside them. The comparison is also confounded by a different
+% extractor, retriever and temperature. Two different figures near 77% are in play and
+% they are not the same claim: our own cloud arm at 77.0% strict on the development split
+% is a controlled internal comparison, whereas the best published 2024 RAG figure of 75.0%
+% is an external one.
+
+\section{Results}
+\label{sec:long-results}
+
+% TODO. The workshop paper carries one table. This one carries all of them, from
+% docs/paper_numbers.md section 2.18: the four arms with confidence intervals, the paired
+% McNemar decomposition by subset, the kept-local versus escalated split that locates the
+% FDV-IE deficit, the escalation value by trigger, the routing behaviour counts, the label
+% bias replication, the oracles and the cost accounting.
+
+\begin{table}[ht]
+\centering
+\caption{Strict accuracy on the held-out split, $n{=}\nTest{}$, with 95\% confidence
+intervals. Neither oracle is implementable; both are computed with knowledge of the gold
+label and bound the headroom rather than reporting a system.}
+\label{tab:headline}
+\begin{tabular}{lrr}
+\toprule
+arm & accuracy & 95\% CI \\
+\midrule
+3B alone                  & \accThreeB{}   & \accThreeBci{} \\
+7B alone                  & \accSevenB{}   & \accSevenBci{} \\
+routed                    & \accRouted{}   & \accRoutedci{} \\
+cloud alone               & \accCloud{}    & \accCloudci{} \\
+\midrule
+\emph{oracle, two local models only} & \emph{\oracleLocalOnly{}} & \emph{\oracleLocalOnlyci{}} \\
+\emph{oracle, all three arms}        & \emph{\oracleThreeWay{}}  & \emph{\oracleThreeWayci{}} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Limitations}
+\label{sec:long-limitations}
+
+% TODO. Everything the workshop paper compresses into half a page:
+%   the tuning disclosure, stated in full
+%   the FDV-IE gate weakness, found on the reported split and therefore never fixed,
+%     because fixing it would forfeit the held-out claim
+%   the cloud model ignoring seed and temperature, so the cloud arm is a single sample
+%     rather than a reproducible measurement
+%   no target-device latency for the routed pipeline
+%   the detector's reliance on claim phrasing, possibly a generation artefact
+%   the error taxonomy's phrase matcher, spot-checked on development data and not
+%     re-read on the held-out split
+
+\section{Conclusion}
+\label{sec:long-conclusion}
+
+% TODO.
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}

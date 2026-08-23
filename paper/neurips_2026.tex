@@ -76,13 +76,52 @@ knowledge-subset errors.
 \section{Related work}
 \label{sec:related}
 
-% TODO. ~0.5 pages. FINDVER, MACE, RAG, edge-cloud routing.
-% Phrasing constraint: "we found no other method evaluated on FINDVER." Never "nobody has."
+FINDVER \citep{zhao2024findver} evaluates claim verification against SEC filings that run to
+tens of thousands of tokens, and partitions its claims into three subsets according to
+whether the decisive step is information extraction, numerical reasoning, or domain
+knowledge. Because the documents exceed the context window of any model that fits on
+consumer hardware, the benchmark is normally approached under retrieval augmentation, and
+the published baselines hold the retriever fixed so that systems are compared on
+verification rather than on search.
+
+We found no other method evaluated on FINDVER besides MACE \citep{saha2026mace}, which
+decomposes verification into three roles and assigns every role to the same large model.
+MACE adopts the benchmark's retrieval configuration unchanged, stating that retrieval is
+not its focus, and its smallest reported configuration requires roughly 27 billion
+parameters resident. We retain the premise that verification benefits from separating
+roles, and pursue the question MACE does not ask: which model should perform each role
+when the available models differ by orders of magnitude in cost and in where they can be
+run.
+
+Delegating computation to an interpreter rather than to the model is well established.
+Program of Thoughts \citep{chen2022pot} and PAL \citep{gao2022pal} introduced the
+technique, and TART \citep{lu2025tart} applies it to tabular reasoning through a table
+formatter and a code generator. TART fine-tunes every module and evaluates on
+single-table, closed-domain data, so neither its training requirements nor its setting
+transfer here. We treated code execution as the obvious remedy for the arithmetic subset,
+measured what it would be worth, and report in Section~\ref{sec:sandbox} why we did not
+build it.
+
+% CITATIONS MISSING, DELIBERATELY. No cascade or model-routing work is recorded anywhere
+% in this project's notes, and inventing references is worse than leaving the gap visible.
+% Needs one literature pass before submission. See the header of refs.bib.
+Routing between a small local model and a large remote one is a familiar idea in
+deployment, usually framed as a cascade in which a cheap model answers when it can and
+defers when it cannot. What that literature generally assumes, and what we find does not
+hold here, is that the cheap model's own confidence is informative about when to defer.
+Our results in Section~\ref{sec:results} show that a confidence signal built from
+agreement between two related small models is systematically misleading on one class of
+claims.
 
 \section{Method}
 \label{sec:method}
 
-% TODO. ~1.1 pages. BM25 retriever, the two local models, the gate, the numeric detector.
+The pipeline verifies a claim in three stages, and each stage is assigned to the least
+expensive component that can perform it reliably. Retrieval runs in plain Python and
+involves no model. Two small models hosted on the device then produce independent
+verdicts. A frontier cloud model is consulted only when a gate determines that the local
+pair should not be trusted, so the network is used as an exception rather than as the
+default path. No component is trained or fine-tuned at any point.
 
 % Retrieval. Numbers from numbers.tex; provenance in docs/paper_numbers.md
 % sections 1, 1.2, 1.5, 1.7, 2.8, 2.8.2, 2.16 and 4.5.
@@ -90,43 +129,139 @@ knowledge-subset errors.
 \label{sec:retrieval}
 
 Reports in this benchmark are too long to fit in a prompt, so every system evaluated on
-it retrieves first. Our retriever is BM25 over the report's own context elements. It runs
-no neural model and makes no API call. On the held-out split it reaches \recallOursTest{}
-macro recall at $k{=}10$, against \recallEmbedTest{} for \texttt{text-embedding-3-large},
-the strongest retriever reported on this benchmark, and \recallUpstreamBMTest{} for the
-benchmark's own BM25. Element recall is \recallElementTest{} and \recallAllGoldTest{} of
-claims receive every element they need.
+it retrieves first. Our retriever is BM25 \citep{robertson2009bm25} over the report's own
+context elements. It runs no neural model and makes no API call. On the held-out split it
+reaches \recallOursTest{} macro recall at $k{=}10$, against \recallEmbedTest{} for
+\texttt{text-embedding-3-large}, the strongest retriever reported on this benchmark, and
+\recallUpstreamBMTest{} for the benchmark's own BM25. Element recall is
+\recallElementTest{} and \recallAllGoldTest{} of claims receive every element they need.
 
-The eleven point gap to the benchmark's own BM25 is implementation rather than
-algorithm, and we can account for it on the development split. Lucene's IDF variant is
-worth \ablationIDF{} points and discarding punctuation tokens \ablationPunct{}. Stemming
-is worth nothing. The punctuation result has a mechanism behind it: treating punctuation
-as tokens inflates measured element length by \tableInflation{}$\times$ for tables against
-\paraInflation{}$\times$ for paragraphs, so BM25's length normalisation penalises tables
-and pushes them below the cut. Tables are roughly 18\% of elements and carry much of this
-benchmark's evidence. We report this as a measurement, not as a design insight. Our
-tokenizer discards punctuation because it was reused from an evidence-checking utility,
-and the mechanism was found afterwards.
+The eleven point gap to the benchmark's own BM25 is a matter of implementation rather than
+of algorithm, and it can be accounted for on the development split. Lucene's IDF variant
+is worth \ablationIDF{} points and discarding punctuation tokens \ablationPunct{}, while
+stemming contributes nothing. The punctuation result has a mechanism behind it. Treating
+punctuation as tokens inflates measured element length by \tableInflation{}$\times$ for
+tables against \paraInflation{}$\times$ for paragraphs, so the length normalisation term
+penalises tables disproportionately and pushes them below the retrieval cut, and tables
+constitute roughly 18\% of elements while carrying much of this benchmark's evidence. We
+report this as a measurement rather than as a design insight, since our tokenizer discards
+punctuation because it was reused from an evidence-checking utility and the mechanism was
+identified afterwards.
 
-Three upgrades we expected to help did not. Decomposing a claim into sub-claims and merging
-six ways of ranking never beat querying with the whole claim, and at matched candidate
-count the single query wins by 3.2 points. Fusing a dense arm into the ranking gains
-nothing untuned, and a weak arm actively harms: reciprocal rank fusion gives every list an
-equal vote, so adding a 33\% retriever costs 5.1 points. Sweeping $k_1$ and $b$ moves the
-score inside its own noise.
+Three upgrades that we expected to help did not. Decomposing a claim into sub-claims and
+merging the resulting rankings six different ways never surpassed querying with the whole
+claim, and at matched candidate count the single query wins by 3.2 points. Fusing a dense
+arm into the ranking gains nothing untuned, and a weak arm is actively harmful, since
+reciprocal rank fusion grants every list an equal vote and adding a retriever scoring 33\%
+costs 5.1 points. Sweeping the $k_1$ and $b$ parameters moves the score only within its own
+noise.
 
-We report these as retrieval results only. In our pipeline, retrieval quality and answer
-quality are close to decoupled. Supplying perfect evidence does not raise accuracy
-($p = 0.116$), removing a third of the evidence does not lower it ($p = 1.000$), and
-raising $k$ from 10 to 20 buys 10.8 points of recall and no measurable accuracy at 87\%
-more prompt tokens. A recall gain on this benchmark should not be assumed to be a
-verification gain.
+We report these as retrieval results and nothing more. In our pipeline retrieval quality
+and answer quality are close to decoupled. Supplying perfect evidence does not raise
+accuracy ($p = 0.116$), removing a third of the evidence does not lower it ($p = 1.000$),
+and raising $k$ from 10 to 20 buys 10.8 points of recall and no measurable accuracy at
+87\% more prompt tokens. A recall gain on this benchmark should therefore not be assumed
+to constitute a verification gain.
+
+\subsection{The local tier}
+\label{sec:local}
+
+Both local arms are Qwen2.5-Coder models served through Ollama, at 3 and 7 billion
+parameters respectively, quantised to four bits and holding roughly 7.5\,GB resident when
+both are loaded. They are given the same prompt, the same retrieved context at $k{=}10$, a
+context window of 32,768 tokens, temperature zero and a fixed seed. Each produces a verdict
+independently, and neither sees the other's output.
+
+The two arms are drawn from the same model family, which was a decision made on grounds of
+latency and output-format compliance rather than on grounds of independence. That choice
+turns out to determine the system's principal weakness, and Section~\ref{sec:results}
+treats it as a finding rather than as an implementation detail.
+
+\subsection{The escalation gate}
+\label{sec:gate}
+
+A claim is sent to the cloud when either of two independent triggers fires, and the cloud
+verdict then replaces the local one.
+
+The first trigger is disagreement. When the two local arms return opposing verdicts, the
+gate treats the claim as one the local tier cannot settle. The intuition is the
+conventional one for a cascade, namely that concordance between two models indicates a
+claim is easy and discordance indicates it is hard.
+
+The second trigger is a detector for claims that assert a computed quantity. It operates on
+the claim text alone, before any model is called, and consists of three regular expressions
+that match a copula followed by a number at the end of a sentence, the word
+\emph{percentage}, and a copula followed by a hedging adverb such as \emph{approximately}
+or \emph{exactly}. On the held-out split the detector fires on 449 claims at 0.984
+precision and 0.737 recall against the benchmark's own subset annotation, which it never
+reads. The regularity it exploits is one of phrasing: numerical claims in this benchmark
+are equations written as English sentences and average 20.5 words, whereas the other two
+subsets embed their figures in narrative and average 41. We note that this may be an
+artefact of how the claims were generated, and we do not claim the detector would transfer
+to claims written by a human analyst.
+
+The second trigger exists because the first cannot see a particular class of failure.
+Where both local arms are wrong in the same way, they agree, and agreement suppresses
+escalation precisely when escalation is most needed. Section~\ref{sec:results} quantifies
+how much each trigger contributes.
+
+\subsection{Why arithmetic is escalated rather than executed}
+\label{sec:sandbox}
+
+Given that one subset of this benchmark turns on arithmetic, the natural design is to have
+the model emit a calculation and an interpreter evaluate it, following Program of Thoughts
+\citep{chen2022pot}. We measured the value of that component before building it, and the
+measurement did not support it.
+
+Three findings weighed against it. The failure that motivated the component was a
+transcription error rather than a computation error, so an interpreter given the same
+mis-transcribed operand returns the same wrong result. Arithmetic performed in prose
+already yields the correct value on 64.4\% of numerical claims, leaving considerably less
+headroom than assumed. Most decisively, producing the correct value barely predicts
+producing the correct verdict: the two coincide on 34.8\% of claims against 41\% expected
+under independence, and 73 claims reach the correct verdict without the correct value ever
+appearing. The magnitude error the component was conceived to eliminate occurs on 8 of 250
+responses.
+
+We therefore route arithmetic claims to the cloud model rather than executing them, and we
+report the escalation value this buys in Section~\ref{sec:results}.
 
 \section{Experimental setup}
 \label{sec:setup}
 
-% TODO. ~0.4 pages. Splits, strict scoring with the unparseable rate beside it,
-% and the testmini/test protocol: everything tuned on testmini, test.json touched once.
+\paragraph{Splits and protocol.}
+FINDVER provides a development split of \nDev{} claims and a test split of \nTest{} claims,
+both with labels. Every design decision in this system, including the retriever, the value
+of $k$, the choice of local models, the prompts and both gate triggers, was made against
+the development split. The test split was read once, at the end, to produce the numbers
+reported here. We adopt this protocol because a prompt or a threshold iterated against the
+same claims it is later evaluated on produces gains that cannot be distinguished from
+noise, and reruns of an identical configuration on this hardware already move roughly one
+verdict in ten. The protocol protects the reported figures; it does not undo the fact that
+the pipeline as a whole was shaped on the development split, and we state that limitation
+rather than implying otherwise.
+
+\paragraph{Scoring.}
+A verdict is extracted from the model's response by a rule-based extractor that searches
+the entire response rather than only its final sentence, since small models frequently
+place the verdict elsewhere. Responses from which no verdict can be recovered are counted
+in an explicit unparseable category and scored as incorrect, which we refer to as strict
+scoring. We report the unparseable rate alongside every accuracy figure, because a system
+that fails to answer and a system that answers wrongly are different failures and strict
+scoring alone conflates them. On the held-out split the rate is \unparseThreeB{} for the
+3B arm, \unparseSevenB{} for the 7B, and \unparseRouted{} for the routed system. Where a
+figure of ours is placed beside a published one we additionally report it under the
+benchmark's own convention, in which unrecoverable verdicts are resolved by a coin flip,
+since comparing a strictly scored number with a coin-flipped one understates ours by
+exactly the amount our models fail the output format.
+
+\paragraph{Hardware.}
+Experiments were executed on a desktop with a consumer GPU, since a full run of the routed
+pipeline over the test split takes about sixteen hours there. The device of record for the
+deployment claim, however, is a 2017 laptop with 16\,GB of memory and no usable GPU, and
+every latency figure must name its machine because the ordering reverses between them. On
+the desktop the local 3B arm is the fastest of the three models at 6.8 seconds per claim,
+faster than either cloud model; on the laptop the same arm takes roughly 420 seconds.
 
 \section{Results}
 \label{sec:results}
@@ -141,6 +276,9 @@ verification gain.
 
 % TODO. ~0.4 pages. Tuning disclosure, the FDV-IE gate leak as a finding never fixed,
 % and the cloud model ignoring seed and temperature.
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
 
 % \input{checklist.tex}
 % Commented out. checklist.tex is the NeurIPS main-conference questionnaire and the

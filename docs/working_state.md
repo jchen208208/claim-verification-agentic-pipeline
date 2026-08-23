@@ -3437,6 +3437,57 @@ with our own usage" was true on 20 August and **is no longer true**. Do not repe
 without a call count cannot be attributed to anyone. The request was dropped from the 21 August
 email draft; this reading is a reason to put it back.
 
+### DECIDED 21 Aug: the repo goes public AFTER review, as a separate clean repo
+
+**Not before.** The submission is double-blind and this repo would deanonymise it three ways: all
+175 commits are authored `sandmanfan11 <jaydenccan11@gmail.com>`; `architecture_plan.md` line 50
+states that the student is first author and the professor a co-author who will recruit two industry
+co-authors; and the repo name plus README match the abstract closely enough to be found by searching
+the workshop name with FINDVER. Reviewers search. Publishing after notification costs nothing,
+because double-blind means the paper cannot link the repo anyway.
+
+**Security audit done 21 Aug, and it is clean.** `.env` is gitignored and was never tracked,
+verified with `git ls-files` rather than by reading `.gitignore`. All 175 commits were scanned with
+`git log -p --all`: every API key match is the environment variable *name* `DEEPSEEK_API_KEY`, never
+a value, and `os.environ['DEEPSEEK_API_KEY']` is the pattern throughout. No `sk-` literals, no
+Bearer values. The Overleaf share link is in no file, which matters because that link is itself a
+credential that grants edit access. Two non-issues noted: `10.0.0.26` appears in 13 configs and is a
+private LAN address, and the build log records the professor's account balance in CNY, which is his
+information rather than ours.
+
+**Which docs ship, and the reason is the professor, not anonymity.**
+
+    ship        paper_numbers.md    every figure with its n and its reproducing script.
+                                    The reproducibility story and the least personal file.
+    ship        code, README, prompts/, configs/, test_scripts/, the paper
+    withhold    working_state.md    a status file, ephemeral by design, meaningless to an
+                                    outside reader
+    withhold    architecture_plan.md  carries the MOST candid commentary about the professor
+    withhold    build_log.md        genuinely the most interesting artifact here, and also
+                                    where most of the candid material lives
+
+The tracked docs contain running commentary on a named co-author: "He did not address the Anthropic
+argument", "The edge-model question went unanswered entirely", "his students have not been able to
+obtain one", and an entry recording an attribution error made about him. Writing it down was right.
+Publishing it under your own name permanently is a different decision, and that risk outlives the
+review period.
+
+**`.gitignore` will NOT achieve this.** Those files are already in history: build log 68 commits,
+working state 79, architecture plan 34, paper numbers 37. Ignoring them now leaves every past
+version readable through `git log`.
+
+**The method: keep this repo private permanently and create a separate public repo at publication
+time.** One clean history, nothing to purge, no chance of leaving something in an old commit. Do not
+rewrite this repo's history.
+
+**License: MIT**, decided provisionally. No license means all rights reserved, which defeats the
+point of publishing research code. Apache 2.0 is the alternative if an industry co-author's employer
+wants an explicit patent grant; ask once the co-authors are named. **`paper/neurips_2026.sty` and
+`paper/checklist.tex` are the NeurIPS template and must not be swept under our license.** Say so in
+the LICENSE or README.
+
+**No action needed before notification.** This is an October job.
+
 ### CORRECTED 21 Aug: `\workshoptitle` was never owed for the submission
 
 `working_state.md` has carried "`\@workshoptitle` is unset" as an outstanding item since 10 August.
