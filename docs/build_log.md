@@ -6446,3 +6446,77 @@ A small routed sample on the MacBook is roughly 19 minutes per claim, so 20 to 3
 ### Where this leaves the schedule
 
 The 23 August freeze applies to results, which have been frozen since 20 August. Writing is the only remaining work. `long.tex` does not exist and sections 1 through 6 of the workshop paper are stubs. Eight days to the deadline.
+
+## 25 August 2026 - the meeting resolves the cost mystery, kills the laptop run, and sets the page layout. First full draft written.
+
+No model ran. No GPU, no cloud call. Writing session plus one measurement over result files already on disk.
+
+### The API key question is closed, and it was not us
+
+The professor confirmed that other people use the DeepSeek key. Both unexplained balance drops, the 16-17 August event at 9.4x our measured rate and the 21 August drop of 17.97 CNY on a day we made zero calls, are third-party spending.
+
+This retires the read-access request, which had been put back into the professor email on 21 August. It also retires the anxiety, not the method: the reason the paper quotes USD and tokens from our own per-claim records rather than CNY from the balance is unchanged and is now better justified than before, because the balance is demonstrably not a measurement of our usage.
+
+### THE LAPTOP LATENCY RUN IS CANCELLED, and the reason is one nobody here had thought of
+
+Recommended on 21 August as better value than the arithmetic skill. The professor said no, and gave a reason that had not appeared in any of our reasoning: **reviewers will ask why we are using a 2017 laptop.** A target-device number invites a question about the target device.
+
+Deferred to after the workshop, for the long paper. This frees the remaining nights and removes the last item that competed for them.
+
+### "Can we say the routed system beats cloud on time?" - NO, and it was measured before answering
+
+He asked whether the GPU timings support a latency claim alongside the cost claim. They do not. Measured from `elapsed_seconds` in the per-claim result files of `condition4_pipeline_test1700` and `condition2_flash_v2_test1700`, n=1,700 each:
+
+| per claim, GPU desktop | median | mean | p95 | p99 |
+|---|---|---|---|---|
+| routed | **26.0 s** | 33.4 s | 86.8 s | 152.0 s |
+| cloud alone | **8.0 s** | 17.8 s | 71.8 s | 129.3 s |
+
+**The routed system is slower at every percentile.** Stage medians explain it: 3B 6.9 s, 7B 13.5 s, cloud call 8.2 s. Both locals run on every claim before the gate can compare them, so roughly 20 s is spent before any decision is made, and a single DeepSeek call is faster than our own local tier on this hardware.
+
+A deployable variant that skips the locals when the numeric detector fires, which is legitimate because that trigger reads only the claim text, still gives a median of 21.9 s. It does not change the conclusion.
+
+**The one honest latency claim.** On the 792 claims kept local, p95 is **36.1 s against 71.8 s** for the cloud baseline, because there is no network round trip. Median is still worse, 20.7 s against 8.0 s. That is a predictability argument and it is written into the paper as one.
+
+Mean is contaminated and must not be quoted: part of 18 August shared the GPU with a game, with no recorded boundary. Median and percentiles are unaffected.
+
+These figures are now in `paper/numbers.tex` under a header that states the conclusion, so that nobody writes the opposite sentence at 2am.
+
+### The method is "not complex enough", and skills come back
+
+His judgement: as it stands the pipeline will not read as a substantial method. After the paper is drafted we add to it. His specific suggestion is to analyse the pattern in the FDV-IE loss on `test.json` and build a skill targeting it.
+
+Note the protocol consequence, which was already recorded on 21 August and now becomes live rather than hypothetical. The FDV-IE weakness was identified by reading held-out output, so a fix motivated by it costs the sentence "nothing was tuned on the reported split." The limitations section as drafted discloses this. It is a disclosure decision, not a prohibition, and it is now his decision as well as ours.
+
+Next meeting in two days covers skills, motivation, and how to deepen the method.
+
+### The page layout, from him
+
+    page 1          abstract + introduction
+    page 2, top     the method diagram. He called this extremely important.
+    page 2, rest    method
+    page 3 to 5 top results, carrying all four tables from the 24 August brief
+    page 5, rest    conclusion and future work
+    after           references, excluded from the five pages
+
+Also required somewhere: the motivation and goal, and the significance stated against one of the workshop's five core topics. Architecture plan section 1.1 already identifies the two that fit, Topic 02 on efficient inference under real-world constraints and Topic 05 on benchmarks and evaluation for real-world deployment. Both are named in the introduction, in prose, without quoting topic numbers.
+
+Co-authors will be approached once the draft exists, so the draft gates the author list rather than the other way round.
+
+### The draft exists, and it is deliberately over length
+
+He asked for everything in first and said he will help decide the cuts. `paper/neurips_2026.tex` now has no TODO sections. Written this session: introduction with motivation, goal, five contributions and the workshop fit; the TikZ pipeline diagram; the whole of results in six subsections carrying all four tables; conclusion and future work; and limitations.
+
+The four tables are the headline four arms, the per-subset breakdown with escalation rates, cost and latency together, and retrieval recall on both splits.
+
+**Cost and latency share one table deliberately.** It is the table that states the trade honestly in one place: cheaper and more local, slower.
+
+Checked without a compiler, because there is still no LaTeX on this machine: every macro used resolves against `numbers.tex`, braces balance, and all fourteen environments match. Geometry of the diagram and the page count can only come from an Overleaf compile.
+
+**The diagram was rewritten once before anyone saw it.** The first layout put the cloud model inside the dashed "on device" boundary, because the `fit` box enclosing the local nodes also spanned the coordinates of the cloud node. Moving the cloud below the boundary rather than to the right of it fixed the meaning. A diagram whose enclosure says the opposite of the caption is worse than no diagram.
+
+### What is not done
+
+`long.tex` still has its TODO skeleton. The workshop draft now holds all the material, so the long paper's job is to absorb whatever the cutting round removes, plus the sixteen published baselines and the tables never destined for five pages. It cannot usefully be written before the cuts are decided.
+
+The related work section still has a deliberate citation gap on cascades and model routing, marked in the source. One literature pass is owed before submission.

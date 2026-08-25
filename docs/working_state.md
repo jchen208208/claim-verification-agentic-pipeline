@@ -4330,3 +4330,83 @@ Cutting the mean prompt from 6,610 to 3,000 tokens would take a 102 example run 
 hours to about 5.4.
 
 Reading a report file from disk takes about 7 milliseconds, so re-reading one per claim across all 700 costs about 5 seconds in total. That is 0.02 percent of an 8 hour run and is why the loader does not cache.
+
+---
+
+## Where things stand, 25 August — THE DRAFT IS WRITTEN. PICK UP HERE.
+
+Supersedes the 21 August pickup list. Deadline 29 August 23:59 AoE, four days.
+
+### Closed by the 24 August meeting
+
+- ~~Is anyone else using the API key?~~ **Yes.** Other people use it. Both unexplained balance
+  drops are third-party spending. Read-access request dropped. Keep quoting USD and tokens from
+  our own per-claim records, never CNY.
+- ~~Decide the MacBook latency run.~~ **Cancelled.** His reason, which we had not thought of:
+  reviewers will ask why we are using a 2017 laptop. Deferred to the long paper after the workshop.
+- ~~When are co-authors asked?~~ **After the draft.** He sends it to them. The draft gates the
+  author list.
+- ~~Does he say what he expects in the paper?~~ **Yes, a page layout.** See below.
+
+### ANSWERED: no, the routed system does not beat cloud on time
+
+He asked. Measured over the per-claim result files, n=1,700 each:
+
+    per claim, GPU desktop     median    p95
+    routed                     26.0 s    86.8 s
+    cloud alone                 8.0 s    71.8 s
+
+Slower at every percentile. Both locals run before the gate decides, 6.9 s + 13.5 s, and a single
+cloud call is 8.2 s. **We win on cost and on data locality, not on speed.** The only defensible
+latency claim is the tail on claims kept local, p95 36.1 s against 71.8 s, because there is no
+network hop. Written into the paper as predictability, not speed. Macros are in `numbers.tex`
+under a header stating this, so the opposite sentence does not get written later.
+
+### His page layout, which the draft now follows
+
+    page 1          abstract + introduction
+    page 2, top     the method diagram. EXTREMELY IMPORTANT, his words.
+    page 2, rest    method
+    page 3 to 5 top results, with all four tables
+    page 5, rest    conclusion and future work
+
+Plus motivation and goal stated explicitly, and significance tied to a workshop core topic.
+Both fitting topics are named in prose in the introduction: efficient inference under real-world
+constraints, and benchmarks and evaluation for real-world deployment. See plan section 1.1.
+
+### THE DRAFT IS COMPLETE AND DELIBERATELY OVER LENGTH
+
+`paper/neurips_2026.tex` has no TODO sections left. He asked for everything in first and said he
+will help decide the cuts, so nothing was cut to fit. Four tables: headline four arms, per subset
+with escalation rates, cost and latency together, retrieval on both splits.
+
+Verified without a compiler, since there is still no LaTeX on this machine: all macros resolve,
+braces balance, fourteen environments match. **Page count and diagram geometry are unknown until
+an Overleaf compile.** Expect well over five pages.
+
+### NEXT, in order
+
+1. **Upload to Overleaf and compile.** The only way to learn the page count and whether the TikZ
+   diagram renders. File, Upload file, overwriting `neurips_2026.tex`. `numbers.tex` changed too
+   and must be uploaded as well, or every latency macro is undefined.
+2. **Send him the draft.** It gates the co-authors.
+3. **The cutting round**, with him. Everything cut moves to `long.tex` rather than being lost.
+4. **One literature pass on cascades and model routing.** The related work section has a
+   deliberate citation gap, marked in the source. Owed before submission.
+5. **Next meeting, in two days:** skills, motivation, and deepening the method.
+
+### AFTER THE PAPER: the method is "not complex enough"
+
+His judgement, and the reason skills come back. His suggestion is to analyse the pattern in the
+FDV-IE loss on `test.json` and build a skill for it.
+
+**Protocol consequence, now live.** The FDV-IE weakness was found by reading held-out output, so a
+fix motivated by it costs the sentence "nothing was tuned on the reported split." The limitations
+section already discloses this. It is a disclosure decision, not a prohibition, and it is now his
+call too.
+
+### `long.tex` is still a skeleton
+
+The workshop draft holds all the material now, so the long paper's job is to absorb what the
+cutting round removes, plus the sixteen published baselines and the tables that were never going to
+fit in five pages. It cannot usefully be written before the cuts are decided.

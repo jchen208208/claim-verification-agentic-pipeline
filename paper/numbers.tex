@@ -243,3 +243,27 @@
 \newcommand{\deviceSecPerToken}{0.0641}
 \newcommand{\deviceRsq}{0.995}
 \newcommand{\deviceMeanPrompt}{6{,}610}  % tokens
+
+
+% ---------------------------------------------------------------------------
+% Latency, GPU desktop, run 1. Measured 25 Aug from per-claim elapsed_seconds
+% in results/condition4_pipeline_test1700/ and condition2_flash_v2_test1700/.
+%
+% READ THIS BEFORE WRITING A LATENCY SENTENCE. The routed system is SLOWER
+% than calling the cloud directly, at every percentile. It wins on cost and on
+% data locality, not on speed. The only defensible latency claim is the tail on
+% claims kept local: p95 36.1 s against 71.8 s, because there is no network hop.
+% The mean is contaminated (part of 18 Aug shared the GPU with a game), so the
+% median is the figure to quote. No routed latency exists for the laptop.
+% ---------------------------------------------------------------------------
+
+\newcommand{\latRoutedMed}{26.0}
+\newcommand{\latRoutedPFive}{86.8}
+\newcommand{\latCloudMed}{8.0}
+\newcommand{\latCloudPFive}{71.8}
+\newcommand{\latKeptLocalMed}{20.7}
+\newcommand{\latKeptLocalPFive}{36.1}
+\newcommand{\latThreeBMed}{6.9}
+\newcommand{\latSevenBMed}{13.5}
+\newcommand{\latCloudStageMed}{8.2}
+\newcommand{\latRunHours}{15.8}          % routed, whole test split, summed
