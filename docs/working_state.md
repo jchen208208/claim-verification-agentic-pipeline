@@ -4416,3 +4416,45 @@ the restore condition beside it. **Put it back the moment a skill targeting FDV-
 The workshop draft holds all the material now, so the long paper's job is to absorb what the
 cutting round removes, plus the sixteen published baselines and the tables that were never going to
 fit in five pages. It cannot usefully be written before the cuts are decided.
+
+### 25 Aug: IT COMPILES. 9 pages. The diagram renders.
+
+Uploaded `neurips_2026.tex` and `numbers.tex` through File, Upload file, overwriting both.
+Compiled in Overleaf.
+
+    pages            9, references included. Body runs to about 8.5.
+    errors           0
+    warnings         1, `Command \showhyphens has changed`. Package-level, unrelated to our
+                     text, and the same warning as 21 August.
+    macros           all resolve. No undefined-reference boxes anywhere in the rendered text.
+
+**The diagram renders and it is correct.** Every label is present: the two model boxes, the
+numeric detector, the escalation gate, the verdict, `no trigger 46.6%`, `either trigger fires
+53.4%`, and the `on device, no network` boundary. **DeepSeek-V4-Flash sits outside the dashed
+boundary**, which was the thing worth checking after the first version put it inside.
+
+**Where things actually land, against his layout.**
+
+    he asked for                    what compiled
+    p1   abstract + intro           p1   abstract + intro, running onto p2
+    p2 top  diagram                 p3 top  diagram
+    p2   method                     p3-4 method
+    p3 to p5 top  results           p5 onward results
+    p5   conclusion + future work   p8-9
+
+**Everything is about two pages late, because the paper is four pages too long.** The diagram is
+not misplaced, it is correctly at the top of a page; it is just that the introduction and related
+work push it to page 3. Cutting length fixes the position on its own. Do not move the figure.
+
+**Roughly four pages have to come out.** That is the conversation with him, not a unilateral cut.
+The obvious candidates, in the order I would offer them:
+
+1. Related work, currently a full section. Could be two paragraphs.
+2. The retrieval subsection in Method plus the retrieval results subsection. They are the
+   material he already agreed to keep, so this is his call and nobody else's.
+3. Experimental setup's scoring paragraph, which is long and partly repeats the unparseable
+   column in Table 1.
+4. The label-bias half of the taxonomy subsection.
+5. Table 4, retrieval recall, if retrieval survives only as prose.
+
+Nothing cut is lost. It moves to `long.tex`.
