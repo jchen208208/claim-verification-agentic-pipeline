@@ -647,12 +647,21 @@ claim about deployability on that class of hardware, and we do not make one here
 \section{Limitations}
 \label{sec:limitations}
 
-\paragraph{The weakness we report was found on the reported split.}
-The FDV-IE deficit and its mechanism were identified by reading the output of the held-out
-run. No parameter was changed in response, and the numbers in this paper come from a
-configuration frozen before that split was read, so the reported figures are unaffected. But
-we would not have known where to look without it, and a future system that fixes this
-weakness cannot claim the same protocol.
+% REMOVED 25 Aug, correctly. A paragraph here disclosed that the FDV-IE weakness was
+% found by reading held-out output. It does not belong in THIS version of the paper:
+% nothing was changed in response to it, every reported number comes from a configuration
+% frozen before that split was read, and analysing your own test results is what a results
+% section is for. There is nothing to disclose yet.
+%
+% PUT IT BACK the moment a skill is built that targets the FDV-IE weakness and is then
+% evaluated on test.json. At that point the fix IS motivated by the reported split and the
+% protocol sentence in Section~\ref{sec:setup} no longer covers it. Draft to restore:
+%
+%   \paragraph{The weakness we report was found on the reported split.}
+%   The FDV-IE deficit and its mechanism were identified by reading the output of the
+%   held-out run, and the component described in Section~\ref{sec:skill} was built in
+%   response to it. That component therefore cannot claim the development-split protocol
+%   the rest of the system follows, and we report its result separately.
 
 \paragraph{One benchmark, one document type.}
 Every result here is FINDVER, which is English-language SEC filings. Neither the retriever's

@@ -6486,7 +6486,9 @@ These figures are now in `paper/numbers.tex` under a header that states the conc
 
 His judgement: as it stands the pipeline will not read as a substantial method. After the paper is drafted we add to it. His specific suggestion is to analyse the pattern in the FDV-IE loss on `test.json` and build a skill targeting it.
 
-Note the protocol consequence, which was already recorded on 21 August and now becomes live rather than hypothetical. The FDV-IE weakness was identified by reading held-out output, so a fix motivated by it costs the sentence "nothing was tuned on the reported split." The limitations section as drafted discloses this. It is a disclosure decision, not a prohibition, and it is now his decision as well as ours.
+Note the protocol consequence, which was already recorded on 21 August and now becomes live rather than hypothetical. The FDV-IE weakness was identified by reading held-out output, so a fix motivated by it costs the sentence "nothing was tuned on the reported split." It is a disclosure decision, not a prohibition, and it is now his decision as well as ours.
+
+**The disclosure is NOT in the draft, and putting it there was a mistake I made and the user caught.** Nothing in the reported numbers was changed in response to the FDV-IE finding. Every figure comes from a configuration frozen before the split was read, and analysing your own test results is what a results section is for. There is nothing to disclose until a skill is actually built and evaluated on `test.json`. The paragraph is kept commented out in the limitations section of `neurips_2026.tex` with the condition for restoring it, so it is not lost.
 
 Next meeting in two days covers skills, motivation, and how to deepen the method.
 

@@ -4400,10 +4400,16 @@ an Overleaf compile.** Expect well over five pages.
 His judgement, and the reason skills come back. His suggestion is to analyse the pattern in the
 FDV-IE loss on `test.json` and build a skill for it.
 
-**Protocol consequence, now live.** The FDV-IE weakness was found by reading held-out output, so a
-fix motivated by it costs the sentence "nothing was tuned on the reported split." The limitations
-section already discloses this. It is a disclosure decision, not a prohibition, and it is now his
-call too.
+**Protocol consequence, live only once a skill exists.** The FDV-IE weakness was found by reading
+held-out output, so a fix motivated by it costs the sentence "nothing was tuned on the reported
+split." It is a disclosure decision, not a prohibition, and it is his call too.
+
+**It is deliberately NOT disclosed in the current draft.** A paragraph doing so was written and
+removed on 25 August, correctly. Nothing was changed in response to the finding, every number comes
+from a configuration frozen before the split was read, and analysing your own test results needs no
+disclosure. The paragraph sits commented out in the limitations section of `neurips_2026.tex` with
+the restore condition beside it. **Put it back the moment a skill targeting FDV-IE is evaluated on
+`test.json`.**
 
 ### `long.tex` is still a skeleton
 
