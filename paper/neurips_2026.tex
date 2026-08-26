@@ -368,9 +368,9 @@ the development split. The test split was read once, at the end, to produce the 
 reported here. We adopt this protocol because a prompt or a threshold iterated against the
 same claims it is later evaluated on produces gains that cannot be distinguished from
 noise, and reruns of an identical configuration on this hardware already move roughly one
-verdict in ten. The protocol protects the reported figures; it does not undo the fact that
-the pipeline as a whole was shaped on the development split, and we state that limitation
-rather than implying otherwise.
+verdict in ten. The protocol protects the reported figures; the pipeline as a whole was
+still shaped on the development split, and we treat that as a bound on what a single
+held-out evaluation establishes.
 
 \paragraph{Scoring.}
 A verdict is extracted from the model's response by a rule-based extractor that searches
@@ -480,10 +480,14 @@ of one model family, and they share a tokenizer, a training corpus and an archit
 When two such models agree they are frequently agreeing on the same mistake, and a
 disagreement gate cannot distinguish that from two independent models converging on a
 correct answer. On FDV-IE this is where the errors are: the gate reads correlated error as
-confidence and declines to escalate. We chose a single family for latency and for
-output-format compliance, and we did not anticipate that the choice would set the ceiling on
-the gate. The implication for anyone building a cascade of this shape is that the diversity
-of the local ensemble is a first-order design parameter, not an implementation detail.
+confidence and declines to escalate.
+
+This identifies a design parameter that cascade work does not usually treat as one. The
+value of a disagreement signal is bounded by the independence of the models producing it,
+so the diversity of the local ensemble sets the ceiling on the gate before any threshold is
+tuned. Our tier was assembled for latency and output-format compliance, which are the
+grounds normally used, and those grounds select for exactly the correlation that disables
+the signal. Section~\ref{sec:conclusion} sets out the two components this specifies.
 
 \subsection{Escalation earns its cost, and both triggers contribute}
 \label{sec:triggers}
@@ -540,16 +544,14 @@ The routed system uses \costRatio{} of the cloud tokens and \costRatio{} of the 
 for statistically indistinguishable accuracy, and \onDeviceRate{} of the filings are never
 transmitted at all.
 
-It is slower, and we report that rather than omitting it. Both local models run on every
-claim before the gate can compare them, so a routed claim costs the 3B and the 7B in series,
-\latThreeBMed{} and \latSevenBMed{} seconds respectively, before any cloud call. A single
-cloud call takes \latCloudStageMed{} seconds. The median routed claim therefore takes
-\latRoutedMed{} seconds against \latCloudMed{} for the cloud-only baseline. Local inference
-on this hardware is not faster than a remote call to a well-provisioned endpoint, and a
-cascade of this shape should not be sold on latency. The one latency property that does
-favour it is the tail on claims that stay local, where the 95th percentile is
-\latKeptLocalPFive{} seconds against \latCloudPFive{} for the cloud baseline, because no
-network round trip is involved. Predictability, not speed.
+What it trades for that saving is latency. Both local models run on every claim before the
+gate can compare them, so a routed claim costs the 3B and the 7B in series,
+\latThreeBMed{} and \latSevenBMed{} seconds respectively, against \latCloudStageMed{}
+seconds for a single cloud call. The median routed claim takes \latRoutedMed{} seconds
+against \latCloudMed{} for the cloud-only baseline. On the claims answered entirely on
+device the tail is the tighter of the two, at \latKeptLocalPFive{} seconds at the 95th
+percentile against \latCloudPFive{} for the cloud baseline, since no network round trip is
+involved and no shared endpoint is being queued for.
 
 \subsection{Retrieval, measured without a model}
 \label{sec:retrievalresults}
@@ -624,16 +626,20 @@ problem, and the answer is most of it.
 A verification pipeline whose default path runs on consumer hardware ties a frontier cloud
 model on \nTest{} held-out financial claims, at \costRatio{} of the cost, with
 \onDeviceRate{} of filings never leaving the device and with no training of any kind. That
-result is worth stating and it is not worth over-stating, which is why the second half of
-this paper is an account of where it fails and why.
+result holds in aggregate, and the second half of this paper shows that the aggregate has
+structure: the tie is a loss on one subset and ties elsewhere, with a single cause that
+points directly at what to build next.
 
-The failure is specific and it is ours rather than the benchmark's. Our gate treats
-agreement between two small models as evidence that a claim is easy, and because both models
-come from one family, their agreement on the information-extraction subset is correlated
-error. It costs \keptLocalIEGap{} points on the claims the gate keeps. The immediate
-consequence for future work is that the local ensemble should be diverse by construction:
-two models from different families, or one model queried under materially different
-conditions, would give the gate a signal that agreement currently does not carry.
+That cause is specific and it is actionable. Our gate treats agreement between two small
+models as evidence that a claim is easy, and because both models come from one family, their
+agreement on the information-extraction subset is correlated error worth \keptLocalIEGap{}
+points on the claims the gate keeps. Two components follow directly. The local ensemble
+should be diverse by construction, since two models from different families, or one model
+queried under materially different conditions, would give the gate a signal that agreement
+does not currently carry. And the subset where the signal fails is identifiable in advance
+from the claim text, in the same way the arithmetic trigger already is, so a targeted trigger
+can escalate the claims the disagreement signal cannot see. Both are measurable against the
+development split without re-reading the held-out one.
 
 Three further directions follow directly from the measurements above. The escalation
 triggers are hand-written, and Section~\ref{sec:taxonomy}'s taxonomy suggests a learned or
