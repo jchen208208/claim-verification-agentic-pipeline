@@ -57,21 +57,21 @@
 \maketitle
 
 \begin{abstract}
-Verifying a financial claim against a regulatory filing requires reading a document far
-longer than a small model's context window, and sending every filing to a frontier model
-is expensive. We build a claim verification pipeline that runs two small models on device
-and calls a cloud model only when a disagreement gate or an arithmetic detector fires. On
-\nTest{} held-out claims from FINDVER the routed pipeline scores \accRouted{} against a
-cloud-only baseline's \accCloud{}. The difference is not significant (paired McNemar,
-\mcnemarAllDisagree{} disagreements, $p = \mcnemarAllP{}$), and the routed system uses
-\costRatio{} of the cloud tokens with \onDeviceRate{} of claims answered entirely on
-device. That aggregate hides structure that matters to anyone deploying it. The tie is a
-significant loss on one subset offset by ties on the others, and we identify the cause:
-the gate reads agreement between two models of the same family as confidence, and on that
-subset the agreement is correlated error worth \keptLocalIEGap{} points. We report a BM25
-retriever that reaches \recallOursTest{} macro recall with no neural model and no API
-call, \recallGainTest{} points above the strongest retriever published on this benchmark,
-and an error taxonomy in which one failure mode accounts for \missingInfoKnowTest{} of
+Checking a financial claim against a regulatory filing means reading a document many times
+longer than a small model's context window, and passing every filing to a frontier model is
+expensive. We build a verification pipeline that runs two small models on device and calls a
+cloud model only when a disagreement gate or an arithmetic detector fires. On \nTest{}
+held-out claims from FINDVER the routed pipeline scores \accRouted{}, compared with
+\accCloud{} for a cloud-only baseline. The difference is not significant (paired McNemar,
+\mcnemarAllDisagree{} disagreements, $p = \mcnemarAllP{}$), and the routed system spends
+\costRatio{} of the cloud tokens, with \onDeviceRate{} of claims settled entirely on device.
+That aggregate hides structure that matters in deployment, since the tie is a significant
+loss on one subset offset by ties on the other two. The cause is that the gate reads
+agreement between two models of the same family as confidence, when on that subset their
+agreement is correlated error worth \keptLocalIEGap{} points. We also report a BM25
+retriever that reaches \recallOursTest{} macro recall with no neural model and no API call,
+\recallGainTest{} points above the strongest retriever published on this benchmark, and an
+error taxonomy in which one failure mode accounts for \missingInfoKnowTest{} of
 knowledge-subset errors.
 \end{abstract}
 
@@ -79,108 +79,104 @@ knowledge-subset errors.
 \label{sec:intro}
 
 Claims about a company's financial performance circulate faster than the documents that
-would settle them, and settling one means reading a filing that runs to tens of thousands
-of words. The FINDVER benchmark \citep{zhao2024findver} formalises this task. Given a claim
-and the SEC filing it refers to, a system must decide whether the filing entails or refutes
-the claim. The filings average roughly 41,000 words and interleave narrative text with
-dozens of tables, and the strongest published system, a frontier cloud model, reaches
-77.2\% where human financial experts reach 93.3\%.
+would settle them, and settling one means reading a filing that runs to tens of thousands of
+words. FINDVER \citep{zhao2024findver} formalises the task: given a claim and the SEC filing
+it refers to, a system must decide whether the filing entails or refutes the claim. The
+filings average roughly 41,000 words and interleave narrative text with dozens of tables.
+The strongest published system, a frontier cloud model, reaches 77.2\% on them, whereas
+human financial experts reach 93.3\%.
 
-Sending every filing to a frontier model is the obvious way to attack this, and it is the
-wrong shape for the setting. Filings under analysis are commercially sensitive before they
-are public, and a prompt on this task is dominated by retrieved document text rather than
-by the claim, so the per-token price is paid on the document over and over. The deployment
-question is therefore not whether a large model can verify a financial claim, which is
-already settled, but how little of that model a working system actually needs.
+The obvious approach, sending every filing to a frontier model, fits this setting badly.
+Filings under analysis are commercially sensitive before they are public, and a prompt on
+this task is dominated by retrieved document text and not by the claim, so the per-token
+price is paid on the document over and over. Whether a large model can verify a financial
+claim is already settled, so the deployment question is how little of that model a working
+system actually needs.
 
 \paragraph{Goal.}
-We set out to measure that quantity rather than to argue for an architecture. We build a
-verification pipeline whose default path runs entirely on the user's own hardware, and
-which consults a frontier cloud model only when a gate decides that the local models should
-not be trusted. No component is trained or fine-tuned, every design decision was fixed on a
-development split, and the reported split was read once. We then ask two questions of it.
-How much accuracy does the routed system give up against sending everything to the cloud,
-and does the aggregate answer to that question survive being broken apart.
+Our aim is to measure that quantity, not to argue for an architecture. We build a
+verification pipeline whose default path runs entirely on the user's own hardware and which
+consults a frontier cloud model only when a gate decides the local models should not be
+trusted. Nothing is trained or fine-tuned, every design decision was fixed on a development
+split, and the reported split was read once. We then put two questions to the system. How
+much accuracy does routing give up against sending everything to the cloud? And does the
+aggregate answer to that question survive being broken apart?
 
-It does not, and that is the more useful half of the result. The routed pipeline ties the
-cloud-only baseline overall, and the tie decomposes into one significant loss and two ties.
-The loss has a single identifiable cause, and the cause is a property of how the gate was
-built rather than a property of the benchmark.
+To answer them in order: the routed pipeline ties the cloud-only baseline overall, and that
+aggregate does not survive being broken apart. The second answer is the more informative of
+the two. The tie is one significant loss and two ties, and the loss has a single
+identifiable cause, which lies in how we built the gate and not in the benchmark.
 
 \paragraph{Contributions.}
 \begin{enumerate}
 \itemsep0pt
 \item A routed edge-cloud pipeline that ties a frontier cloud model on \nTest{} held-out
 claims at \costRatio{} of the cloud cost, with \onDeviceRate{} of claims answered without
-the document leaving the device, and with no training of any kind
+the document leaving the device, and with no training at any stage
 (Section~\ref{sec:headline}).
-\item Evidence that agreement between two models of the same family is correlated error
-rather than independent confirmation. Our gate reads that agreement as confidence, and on
-the information-extraction subset it costs \keptLocalIEGap{} points against a model that
-would have answered those claims correctly (Section~\ref{sec:ie}).
-\item A trigger that escalates arithmetic claims unconditionally, which beats a
-disagreement gate on exactly the claims a disagreement gate cannot see, because both local
-models fail them in the same direction (Section~\ref{sec:triggers}).
-\item An error taxonomy on the held-out split in which one failure mode, the model
-declaring the evidence absent and refuting on that basis, accounts for
-\missingInfoKnowTest{} of knowledge-subset errors and \missingInfoAllTest{} of all errors
+\item Evidence that agreement between two models of the same family is correlated error, not
+independent confirmation. Our gate reads that agreement as confidence, and on the
+information-extraction subset it costs \keptLocalIEGap{} points against a model that would
+have answered those claims correctly (Section~\ref{sec:ie}).
+\item A trigger that escalates arithmetic claims unconditionally. It beats a disagreement
+gate on precisely the claims such a gate cannot see, because both local models fail them in
+the same direction (Section~\ref{sec:triggers}).
+\item An error taxonomy on the held-out split in which one failure mode, the model declaring
+the evidence absent and refuting on that basis, accounts for \missingInfoKnowTest{} of
+knowledge-subset errors and \missingInfoAllTest{} of all errors
 (Section~\ref{sec:taxonomy}).
 \item A retrieval result obtained with no model and no API call: a BM25 baseline reaching
 \recallOursTest{} macro recall on the held-out split, \recallGainTest{} points above the
-strongest retriever published on this benchmark (Section~\ref{sec:retrieval}). We report it
-as a retrieval result, because in our pipeline recall and answer quality are close to
-decoupled.
+strongest retriever published on this benchmark (Section~\ref{sec:retrieval}). We keep it a
+retrieval result and claim nothing further, because recall and answer quality are close to
+decoupled in our pipeline.
 \end{enumerate}
 
 \paragraph{Fit to this workshop.}
-The system addresses efficient inference under real-world constraints: it is built for a
-machine that cannot hold a frontier model, and its cost, its escalation rate and its
-latency are reported as first-class results rather than as an appendix. The analysis
-addresses benchmarks and evaluation for real-world deployment. An aggregate accuracy that
-hides a significant per-subset regression, and a confidence signal that is misleading in a
-way only a paired comparison exposes, are both failures of measurement rather than of
-modelling, and both are invisible to the single-number protocol this benchmark is normally
-reported under.
+The system addresses efficient inference under real-world constraints. It is built for a
+machine that cannot hold a frontier model, and we treat its cost, its escalation rate and
+its latency as first-class results, not as an appendix. The analysis addresses benchmarks
+and evaluation for real-world deployment. An aggregate accuracy can hide a significant
+per-subset regression, and a confidence signal can mislead in a way that only a paired
+comparison exposes. Both are failures of measurement, not of modelling, and the
+single-number protocol this benchmark is normally reported under makes both invisible.
 
 \section{Related work}
 \label{sec:related}
 
 FINDVER \citep{zhao2024findver} evaluates claim verification against SEC filings that run to
-tens of thousands of tokens, and partitions its claims into three subsets according to
+tens of thousands of tokens. It partitions its claims into three subsets according to
 whether the decisive step is information extraction, numerical reasoning, or domain
-knowledge. Because the documents exceed the context window of any model that fits on
-consumer hardware, the benchmark is normally approached under retrieval augmentation, and
-the published baselines hold the retriever fixed so that systems are compared on
-verification rather than on search.
+knowledge. The documents exceed the context window of any model that fits on consumer
+hardware, so the benchmark is normally approached under retrieval augmentation, and the
+published baselines hold the retriever fixed so that systems are compared on verification,
+not on search.
 
 We found no other method evaluated on FINDVER besides MACE \citep{saha2026mace}, which
 decomposes verification into three roles and assigns every role to the same large model.
-MACE adopts the benchmark's retrieval configuration unchanged, stating that retrieval is
-not its focus, and its smallest reported configuration requires roughly 27 billion
-parameters resident. We retain the premise that verification benefits from separating
-roles, and pursue the question MACE does not ask: which model should perform each role
-when the available models differ by orders of magnitude in cost and in where they can be
-run.
+MACE adopts the benchmark's retrieval configuration unchanged, stating that retrieval is not
+its focus, and its smallest reported configuration needs roughly 27 billion parameters
+resident. We keep the premise that verification benefits from separating roles, and we
+pursue the question MACE leaves open: which model should perform each role, when the
+available models differ by orders of magnitude in cost and in where they can be run.
 
-Delegating computation to an interpreter rather than to the model is well established.
-Program of Thoughts \citep{chen2022pot} and PAL \citep{gao2022pal} introduced the
-technique, and TART \citep{lu2025tart} applies it to tabular reasoning through a table
-formatter and a code generator. TART fine-tunes every module and evaluates on
-single-table, closed-domain data, so neither its training requirements nor its setting
-transfer here. We treated code execution as the obvious remedy for the arithmetic subset,
-measured what it would be worth, and report in Section~\ref{sec:sandbox} why we did not
-build it.
+Delegating computation to an interpreter instead of to the model is well established.
+Program of Thoughts \citep{chen2022pot} and PAL \citep{gao2022pal} introduced the technique,
+and TART \citep{lu2025tart} applies it to tabular reasoning through a table formatter and a
+code generator. TART fine-tunes every module and evaluates on single-table, closed-domain
+data, so neither its training requirements nor its setting transfer here. We treated code
+execution as the obvious remedy for the arithmetic subset, measured what it would be worth,
+and report in Section~\ref{sec:sandbox} why we did not build it.
 
 % CITATIONS MISSING, DELIBERATELY. No cascade or model-routing work is recorded anywhere
 % in this project's notes, and inventing references is worse than leaving the gap visible.
 % Needs one literature pass before submission. See the header of refs.bib.
-Routing between a small local model and a large remote one is a familiar idea in
-deployment, usually framed as a cascade in which a cheap model answers when it can and
-defers when it cannot. What that literature generally assumes, and what we find does not
-hold here, is that the cheap model's own confidence is informative about when to defer.
-Our results in Section~\ref{sec:results} show that a confidence signal built from
-agreement between two related small models is systematically misleading on one class of
-claims.
+Routing between a small local model and a large remote one is a familiar idea in deployment,
+usually framed as a cascade in which a cheap model answers when it can and defers when it
+cannot. That literature generally assumes the cheap model's own confidence signals when to
+defer, an assumption that does not hold here. Our results in Section~\ref{sec:results} show
+that a confidence signal built from agreement between two related small models is
+systematically misleading on one class of claims.
 
 % ---------------------------------------------------------------------------
 % THE METHOD DIAGRAM. Professor, 24 August: "extremely important", and it belongs
@@ -250,49 +246,48 @@ The pipeline verifies a claim in three stages, shown in Figure~\ref{fig:pipeline
 stage is assigned to the least expensive component that can perform it reliably. Retrieval
 runs in plain Python and involves no model. Two small models hosted on the device then
 produce independent verdicts. A frontier cloud model is consulted only when a gate
-determines that the local pair should not be trusted, so the network is used as an
-exception rather than as the default path. No component is trained or fine-tuned at any
-point.
+determines that the local pair should not be trusted, so the network is an exception and not
+the default path. No part of the pipeline is trained or fine-tuned.
 
 % Retrieval. Numbers from numbers.tex; provenance in docs/paper_numbers.md
 % sections 1, 1.2, 1.5, 1.7, 2.8, 2.8.2, 2.16 and 4.5.
 \subsection{Retrieval}
 \label{sec:retrieval}
 
-Reports in this benchmark are too long to fit in a prompt, so every system evaluated on
-it retrieves first. Our retriever is BM25 \citep{robertson2009bm25} over the report's own
+Reports in this benchmark are too long to fit in a prompt, so every system evaluated on it
+retrieves first. Our retriever is BM25 \citep{robertson2009bm25} over the report's own
 context elements. It runs no neural model and makes no API call. On the held-out split it
 reaches \recallOursTest{} macro recall at $k{=}10$, against \recallEmbedTest{} for
 \texttt{text-embedding-3-large}, the strongest retriever reported on this benchmark, and
 \recallUpstreamBMTest{} for the benchmark's own BM25. Element recall is
-\recallElementTest{} and \recallAllGoldTest{} of claims receive every element they need.
+\recallElementTest{}, and \recallAllGoldTest{} of claims receive every element they need.
 
-The eleven point gap to the benchmark's own BM25 is a matter of implementation rather than
-of algorithm, and it can be accounted for on the development split. Lucene's IDF variant
-is worth \ablationIDF{} points and discarding punctuation tokens \ablationPunct{}, while
-stemming contributes nothing. The punctuation result has a mechanism behind it. Treating
-punctuation as tokens inflates measured element length by \tableInflation{}$\times$ for
-tables against \paraInflation{}$\times$ for paragraphs, so the length normalisation term
-penalises tables disproportionately and pushes them below the retrieval cut, and tables
-constitute roughly 18\% of elements while carrying much of this benchmark's evidence. We
-report this as a measurement rather than as a design insight, since our tokenizer discards
-punctuation because it was reused from an evidence-checking utility and the mechanism was
-identified afterwards.
+The eleven point gap to the benchmark's own BM25 comes from implementation and not from
+the algorithm, and the development split accounts for it. Lucene's IDF variant is worth
+\ablationIDF{} points, and discarding punctuation tokens is worth a further
+\ablationPunct{} points, while stemming contributes nothing. There is a mechanism behind
+the punctuation result. Treating punctuation as tokens inflates measured element length by
+\tableInflation{}$\times$ for tables against \paraInflation{}$\times$ for paragraphs, so
+the length normalisation term penalises tables disproportionately and pushes them below
+the retrieval cut, and tables constitute roughly 18\% of elements while carrying much of
+this benchmark's evidence. We report this as a measurement and not as a design insight:
+our tokenizer discards punctuation because it was reused from an evidence-checking
+utility, and we identified the mechanism afterwards.
 
-Three upgrades that we expected to help did not. Decomposing a claim into sub-claims and
-merging the resulting rankings six different ways never surpassed querying with the whole
-claim, and at matched candidate count the single query wins by 3.2 points. Fusing a dense
-arm into the ranking gains nothing untuned, and a weak arm is actively harmful, since
-reciprocal rank fusion grants every list an equal vote and adding a retriever scoring 33\%
-costs 5.1 points. Sweeping the $k_1$ and $b$ parameters moves the score only within its own
-noise.
+We tried three further upgrades, and none of them helped. Decomposing a claim into
+sub-claims and merging the resulting rankings six different ways never surpassed querying
+with the whole claim, and at matched candidate count the single query wins by 3.2 points.
+Fusing a dense arm into the ranking gains nothing when the arm is left untuned, and a weak
+arm is actively harmful, since reciprocal rank fusion grants every list an equal vote and
+adding a retriever scoring 33\% costs 5.1 points. Sweeping the $k_1$ and $b$ parameters
+moves the score only within its own noise.
 
 We report these as retrieval results and nothing more. In our pipeline retrieval quality
 and answer quality are close to decoupled. Supplying perfect evidence does not raise
 accuracy ($p = 0.116$), removing a third of the evidence does not lower it ($p = 1.000$),
-and raising $k$ from 10 to 20 buys 10.8 points of recall and no measurable accuracy at
-87\% more prompt tokens. A recall gain on this benchmark should therefore not be assumed
-to constitute a verification gain.
+and raising $k$ from 10 to 20 gains 10.8 points of recall and no measurable accuracy at
+87\% more prompt tokens. A recall gain on this benchmark should therefore not be read as a
+verification gain.
 
 \subsection{The local tier}
 \label{sec:local}
@@ -303,10 +298,10 @@ both are loaded. They are given the same prompt, the same retrieved context at $
 context window of 32,768 tokens, temperature zero and a fixed seed. Each produces a verdict
 independently, and neither sees the other's output.
 
-The two arms are drawn from the same model family, which was a decision made on grounds of
-latency and output-format compliance rather than on grounds of independence. That choice
-turns out to determine the system's principal weakness, and Section~\ref{sec:ie}
-treats it as a finding rather than as an implementation detail.
+The two arms come from the same model family. We chose them for latency and output-format
+compliance, not for independence, and that choice turns out to determine the system's
+principal weakness. Section~\ref{sec:ie} treats it as a finding and not as an implementation
+detail.
 
 \subsection{The escalation gate}
 \label{sec:gate}
@@ -319,21 +314,21 @@ gate treats the claim as one the local tier cannot settle. The intuition is the
 conventional one for a cascade, namely that concordance between two models indicates a
 claim is easy and discordance indicates it is hard.
 
-The second trigger is a detector for claims that assert a computed quantity. It operates on
-the claim text alone, before any model is called, and consists of three regular expressions
-that match a copula followed by a number at the end of a sentence, the word
+The second trigger is a detector for claims that assert a computed quantity. It operates
+on the claim text alone, before any model is called, and consists of three regular
+expressions that match a copula followed by a number at the end of a sentence, the word
 \emph{percentage}, and a copula followed by a hedging adverb such as \emph{approximately}
 or \emph{exactly}. On the held-out split the detector fires on \trigNumericN{} claims at
 0.984 precision and 0.737 recall against the benchmark's own subset annotation, which it
 never reads. The regularity it exploits is one of phrasing: numerical claims in this
 benchmark are equations written as English sentences and average 20.5 words, whereas the
-other two subsets embed their figures in narrative and average 41. We note that this may be
-an artefact of how the claims were generated, and we do not claim the detector would
-transfer to claims written by a human analyst.
+other two subsets embed their figures in narrative and average 41 words. We note that this
+may be an artefact of how the claims were generated, and we do not claim the detector
+would transfer to claims written by a human analyst.
 
-The second trigger exists because the first cannot see a particular class of failure.
-Where both local arms are wrong in the same way, they agree, and agreement suppresses
-escalation precisely when escalation is most needed. Section~\ref{sec:triggers} quantifies
+The second trigger exists because the first cannot see a particular class of failure. Where
+both local arms are wrong in the same way, they agree, and their agreement suppresses
+escalation exactly where it is most needed. Section~\ref{sec:triggers} quantifies
 how much each trigger contributes.
 
 \subsection{Why arithmetic is escalated rather than executed}
@@ -344,18 +339,18 @@ the model emit a calculation and an interpreter evaluate it, following Program o
 \citep{chen2022pot}. We measured the value of that component before building it, and the
 measurement did not support it.
 
-Three findings weighed against it. The failure that motivated the component was a
-transcription error rather than a computation error, so an interpreter given the same
-mis-transcribed operand returns the same wrong result. Arithmetic performed in prose
-already yields the correct value on 64.4\% of numerical claims, leaving considerably less
-headroom than assumed. Most decisively, producing the correct value barely predicts
+Three findings weighed against building it. The failure that motivated the component was a
+transcription error, not a computation error, so an interpreter given the same
+mis-transcribed operand returns the same wrong result. Arithmetic performed in prose already
+yields the correct value on 64.4\% of numerical claims, which leaves considerably less
+headroom than we assumed. Most decisively, producing the correct value barely predicts
 producing the correct verdict: the two coincide on 34.8\% of claims against 41\% expected
 under independence, and 73 claims reach the correct verdict without the correct value ever
 appearing. The magnitude error the component was conceived to eliminate occurs on 8 of 250
 responses.
 
-We therefore route arithmetic claims to the cloud model rather than executing them, and we
-report the escalation value this buys in Section~\ref{sec:triggers}.
+We therefore route arithmetic claims to the cloud model instead of executing them, and
+Section~\ref{sec:triggers} reports the escalation value this buys.
 
 \section{Experimental setup}
 \label{sec:setup}
@@ -363,28 +358,28 @@ report the escalation value this buys in Section~\ref{sec:triggers}.
 \paragraph{Splits and protocol.}
 FINDVER provides a development split of \nDev{} claims and a test split of \nTest{} claims,
 both with labels. Every design decision in this system, including the retriever, the value
-of $k$, the choice of local models, the prompts and both gate triggers, was made against
-the development split. The test split was read once, at the end, to produce the numbers
-reported here. We adopt this protocol because a prompt or a threshold iterated against the
-same claims it is later evaluated on produces gains that cannot be distinguished from
-noise, and reruns of an identical configuration on this hardware already move roughly one
-verdict in ten. The protocol protects the reported figures; the pipeline as a whole was
-still shaped on the development split, and we treat that as a bound on what a single
-held-out evaluation establishes.
+of $k$, the choice of local models, the prompts and both gate triggers, was made against the
+development split. The test split was read once, at the end, to produce the numbers reported
+here. We adopt this protocol because a prompt or a threshold iterated against the same
+claims it is later evaluated on produces gains that cannot be distinguished from noise, and
+because reruns of an identical configuration on this hardware already move roughly one
+verdict in ten. The protocol protects the reported figures, though the development split
+still shaped the pipeline as a whole, and we treat that as a bound on what a single held-out
+evaluation establishes.
 
 \paragraph{Scoring.}
-A verdict is extracted from the model's response by a rule-based extractor that searches
-the entire response rather than only its final sentence, since small models frequently
-place the verdict elsewhere. Responses from which no verdict can be recovered are counted
-in an explicit unparseable category and scored as incorrect, which we refer to as strict
-scoring. We report the unparseable rate alongside every accuracy figure, because a system
-that fails to answer and a system that answers wrongly are different failures and strict
-scoring alone conflates them. On the held-out split the rate is \unparseThreeB{} for the
-3B arm, \unparseSevenB{} for the 7B, and \unparseRouted{} for the routed system. Where a
-figure of ours is placed beside a published one we additionally report it under the
-benchmark's own convention, in which unrecoverable verdicts are resolved by a coin flip,
-since comparing a strictly scored number with a coin-flipped one understates ours by
-exactly the amount our models fail the output format.
+A verdict is extracted from the model's response by a rule-based extractor that searches the
+whole response, not only its final sentence, since small models frequently place the verdict
+elsewhere. Responses from which no verdict can be recovered are counted in an explicit
+unparseable category and scored as incorrect, which we call strict scoring. We report the
+unparseable rate alongside every accuracy figure, because a system that fails to answer and
+a system that answers wrongly are different failures and strict scoring alone conflates
+them. On the held-out split the rate is \unparseThreeB{} for the 3B arm, \unparseSevenB{}
+for the 7B, and \unparseRouted{} for the routed system. Where a figure of ours is placed
+beside a published one, we additionally report it under the benchmark's own convention, in
+which unrecoverable verdicts are resolved by a coin flip. Comparing a strictly scored number
+with a coin-flipped one would understate ours by exactly the amount our models fail the
+output format.
 
 \paragraph{Hardware.}
 Experiments were executed on a desktop with a consumer GPU, since a full run of the routed
@@ -393,8 +388,8 @@ for the deployment claim, however, is a 2017 laptop with 16\,GB of memory and no
 GPU, and every latency figure must name its machine because the ordering reverses between
 them. On the desktop the local 3B arm is the fastest of the three models at
 \latThreeBMed{} seconds per claim, faster than either cloud model; on the laptop the same
-arm takes roughly 420 seconds. Every latency figure in this paper is the desktop. We have
-not measured the routed pipeline end to end on the laptop, and we do not report a
+arm takes roughly 420 seconds. Every latency figure in this paper comes from the desktop.
+We have not measured the routed pipeline end to end on the laptop, and we do not report a
 target-device latency we did not measure.
 
 \section{Results}
@@ -430,23 +425,23 @@ The routed pipeline reaches \accRouted{} against the cloud-only baseline's \accC
 paired McNemar test over the \mcnemarAllDisagree{} claims on which the two systems disagree
 gives $p = \mcnemarAllP{}$, so the difference is not significant: the routed system neither
 beats the cloud baseline nor loses to it overall. Routing is worth \gainOverSevenB{} points
-over the better local model on its own, which is the comparison that isolates what the gate
+over the better local model alone. That is the comparison that isolates what the gate
 contributes, since the 7B answers every claim in both cases.
 
 Routing also suppresses unparseable output. A claim is unparseable only when the arm that
-wins the vote produced text from which no verdict could be recovered, so the routed rate of
-\unparseRouted{} falls below all three of its own components.
+wins the vote produces text from which no verdict can be recovered, so the routed rate of
+\unparseRouted{} falls below the rate of all three of its own components.
 
 \subsection{The tie decomposes into one loss and two ties}
 \label{sec:ie}
 
-Table~\ref{tab:subset} breaks the four arms down by subset. The aggregate tie is not
+Table~\ref{tab:subset} breaks the four arms down by subset, and the aggregate tie is not
 uniform. On the information-extraction subset the routed system loses to the cloud baseline
 by 4.8 points, and the paired test over that subset alone gives $p = \mcnemarIEP{}$. On the
 numerical and knowledge subsets it ties, at $p = \mcnemarMATHP{}$ and $p = \mcnemarKNOWP{}$.
-We state this rather than reporting only the aggregate, because a system that is equivalent
-on average and significantly worse on one class of inputs is not equivalent for anyone
-deploying it on that class.
+We report this and not only the aggregate, because a system that is equivalent on average
+and significantly worse on one class of inputs is not equivalent for anyone deploying it on
+that class.
 
 \begin{table}[t]
 \caption{Accuracy by subset, \nTest{} held-out claims. The routed system's overall tie with
@@ -468,46 +463,47 @@ escalation rate        & \escRateIE{}     & \escRateMATH{}     & \escRateKNOW{} 
 \end{tabular}
 \end{table}
 
-The deficit is located entirely in the claims the gate chose to keep. Splitting FDV-IE by
-what the gate did, on the \keptLocalIEn{} claims kept on device the routed system scores
-\keptLocalIERouted{} where the cloud model would have scored \keptLocalIECloud{}, a gap of
-\keptLocalIEGap{} points. On the \escalatedIEn{} claims that were escalated it scores
-\escalatedIERouted{} against \escalatedIECloud{}, slightly ahead. The gate is not
-escalating too little in general. It is keeping the wrong claims.
+The deficit is confined to the claims the gate chose to keep. When we split FDV-IE by what
+the gate did, the routed system scores \keptLocalIERouted{} on the \keptLocalIEn{} claims
+kept on device, and the cloud model would have scored \keptLocalIECloud{} on those same
+claims, a gap of \keptLocalIEGap{} points. On the \escalatedIEn{} claims that were
+escalated it scores \escalatedIERouted{} against \escalatedIECloud{}, which puts it
+slightly ahead. The gate is therefore not escalating too little in general, but instead
+keeping the wrong claims.
 
-The mechanism is the local tier's composition. Our two local arms are the 3B and 7B members
-of one model family, and they share a tokenizer, a training corpus and an architecture.
-When two such models agree they are frequently agreeing on the same mistake, and a
-disagreement gate cannot distinguish that from two independent models converging on a
-correct answer. On FDV-IE this is where the errors are: the gate reads correlated error as
-confidence and declines to escalate.
+This follows from the composition of the local tier. Our two local arms are the 3B and 7B
+members of one model family, and they share a tokenizer, a training corpus and an
+architecture. When two such models agree they are frequently agreeing on the same mistake,
+and a disagreement gate cannot tell that apart from two independent models converging on a
+correct answer. On FDV-IE the errors are concentrated in exactly those agreement cases, so
+the gate reads correlated error as confidence and declines to escalate.
 
 This identifies a design parameter that cascade work does not usually treat as one. The
-value of a disagreement signal is bounded by the independence of the models producing it,
-so the diversity of the local ensemble sets the ceiling on the gate before any threshold is
-tuned. Our tier was assembled for latency and output-format compliance, which are the
-grounds normally used, and those grounds select for exactly the correlation that disables
-the signal. Section~\ref{sec:conclusion} sets out the two components this specifies.
+value of a disagreement signal is bounded by the independence of the models producing it, so
+the diversity of the local ensemble sets the ceiling on the gate before any threshold is
+tuned. We assembled our tier on the grounds normally used, namely latency and output-format
+compliance, and those grounds select for exactly the correlation that disables the signal.
+Section~\ref{sec:conclusion} sets out the two components this specifies.
 
 \subsection{Escalation earns its cost, and both triggers contribute}
 \label{sec:triggers}
 
 On the \cloudCalls{} claims where the cloud was called, the 7B would have scored
-\escWouldSevenB{} and the 3B \escWouldThreeB{}. The cloud scored \escCloudGave{}. Escalation
-therefore buys \escGain{} points on exactly the claims the gate chose to pay for, which is
-the quantity a cascade has to justify.
+\escWouldSevenB{} and the 3B would have scored \escWouldThreeB{}. The cloud scored
+\escCloudGave{}. Escalation therefore buys \escGain{} points on exactly the claims the
+gate chose to pay for, and that is the quantity a cascade has to justify.
 
-Splitting by which trigger fired, the \trigDisagreeN{} claims escalated for disagreement go
-from \trigDisagreeSevenB{} under the 7B to \trigDisagreeCloud{}, a gain of
-\trigDisagreeGain{} points. The \trigNumericN{} claims escalated by the numeric detector go
-from \trigNumericSevenB{} to \trigNumericCloud{}, a gain of \trigNumericGain{}. The two
-triggers are not redundant. The numeric detector fires on claims where both local models
-agree and are wrong together, which is by construction invisible to a disagreement gate,
-and this is the direct measurement behind the design choice in Section~\ref{sec:gate}.
+When we split by which trigger fired, the \trigDisagreeN{} claims escalated for
+disagreement go from \trigDisagreeSevenB{} under the 7B to \trigDisagreeCloud{}, a gain of
+\trigDisagreeGain{} points. The \trigNumericN{} claims escalated by the numeric detector
+go from \trigNumericSevenB{} to \trigNumericCloud{}, a gain of \trigNumericGain{} points.
+The two triggers are not redundant. The numeric detector fires on claims where both local
+models agree and are wrong together, which a disagreement gate cannot see by construction,
+and this measurement is what stands behind the design choice in Section~\ref{sec:gate}.
 
-The gate is also doing useful work on the claims it keeps. Claims kept on device score
-\accKeptLocal{}, on a local tier whose all-claim accuracy is \accSevenB{}. The gate is
-retaining the claims the local models handle well; Section~\ref{sec:ie} shows where that
+The gate is also selecting effectively among the claims it keeps. Claims kept on device
+score \accKeptLocal{}, on a local tier whose all-claim accuracy is \accSevenB{}, so the gate
+is retaining the claims the local models handle well. Section~\ref{sec:ie} shows where that
 judgement fails.
 
 \subsection{Cost, and what routing does not buy}
@@ -544,14 +540,14 @@ The routed system uses \costRatio{} of the cloud tokens and \costRatio{} of the 
 for statistically indistinguishable accuracy, and \onDeviceRate{} of the filings are never
 transmitted at all.
 
-What it trades for that saving is latency. Both local models run on every claim before the
-gate can compare them, so a routed claim costs the 3B and the 7B in series,
+The tradeoff of the routed system is latency. Both local models run on every claim before
+the gate can compare them, so a routed claim costs the 3B and the 7B in series,
 \latThreeBMed{} and \latSevenBMed{} seconds respectively, against \latCloudStageMed{}
 seconds for a single cloud call. The median routed claim takes \latRoutedMed{} seconds
 against \latCloudMed{} for the cloud-only baseline. On the claims answered entirely on
 device the tail is the tighter of the two, at \latKeptLocalPFive{} seconds at the 95th
-percentile against \latCloudPFive{} for the cloud baseline, since no network round trip is
-involved and no shared endpoint is being queued for.
+percentile against \latCloudPFive{} for the cloud baseline, because there is no network
+round trip and no queueing at a shared endpoint.
 
 \subsection{Retrieval, measured without a model}
 \label{sec:retrievalresults}
@@ -586,10 +582,10 @@ retrieval as well as for accuracy. Fusing a dense arm remains unhelpful on the h
 split, at \recallFusionTest{} against \recallOursTest{} for BM25 alone, which confirms on
 unseen claims the decision described in Section~\ref{sec:retrieval}.
 
-We repeat the caveat from Section~\ref{sec:retrieval}, because it is the kind of claim a
-retrieval number invites. This gain does not propagate to accuracy in our pipeline, where
-recall and answer quality are close to decoupled. It is reported as a retrieval result and
-as evidence that a carefully implemented lexical baseline remains competitive on this
+We repeat the caveat from Section~\ref{sec:retrieval}, since a retrieval number invites
+exactly this claim. The gain does not propagate to accuracy in our pipeline, where recall
+and answer quality are close to decoupled. We report it as a retrieval result and as
+evidence that a carefully implemented lexical baseline remains competitive on this
 benchmark, not as a driver of the accuracy in Table~\ref{tab:headline}.
 
 \subsection{An error taxonomy, and a label bias that replicates}
@@ -603,52 +599,54 @@ are incorrect against a base rate of \missingInfoBaseTest{} for refutations in g
 That single category accounts for \missingInfoKnowTest{} of all knowledge-subset errors and
 \missingInfoAllTest{} of every error the system makes, and it replicates at nearly identical
 size on the development split (\missingInfoKnowDev{}). The category is matched by an
-anchored phrase family over model prose, spot-checked by reading on the development split.
+anchored phrase family over model prose, and we spot-checked it by reading responses on the
+development split.
 
 Underlying it is a label bias that has now replicated on every configuration we have run.
 Gold labels are \saysEntailedGold{} entailed, but the cloud model answers entailed on only
-\saysEntailedCloud{} of claims and the 3B on \saysEntailedThreeB{}. Routing partly corrects
-this, at \saysEntailedRouted{}, and the routed system beats the cloud baseline on entailed
-claims by 5.4 points (\entailedRouted{} against \entailedCloud{}) while losing 8.5 on
-refuted ones. Models on this task are biased toward refutation, and the most likely reason
-is the one above: when the evidence is not found, refuting is the cheaper answer.
+\saysEntailedCloud{} of claims, and the 3B answers entailed on only \saysEntailedThreeB{}.
+Routing partly corrects this, at \saysEntailedRouted{}, and the routed system beats the
+cloud baseline on entailed claims by 5.4 points (\entailedRouted{} against
+\entailedCloud{}) while losing 8.5 points on refuted ones. Models on this task are biased
+toward refutation, and the most likely reason is the one above: when the evidence is not
+found, refuting is the cheaper answer.
 
-Finally, an upper bound. Perfect selection among the verdicts our two local models already
-produce, with no cloud call at all, would score \oracleLocalOnly{}
-(\oracleLocalOnlyci{}), above the cloud baseline. Adding the cloud verdict to that selection
-gives \oracleThreeWay{}. Neither is implementable, since both require the gold label to
-choose; they bound how much of the remaining gap is a gating problem rather than a model
-problem, and the answer is most of it.
+Finally, we report an upper bound. Perfect selection among the verdicts our two local
+models already produce, with no cloud call at all, would score \oracleLocalOnly{}
+(\oracleLocalOnlyci{}), above the cloud baseline. Adding the cloud verdict to that
+selection gives \oracleThreeWay{}. Neither is implementable, since both require the gold
+label in order to make the selection. They bound how much of the remaining gap is a gating
+problem and not a model problem, and most of the gap falls on the gating side.
 
 \section{Conclusion and future work}
 \label{sec:conclusion}
 
 A verification pipeline whose default path runs on consumer hardware ties a frontier cloud
 model on \nTest{} held-out financial claims, at \costRatio{} of the cost, with
-\onDeviceRate{} of filings never leaving the device and with no training of any kind. That
-result holds in aggregate, and the second half of this paper shows that the aggregate has
-structure: the tie is a loss on one subset and ties elsewhere, with a single cause that
+\onDeviceRate{} of filings never leaving the device and with no training at any stage.
+That result holds in aggregate, and the second half of this paper shows that the aggregate
+has structure: the tie is a loss on one subset and ties elsewhere, with a single cause that
 points directly at what to build next.
 
-That cause is specific and it is actionable. Our gate treats agreement between two small
+That cause is specific enough to act on. Our gate treats agreement between two small
 models as evidence that a claim is easy, and because both models come from one family, their
 agreement on the information-extraction subset is correlated error worth \keptLocalIEGap{}
-points on the claims the gate keeps. Two components follow directly. The local ensemble
+points on the claims the gate keeps. Two components follow from this. The local ensemble
 should be diverse by construction, since two models from different families, or one model
 queried under materially different conditions, would give the gate a signal that agreement
-does not currently carry. And the subset where the signal fails is identifiable in advance
-from the claim text, in the same way the arithmetic trigger already is, so a targeted trigger
-can escalate the claims the disagreement signal cannot see. Both are measurable against the
-development split without re-reading the held-out one.
+does not currently carry. The subset where the signal fails is also identifiable in
+advance from the claim text, in the same way the arithmetic trigger already is, so a
+targeted trigger can escalate the claims the disagreement signal cannot see. Both are
+measurable against the development split without re-reading the held-out one.
 
-Three further directions follow directly from the measurements above. The escalation
-triggers are hand-written, and Section~\ref{sec:taxonomy}'s taxonomy suggests a learned or
-pattern-derived trigger targeting the specific failure that dominates the error budget,
-which the present gate does not detect at all. The oracle bound indicates that most of the
-remaining gap is a selection problem rather than a capability problem, so a better gate is a
-better investment than a better local model. And every latency figure here comes from a
-desktop; measuring the pipeline end to end on the target laptop is necessary before any
-claim about deployability on that class of hardware, and we do not make one here.
+Three further directions come out of the measurements above. The escalation triggers are
+hand-written, and the taxonomy in Section~\ref{sec:taxonomy} suggests a learned or
+pattern-derived trigger aimed at the specific failure that dominates the error budget, which
+the present gate does not detect at all. The oracle bound indicates that most of the
+remaining gap is a selection problem and not a capability problem, so a better gate is a
+better investment than a better local model. Every latency figure here comes from a desktop,
+so measuring the pipeline end to end on the target laptop is necessary before any claim
+about deployability on that class of hardware, and we make none here.
 
 \section{Limitations}
 \label{sec:limitations}
@@ -670,10 +668,10 @@ claim about deployability on that class of hardware, and we do not make one here
 %   the rest of the system follows, and we report its result separately.
 
 \paragraph{One benchmark, one document type.}
-Every result here is FINDVER, which is English-language SEC filings. Neither the retriever's
-advantage nor the numeric detector's precision should be assumed to transfer to another
-document class, and the detector in particular exploits a regularity of phrasing that may be
-an artefact of how these claims were written.
+Every result here comes from FINDVER, which is built on English-language SEC filings.
+Neither the retriever's advantage nor the numeric detector's precision should be assumed
+to transfer to another document class, and the detector in particular exploits a
+regularity of phrasing that may be an artefact of how these claims were written.
 
 \paragraph{Reproducibility.}
 The cloud endpoint does not honour a temperature or a seed, so its verdicts vary between
@@ -682,9 +680,9 @@ one verdict in ten between reruns on the same machine. Comparisons in this paper
 therefore paired wherever a paired test is available.
 
 \paragraph{Latency is not measured on the target device.}
-All timings are the GPU desktop. The laptop that motivates the on-device framing has been
-measured for a single local model only, and the routed pipeline has not been run on it end
-to end.
+All timings come from the GPU desktop. The laptop that motivates the on-device framing has
+been measured for a single local model only, and the routed pipeline has not been run on
+it end to end.
 
 \bibliographystyle{plainnat}
 \bibliography{refs}
