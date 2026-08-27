@@ -183,59 +183,26 @@ systematically misleading on one class of claims.
 % at the top of page 2. [t] floats it to the top of whatever page it lands on, so
 % if it comes out on the wrong page the fix is to move this block earlier or later
 % in the source, not to change the placement specifier.
-% Percentages are the measured routing behaviour of run 1, not a design intention.
+%
+% 26 Aug: the hand-drawn TikZ version was replaced by model_diagram.png. The TikZ
+% source is in git history at commit 50c68bb if it is ever needed again.
+%
+% model_diagram.png is now a FLAT ASSET with no regenerator in this repo. It was
+% built from a model_diagram.jpeg that is no longer on disk, and the build script
+% and its cropped icons were deleted on 26 Aug once the diagram was final. To
+% change the diagram, supply the artwork again and redraw it.
+%
+% The old caption named routing percentages that were TikZ node labels; the new
+% figure does not carry them, so that sentence was removed rather than left wrong.
 % ---------------------------------------------------------------------------
 \begin{figure}[t]
 \centering
-\resizebox{\textwidth}{!}{%
-\begin{tikzpicture}[
-  font=\footnotesize,
-  blk/.style={draw, rounded corners=2pt, align=center, inner sep=4pt,
-              minimum height=9mm, text width=22mm},
-  wide/.style={blk, text width=26mm},
-  mdl/.style={blk, fill=black!5},
-  gt/.style={blk, fill=black!10, text width=18mm},
-  ar/.style={-{Latex[length=2mm]}, semithick},
-  tag/.style={font=\scriptsize\itshape, inner sep=2pt}
-]
-
-\node[wide] (in)   at (0,0)      {claim\\+ 10-K filing\\\scriptsize($\approx$41k words)};
-\node[blk]  (retr) at (3.6,0)    {BM25 retrieval\\\scriptsize plain Python, no model};
-\node[mdl]  (m3)   at (6.9,1.0)  {Qwen2.5-Coder\\3B};
-\node[mdl]  (m7)   at (6.9,-1.0) {Qwen2.5-Coder\\7B};
-\node[blk]  (det)  at (6.9,2.6)  {numeric detector\\\scriptsize regex on claim text};
-\node[gt]   (gate) at (10.1,0)   {escalation\\gate};
-\node[blk, text width=20mm] (out) at (13.4,0) {verdict};
-\node[blk, dashed, fill=black!3, text width=26mm] (cloud) at (10.1,-2.9)
-      {DeepSeek-V4-Flash\\\scriptsize frontier cloud model};
-
-\draw[ar] (in) -- (retr);
-\draw[ar] (retr.east) -- ++(0.4,0) |- (m3.west);
-\draw[ar] (retr.east) -- ++(0.4,0) |- (m7.west);
-\draw[ar] (m3.east) -| ([xshift=-4mm]gate.north);
-\draw[ar] (m7.east) -| ([xshift=-4mm]gate.south);
-\draw[ar] (in.north) |- (det.west);
-\draw[ar] (det.east) -| ([xshift=4mm]gate.north);
-\draw[ar] (gate.east) -- (out.west)
-      node[tag, midway, above, align=center] {no trigger\\\onDeviceRate{}};
-\draw[ar] (gate.south) -- (cloud.north)
-      node[tag, midway, right, align=left] {either trigger fires\\\escalationRate{}};
-\draw[ar] (cloud.east) -| (out.south);
-
-\begin{scope}[on background layer]
-  \node[draw, dashed, rounded corners=4pt, inner sep=5mm,
-        fit=(retr)(m3)(m7)(det)(gate)(out)] (dev) {};
-\end{scope}
-\node[tag, anchor=north west] at (dev.north west) {on device, no network};
-
-\end{tikzpicture}%
-}
+\includegraphics[width=\textwidth]{model_diagram.png}
 \caption{The pipeline. Retrieval runs in plain Python with no model. Two small models on
 the device read the same retrieved evidence and answer independently. A frontier cloud
 model is consulted only when the gate fires, either because the two local arms disagree or
-because the claim asserts a computed quantity. Percentages are measured routing behaviour
-over the \nTest{} held-out claims, not a configured budget. Nothing in the pipeline is
-trained or fine-tuned.}
+because the claim asserts a computed quantity. Nothing in the pipeline is trained or
+fine-tuned.}
 \label{fig:pipeline}
 \end{figure}
 
