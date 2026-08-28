@@ -4782,3 +4782,43 @@ FinVerBench were each checked and none is evaluated on it.
 3. **Send him the draft**, which still gates the co-authors.
 4. **Overleaf compile** for the new page count. Related work grew by one paragraph.
 5. **FDV-IE**, only if 1 and 2 land and a GPU window exists.
+
+### 28 Aug: OVERLEAF IS UPDATED. 10 pages now.
+
+`neurips_2026.tex` and `refs.bib` uploaded through File, Upload file, both overwritten.
+`numbers.tex` and `model_diagram.png` did not change and were not re-uploaded.
+
+Project URL, recorded because it was not written down anywhere before:
+**https://www.overleaf.com/project/6a7a16b9276c76c4bacd163b**
+
+    pages        10, references included. Was 9 on 25 August.
+    citations    render as author-year. No [?] anywhere in the text that was read.
+    diagram      unchanged, still renders.
+
+**The paper grew by one page**, from the Related work additions: five citations in the cascade
+paragraph and a new paragraph on 2026 financial verification work. That is now **five pages
+over**, not four. He is doing the cutting round, so this is his call, but he should be told the
+number changed.
+
+**CONFIRMED 28 Aug: the professor had NOT edited the Overleaf copy, so nothing of his was
+overwritten.** Checked in the project History panel, not inferred. Two entries: `28 August
+11:07, neurips_2026.tex + refs.bib, You (upload)` and `26 August 23:37, neurips_2026.tex, You
+(upload)`. Nothing between them and no edit by anyone else. The diff confirms it independently:
+the replaced version still contained "every design decision was fixed on a development split,
+and the reported split was read once" verbatim, which is the sentence we removed on 27 August.
+
+**THE CHECK TO USE BEFORE ANY FUTURE UPLOAD.** Open History and read the entry list. Do NOT
+rely on the projects list saying "last modified by You", which is what was done first: that
+line cannot distinguish "he never edited" from "he edited and you edited afterwards". The free
+plan limits how far back History goes, so check it before uploading rather than after.
+
+**Two things were NOT verified in the browser**, because the PDF pane would not fit in the
+screenshot viewport and three attempts to widen it failed. Check both by eye when next in
+Overleaf:
+
+1. **The References section on page 10**, that all 19 entries are listed.
+2. **The exact warning count.** The badge shows 1, which matches the known and harmless
+   `Command \showhyphens has changed` from 21 and 25 August, but the log was not opened.
+
+Neither is likely to be wrong. Every citation key was checked against `refs.bib` locally before
+upload: 19 entries, 19 cited, no dangling key and no uncited entry.

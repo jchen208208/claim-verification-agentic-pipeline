@@ -6774,3 +6774,40 @@ Braces balance at zero with no negative excursions, all environments match, and 
 used with `{}` resolves against `numbers.tex`. 19 bib entries, 19 cited, no dangling citation
 and no uncited entry. Page count still needs an Overleaf compile, and Related work grew by one
 paragraph, so it will have gone up.
+
+### 28 August: Overleaf updated with the new references and the tuning edits
+
+`neurips_2026.tex` and `refs.bib` uploaded and overwritten. Overleaf asked to confirm the
+overwrite and then showed its usual "Document Updated Externally" notice, both expected.
+`numbers.tex` did not change this round and was left alone.
+
+The project URL had never been recorded in any document. It is
+`https://www.overleaf.com/project/6a7a16b9276c76c4bacd163b`, and it is now in
+`working_state.md` so the next session does not have to search the projects list for it.
+
+**It compiles at 10 pages, up from 9 on 25 August.** The extra page is Related work: five
+citations added to the cascade paragraph that had carried a visible `CITATIONS MISSING`
+comment, plus a new paragraph on 2026 financial verification work. Citations render as
+author-year throughout the text that was read, with no `[?]`.
+
+The project was last modified "a day ago by You" before the upload, so nothing of the
+professor's or a co-author's was overwritten. The one-way repo to Overleaf flow held.
+
+**Two checks were not completed and are flagged rather than assumed.** The PDF pane would not
+fit in the screenshot viewport, and three attempts to widen it, including a window resize, did
+not change the captured size. So the References list on page 10 was not read, and the compile
+log was not opened; the badge shows 1, consistent with the known harmless `\showhyphens`
+warning from the two previous compiles. Both were checked locally instead: 19 bib entries, 19
+cited, no dangling key and no uncited entry.
+
+**Verified 28 August, after the upload, because the user asked whether the professor had edited
+first.** He had not. The History panel shows two entries, `28 August 11:07 You (upload)` and
+`26 August 23:37 You (upload)`, with nothing between and no edit by anyone else. The diff
+confirms it independently: the replaced version still carried the "reported split was read
+once" sentence verbatim, so it was our 26 August version untouched.
+
+**The check used before uploading was too weak and is recorded as a lesson.** The projects list
+said "last modified a day ago by You", which was treated as proof. It is not: it cannot
+distinguish "he never edited" from "he edited and the user edited afterwards". Open History and
+read the entry list before uploading. The free plan limits history depth, so afterwards may be
+too late.
