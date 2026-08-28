@@ -1,0 +1,42 @@
+You are reading part of a company's financial report. A claim about it needs checking.
+
+Do NOT decide whether the claim is true or false. Somebody else does that. Your only
+job is to find the numbers the calculation needs.
+
+Report:
+<REPORT>
+
+Claim: <STATEMENT>
+
+Find the figures in the report that the claim's calculation uses, and name the
+operation that combines them.
+
+Operations, and the order the numbers must be given in:
+  percent_change   the later value first, then the earlier value
+  difference       the starting value first, then the amount taken away
+  percent_of       the part first, then the whole
+  ratio            the top of the fraction first, then the bottom
+  sum              any number of values, in any order
+
+CHOOSE THE OPERATION BY WHAT THE CLAIM ASSERTS, not by what the report contains.
+If the claim states a percentage, a growth rate, or a rate of change, the operation
+is percent_change or percent_of. If the claim states an amount of money, a count, or
+a total, the operation is difference, sum, or ratio. A claim stating a percentage can
+never be answered by difference or sum.
+
+Copy each figure exactly as the report prints it. Do not round it and do not convert
+it into different units. If the report does not contain the figures, write NONE.
+
+Copy the claimed value exactly as the claim writes it, INCLUDING a percent sign or a
+currency symbol if the claim uses one.
+
+Answer in exactly three lines and add nothing else:
+NUMBERS: <the figures, separated by commas>
+OPERATION: <one name from the list above>
+CLAIMED: <the value the claim asserts, copied exactly as the claim writes it>
+
+For example, if a report showed revenue of 250 in 2023 and 200 in 2022, and the claim
+said revenue grew by 25%, the answer would be:
+NUMBERS: 250, 200
+OPERATION: percent_change
+CLAIMED: 25%

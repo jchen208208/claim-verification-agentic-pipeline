@@ -34,6 +34,9 @@ OPERATIONS = {
     "sum": _sum,
 }
 
+# Operations whose result is a percentage rather than a quantity.
+PERCENT_OPERATIONS = {"percent_change", "percent_of"}
+
 
 def compute(operation, operands):
     # run one operationa dn return the value or None if it cannot run.
@@ -46,6 +49,17 @@ def compute(operation, operands):
         return float(function(*operands))  # '*' unpacks the list to comma separated operands
     except (TypeError, ZeroDivisionError, ValueError, OverflowError):
         return None
+
+def units_agree(operation, claimed_text):
+    # checks if the operation produces the kind of value the claim asserts?
+    text = claimed_text or ""
+    is_percent_operation = operation in PERCENT_OPERATIONS
+
+    if "%" in text and not is_percent_operation:
+        return False
+    if "$" in text and is_percent_operation:
+        return False
+    return True
 
 
 # regex for finding a number as it is written inside a claim (ex: 3.27, 17.1, $1,204,500, 180,996). ? = 0 or 1, * = 0 or more, + = one or more
@@ -181,7 +195,7 @@ def build_prompt(statement, evidence_block, template):
 
 def verify(statement, evidence_block, template, call_model):
     # runs the skill on one claim and returns (verdict, detail)
-    
+
     prompt = build_prompt(statement, evidence_block, template)
     detail = {"prompt": prompt, "response": None, "numbers": None,
               "operation": None, "claimed": None, "computed": None,
@@ -196,6 +210,10 @@ def verify(statement, evidence_block, template, call_model):
 
     if numbers is None or operation is None or claimed_text is None:
         detail["declined"] = "incomplete_extraction"
+        return None, detail
+
+    if not units_agree(operation, claimed_text):
+        detail["declined"] = "operation_contradicts_claim"
         return None, detail
 
     if not grounded(numbers, evidence_block):
