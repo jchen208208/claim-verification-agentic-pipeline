@@ -131,3 +131,43 @@ def parse_response(text):
         operation = operation.lower()
 
     return numbers, operation, _last(_CLAIMED_LINE, text)
+
+
+# regex for finding a number as it is printed in a filing, which differs from one written in a claim since parentheses mean negative in accounting, so (45,300) is -45300.
+_FILING_NUMBER = re.compile(r"\(?\$?\s?\d[\d,]*(?:\.\d+)?\)?")
+
+# tolerance on how close an operand retrived is to a figure in the filing. higher tolerance allows more coverage but causes invented operands and model hallucination
+MATCH_TOL = 1e-9
+
+def numbers_in_filing(text):
+    # returns every figure in a block of filing text
+
+    values = set()
+    for token in _FILING_NUMBER.findall(text or ""):
+        cleaned = token.strip("()").replace("$", "").replace(",", "").strip()
+        try:
+            value = float(cleaned)
+        except ValueError:
+            continue
+        values.add(value)
+        values.add(-value)
+    return values
+
+
+def _appears(operand, values):
+    # checks if this one operand is present in the document's numbers at any scale
+    if operand == 0:
+        return 0.0 in values
+    for scale in SCALES:
+        target = operand * scale
+        for value in values:
+            if abs(value - target) <= MATCH_TOL * abs(target):
+                return True
+    return False
+
+def grounded(numbers, evidence):
+    # checks if every operand the model returned is actually present in the evidence retrieved block of the prompt
+    if not numbers:
+        return False
+    values = numbers_in_filing(evidence)
+    return all(_appears(operand, values) for operand in numbers)
