@@ -16,12 +16,15 @@ from src.run_loop import run_one_claim
 from src.logger import write_result, has_result
 from src.run_loop import load_prompt_template
 
+from src import arithmetic_skill
+from src.run_loop import build_prompt, read_report
+
 
 @dataclass
 class RoutedRecord:
     # one claim through the pipeline as one JSON file.
 
-    # same as Record object
+    # fiels that are same as Record object
     example_id: str
     subset: str
     gold_label: bool
@@ -47,9 +50,12 @@ class RoutedRecord:
     verdict_local_b: bool | None = None  # the 7B's verdict, None if skipped
     verdict_cloud: bool | None = None  # None when the cloud was not called
     cloud_called: bool = False
-    final_source: str | None = None  # "local_b" or "cloud"
+    final_source: str | None = None  # "local_b", "cloud" or "skill"
     escalation_reason: str | None = None  # "numeric_detector", "disagreement", or None when nothing escalated
     locals_skipped: bool = False  # the detector fired = true
+
+    skill_verdict: bool | None = None  # the arithmetic skill's answer
+    skill_detail: dict | None = None  # its operands, operation, computed value and decline reason
 
     # dictionary containing the full stage's records (1 to 3 record objects): {"local_a": {...}, "local_b": {...}, "cloud": {...}}
     stages: dict = field(default_factory=dict)  # without field, all 700 records would share a dict but with field, each get their own
@@ -113,8 +119,30 @@ def route_one_claim(claim, config, stages, retrieve, ollama_version=None):
                 escalate = True
                 reason = reason or "disagreement"
 
+        # the arithmetics skill is tried before any cloud call is made, only on claims the numeric detector already routed to the cloud, so a decline escalates to cloud anyways
+        if escalate and "skill" in stages and is_numeric_claim(claim.statement):
+            stage = stages["skill"]
+
+            # Rebuild the evidence block the 3B actually read using local_a's own template and config, so the skill and the model it is correcting see the same text.
+            report = read_report(claim.report)
+            chunks = retrieve(claim, report)
+            _, evidence_block, _ = build_prompt(claim, chunks, stages["local_a"].template, stages["local_a"].config)
+
+            record.skill_verdict, record.skill_detail = arithmetic_skill.verify(
+                claim.statement,
+                evidence_block,
+                stage.template,
+                lambda prompt: stage.client(prompt, stage.config)["response"]  # passing a lambda function in the place of the call_model paramter slot. this function takes a prompt and outputs a string response, just as call_model inside verify asks.
+            )
+
         # cloud block
-        if escalate:
+        if record.skill_verdict is not None:
+            # this means the skill answered so no need for a cloud call
+            record.final_source = "skill"
+            record.extracted_label = record.skill_verdict
+            record.extraction_source = "arithmetic_skill"
+            deciding = None
+        elif escalate:
             cloud = run_one_claim(claim, stages["cloud"].config, stages["cloud"].template, stages["cloud"].client, retrieve, None)
             record.stages["cloud"] = asdict(cloud)
             record.verdict_cloud = cloud.extracted_label
@@ -127,9 +155,10 @@ def route_one_claim(claim, config, stages, retrieve, ollama_version=None):
 
         record.escalation_reason = reason
 
-        # copy the deciding stage's answer to the top level
-        for attribute in ("extracted_label", "extraction_source", "evidence_present", "context_overflow", "done_reason", "prompt_eval_count", "eval_count", "thinking", "served_model", "system_fingerprint", "chunks_requested", "chunks_kept"):
-            setattr(record, attribute, getattr(deciding, attribute))  # puts the value of each of these attributes in the deciding Recrod object into this pipeline's record object
+        # copy the deciding stage's answer to the top level. if the skill fired, no need for this block
+        if deciding is not None:
+            for attribute in ("extracted_label", "extraction_source", "evidence_present", "context_overflow", "done_reason", "prompt_eval_count", "eval_count", "thinking", "served_model", "system_fingerprint", "chunks_requested", "chunks_kept"):
+                setattr(record, attribute, getattr(deciding, attribute))  # puts the value of each of these attributes in the deciding Recrod object into this pipeline's record object
 
     except Exception:
         record.status = "failed"
@@ -140,6 +169,7 @@ def route_one_claim(claim, config, stages, retrieve, ollama_version=None):
 
 
 STAGE_NAMES = ("local_a", "local_b", "cloud")
+OPTIONAL_STAGE_NAMES = ("skill")
 
 def build_stages(config, clients):
     """load each stage's prompt template and pick its client"""
@@ -147,6 +177,8 @@ def build_stages(config, clients):
     stages = {}
     for name in STAGE_NAMES:
         if name not in config:
+            if name in OPTIONAL_STAGE_NAMES:
+                continue
             raise ValueError(f"pipeline config is missing the '{name}' stage")
         stage_config = config[name]  # a dict from the config file
         stages[name] = Stage(
