@@ -22,6 +22,7 @@ Usage:
     python3 test_scripts/decide_arith_skill.py [per_label]
 """
 
+import math
 import random
 import sys
 from pathlib import Path
@@ -84,10 +85,29 @@ def run_skill(claim, evidence, template):
     return verdict, None
 
 
+def two_sided_binomial(hits, n):
+    """Exact two-sided binomial at p=0.5, which is McNemar without the chi-square
+    approximation. Used because the discordant count here can be small."""
+    if n == 0:
+        return 1.0
+    tail = sum(math.comb(n, k) for k in range(hits + 1)) / 2 ** n
+    return min(1.0, 2 * tail)
+
+
+def mcnemar(skill, cloud, gold, ids):
+    """Paired test on the claims where exactly one of the two is right."""
+    skill_only = sum(1 for i in ids if skill[i] == gold[i] and cloud[i] != gold[i])
+    cloud_only = sum(1 for i in ids if cloud[i] == gold[i] and skill[i] != gold[i])
+    n = skill_only + cloud_only
+    p = two_sided_binomial(min(skill_only, cloud_only), n)
+    return skill_only, cloud_only, n, p
+
+
 def balanced_sample(per_label):
     claims = [c for c in load_claims() if c.subset == "numeric"]
     entailed = [c for c in claims if c.entailment_label]
     refuted = [c for c in claims if not c.entailment_label]
+    per_label = min(per_label, len(entailed), len(refuted))
     rng = random.Random(SEED)
     sample = rng.sample(entailed, per_label) + rng.sample(refuted, per_label)
 
@@ -157,6 +177,17 @@ def main():
             if reason:
                 counts[reason] = counts.get(reason, 0) + 1
         print(f"  {name:18}{counts if counts else 'none'}")
+
+    print("\n  PAIRED McNEMAR, skill against cloud on the claims the skill answered")
+    for name in versions:
+        answered = [i for i, (v, _) in outcomes[name].items()
+                    if v is not None and i in cloud]
+        skill_labels = {i: outcomes[name][i][0] for i in answered}
+        cloud_labels = {i: cloud[i]["extracted_label"] for i in answered}
+        a, b, n, p = mcnemar(skill_labels, cloud_labels, gold, answered)
+        verdict = "SIGNIFICANT" if p < 0.05 else "tie"
+        print(f"  {name:18}skill right/cloud wrong {a:>4}   cloud right/skill wrong {b:>4}"
+              f"   n={n:>4}  p={p:.5f}  {verdict}")
 
     print("\n" + "=" * 66)
     print("  DECISION, criterion fixed before the run:")

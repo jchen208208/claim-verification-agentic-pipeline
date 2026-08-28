@@ -6811,3 +6811,96 @@ said "last modified a day ago by You", which was treated as proof. It is not: it
 distinguish "he never edited" from "he edited and the user edited afterwards". Open History and
 read the entry list before uploading. The free plan limits history depth, so afterwards may be
 too late.
+
+## 28 August 2026, afternoon - the arithmetic skill is built, measured on the full subset, and rejected
+
+Roughly 500 local calls on the GPU box. No cloud calls: the cloud arm came from
+`condition2_flash_v2_full700`, measured on 21 August, which made the comparison paired and free.
+
+### The component was built end to end
+
+`src/arithmetic_skill.py` in six blocks: a whitelist of five operations chosen from the data
+(they cover 207 of 250 claims), a comparison rule that matches at the claim's own precision, a
+line-based response parser, a grounding check, prompt construction, and orchestration. Wired into
+`src/routed_loop.py` as an optional `skill` stage that runs only on claims the numeric detector
+already routed to the cloud, so it can take work away and never add any.
+
+Two prompt versions, `arithmetics_v1` and `arithmetics_v2`.
+
+### It loses to the cloud by 22 points
+
+`test_scripts/decide_arith_skill.py`, all 250 numeric claims, balanced 125/125 and asserted before
+any model call.
+
+    prompt              answered   skill acc   CLOUD acc      paired McNemar
+    arithmetics_v1       175/250      58.9%       81.1%   17/56, n=73, p=0.00001
+    arithmetics_v2       197/250      53.8%       81.2%   16/70, n=86, p=0.00000
+
+The kill criterion was fixed in writing beforehand and the component fails it on both prompts.
+Written up as `paper_numbers.md` §2.23.
+
+### The mechanism is the finding, not the score
+
+A wrong operand set can only produce a refutation: if the figures are wrong the computed value
+cannot match the claim, so the component answers refuted. It predicted refuted 110 times against
+65 entailed on a true 125/125 split, so the errors land almost entirely on entailed claims.
+
+Against §2.21's oracle the story is complete. With correct operands the same rule reaches 91.2%;
+with the model supplying its own it reaches 58.9%. The 32-point gap is the cost of asking a 3B to
+pick two figures out of roughly two hundred in a 5,000-token retrieved block.
+
+Output format was never the issue. One claim of 250 failed to produce the three-line answer.
+
+### The prompt hypothesis was tested and is wrong
+
+v1's worked example showed a 25% growth claim and wrote `CLAIMED: 25`, dropping the percent sign,
+and v1 never told the model to match the operation to what the claim asserts. The hypothesis that
+this caused the wrong-operation failures was stated as if it were a finding, which it was not, and
+the user pushed back on exactly that.
+
+v2 fixed both. It **worked**: `operation_contradicts_claim` declines fell from 58 to 34. Accuracy
+fell 5 points, from 58.9% to 53.8%, because the units guard had been making the component abstain
+on extractions that were bad for other reasons. Removing a defect let 22 more bad extractions
+through to be answered wrongly.
+
+### Two samples of mine were spoiled by data trap 2
+
+Both are recorded in §2.23 so neither is ever quoted.
+
+The 9-claim live run reported "7 of 9 correct" before anyone checked the balance. The 30-claim
+prompt comparison sorted by `example_id` and took the first 30, and because `numeric-val-0`
+through `-124` are all refuted, that sample was 30 refuted and 0 entailed. A component that always
+answers refuted scores 100% on it. This is the trap the project has documented since week 1 and it
+was walked into twice in one afternoon.
+
+`decide_arith_skill.py` samples 125 per label with a fixed seed and raises before any model call if
+the balance is off.
+
+### The sequencing was wrong and it cost the session
+
+§2.22, written the same morning, contains the sentence *"91.2% assumes the model also names the
+right operation. Nothing here tests that."* The risk was identified and then six blocks of pipeline
+code were written without testing it.
+
+The decisive test needs none of that code: retrieve, build the prompt, parse the reply, compute,
+compare, and read the cloud baseline off disk. 25 minutes. **An offline oracle can tell you the
+ceiling; only a live run tells you whether the model reaches it.** The live run should have been
+the gate.
+
+### What was not tested
+
+The **7B** doing the extraction. Same code, one config line, about 25 minutes. Until it runs, the
+attribution is to `qwen2.5-coder:3b` specifically and not to small models in general.
+
+### The pattern worth carrying into the paper
+
+The 3B has now failed two selective-extraction tasks: claim decomposition (§4.5, 57.53% against a
+57.88% bar) and operand extraction (§2.23, 58.9% against a cloud 81.1%). Both asked it to identify
+which part of a long document a claim depends on. Consistent with §2.7, where its accuracy does not
+move with whether the gold evidence reached the prompt.
+
+### The system is unaffected
+
+225/225 harness checks pass. `pipeline_test1700.json` builds with no skill stage and run 1 remains
+reproducible. The skill code stays: it is inert unless a config asks for it, and it is what makes
+the negative result reproducible.

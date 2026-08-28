@@ -4822,3 +4822,95 @@ Overleaf:
 
 Neither is likely to be wrong. Every citation key was checked against `refs.bib` locally before
 upload: 19 entries, 19 cited, no dangling key and no uncited entry.
+
+---
+
+## 28 August, afternoon: THE ARITHMETIC SKILL IS DEAD. Measured on all 250, loses by 22 points.
+
+Full numbers in `paper_numbers.md` §2.23. Reproduce with
+`python3 test_scripts/decide_arith_skill.py 125`, about 25 minutes, no cloud calls.
+
+    prompt              answered   skill acc   CLOUD acc      paired McNemar
+    arithmetics_v1       175/250      58.9%       81.1%   17/56, n=73, p=0.00001
+    arithmetics_v2       197/250      53.8%       81.2%   16/70, n=86, p=0.00000
+
+Balanced 125/125, asserted before any model call. Both losses are significant. The kill
+criterion was written down before the run and the component fails it.
+
+### Why, in one line
+
+**A wrong operand set can only produce a refutation.** If the model picks the wrong figures, the
+computed value cannot match the claim, so the skill answers refuted. It predicted refuted 110
+times against 65 entailed, on a true 125/125 split. The errors land almost entirely on entailed
+claims.
+
+**With correct operands the same comparison rule reaches 91.2% (§2.21).** The 32-point gap is
+the whole result: a 3B cannot identify which two of roughly two hundred figures in a 5,000-token
+retrieved block a claim refers to.
+
+### The prompt was not the cause, and that was tested
+
+`arithmetics_v2` targeted the wrong-operation defect. It **worked** — operation clashes fell 58
+to 34 — and accuracy **fell 5 points**, because the guard had been making the component abstain
+on extractions that were bad anyway. There is no third prompt worth writing.
+
+### THE PATTERN, and it is the transferable finding
+
+The 3B has now failed twice at **selective extraction** rather than at reasoning:
+
+    claim decomposition   57.53% against a 57.88% bar, n=174      §4.5
+    operand extraction    58.9% against a cloud 81.1%, n=250      §2.23
+
+Both asked it to identify which part of a long document a claim depends on. Consistent with §2.7,
+where the 3B's accuracy is unchanged by whether the gold evidence reached its prompt.
+
+### Two spoiled samples of mine, recorded so they are never quoted
+
+Both were **data trap 2**, which this project has documented since week 1.
+
+1. **The 9-claim live run.** Reported "7 of 9" before checking balance. Void.
+2. **The 30-claim prompt comparison.** Sorted by `example_id` and took the first 30. Since
+   `numeric-val-0` to `-124` are all refuted, it was **30 refuted, 0 entailed**. A component that
+   always says refuted scores 100% on it.
+
+`decide_arith_skill.py` now samples 125 per label with a fixed seed and raises before any model
+call if the balance is off.
+
+### The sequencing mistake, worth not repeating
+
+§2.22 named the risk that killed this — *"91.2% assumes the model also names the right operation.
+Nothing here tests that"* — and then six blocks of pipeline code were written without testing it.
+**The decisive test needed none of that code**: retrieve, prompt, parse, compute, compare, plus
+the cloud baseline already on disk. 25 minutes. It should have been the gate.
+
+### THE ONE THING NOT TESTED: the 7B doing the extraction
+
+Same code, same skill, one config line. If the 7B can name operands reliably the component lives
+and is still fully on device. **This is the only remaining lever that is not guessing**, and it is
+about 25 minutes. Until it runs, every claim must say "the 3B", not "a small model".
+
+### The system is unaffected
+
+225/225 harness checks pass. `configs/pipeline_test1700.json` builds with
+`['cloud', 'local_a', 'local_b']` and no skill stage. Run 1's numbers are reproducible. **Keep the
+skill code**: it is inert unless a config declares a `skill` stage, and it is what makes the
+negative result reproducible.
+
+### Overleaf, checked 28 August afternoon
+
+**No sign of any edit by the professor.** The file tree is unchanged and the visible content
+matches our local `neurips_2026.tex` exactly, including the title comment, `\workshoptitle` and
+the abstract. The History panel would not open through the browser extension after three
+attempts, so this is inference from content rather than proof. Open History by hand before the
+next upload.
+
+### The paper change this calls for
+
+**Not a new Method section.** §3.4 already exists and says *"we measured the value of that
+component before building it, and the measurement did not support it."* That is now out of date
+in our favour. It also already predicted the exact failure: *"the failure that motivated the
+component was a transcription error, not a computation error, so an interpreter given the same
+mis-transcribed operand returns the same wrong result."*
+
+Rewriting §3.4 to report the built-and-measured result is stronger than adding a section
+describing a component that is not in the method.

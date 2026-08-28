@@ -1919,6 +1919,13 @@ models fail, see §2.7.
 
 ### 2.21 **[NEW 27 Aug 2026] THE ARITHMETIC SKILL PASSES ITS GATE. Oracle ceiling 86.8% on numeric against the 3B's 64.0%, and the right comparison rule has no tuned parameter.**
 
+> **[SUPERSEDED 28 Aug by §2.23.]** The component was built and lost to the cloud by 22 points.
+> This section's numbers are correct and its VERDICT was wrong. Both kill criteria passed because
+> both measured ceilings, and neither tested the assumption the section itself flagged: that the
+> model can identify the right operands. **The gate should have been the live end-to-end test in
+> `decide_arith_skill.py`, which needs no pipeline code and takes 25 minutes.** Keep the oracle
+> figure, 91.2%, because §2.23 uses it to locate the failure.
+
 Reproduce with: `python3 test_scripts/analyse_numeric_skill_ceiling.py`. Runs in 12 seconds.
 No GPU, no cloud, no model call. **testmini only**, because `python_calculation` and
 `execution_result` do not exist in `test.json` (the 16 August trap).
@@ -2054,6 +2061,11 @@ runs.
 
 ### 2.22 **[NEW 28 Aug 2026] THE REALISTIC CEILING: the 3B already writes the right operands on 50% of numeric claims, and the skill would remove about half the numeric cloud calls**
 
+> **[SUPERSEDED 28 Aug by §2.23.]** The 50% operand-presence figure is correct but did not
+> predict the outcome, because the operands being present in a free-text response is not the same
+> as the model naming them when asked, with the right operation and the right order. Real accuracy
+> is 58.9% against this section's projected win.
+
 Reproduce with: `python3 test_scripts/analyse_skill_realistic_ceiling.py`. Free, no GPU, no cloud.
 testmini only.
 
@@ -2104,6 +2116,122 @@ worth building: those claims stop needing a cloud call at all.
 answers. Operand presence is checked; operation choice is assumed. **Supportable: "the operands
 required by the gold calculation are already present in the local model's own response on 50% of
 arithmetic claims."** **Not supportable:** any accuracy figure for the skill until it runs.
+
+---
+
+
+### 2.23 **[NEW 28 Aug 2026] THE ARITHMETIC SKILL IS DEAD. Built, measured on all 250 numeric claims, loses to the cloud by 22 points at p = 0.00001.**
+
+Reproduce with: `python3 test_scripts/decide_arith_skill.py 125`. About 25 minutes on the GPU
+box, 500 local calls, **no cloud calls** because the cloud arm is read from
+`condition2_flash_v2_full700`, already on disk since 21 August.
+
+**The kill criterion was fixed in writing before the run:** the skill's label accuracy on the
+claims it answers must beat the cloud's accuracy on those same claims. It does not.
+
+#### The result, all 250 numeric claims of testmini, balanced 125/125 and asserted
+
+| prompt | answered | skill accuracy | cloud, same claims | paired McNemar |
+|---|---|---|---|---|
+| `arithmetics_v1` | 175/250 | **58.9%** | **81.1%** | 17 / 56, n=73, **p = 0.00001** |
+| `arithmetics_v2` | 197/250 | **53.8%** | **81.2%** | 16 / 70, n=86, **p = 0.00000** |
+
+Both significant, both losses. The skill is 22 points worse than the arm it was built to replace.
+
+#### THE MECHANISM: it is operand selection, not arithmetic
+
+The skill over-predicts refuted, against a true 125/125 split:
+
+| prompt | predicted entailed | predicted refuted |
+|---|---|---|
+| `arithmetics_v1` | 65 | 110 |
+| `arithmetics_v2` | 86 | 111 |
+
+**This is mechanical and it explains the whole result.** If the model picks the wrong figures,
+the computed value cannot match what the claim asserts, `precision_match` returns False, and the
+skill says refuted. **A wrong extraction can only ever produce a refutation.** So the errors land
+almost entirely on entailed claims, and on a subset that is half refuted the broken mechanism
+still scores near chance.
+
+**Against §2.21's oracle this is the whole story.** With perfect operands the same comparison
+rule reaches 91.2%. With the model supplying its own operands it reaches 58.9%. **The 32-point
+gap is the cost of asking a 3B to identify which two of roughly two hundred figures in a
+5,000-token retrieved block a claim refers to.**
+
+#### THE PROMPT WAS NOT THE CAUSE, and this was tested rather than assumed
+
+`arithmetics_v2` was written specifically to fix the wrong-operation defect: it tells the model
+to choose the operation by what the claim asserts, and its worked example keeps the percent sign
+that v1 dropped.
+
+**It worked, and it made things worse.**
+
+| | v1 | v2 |
+|---|---|---|
+| `operation_contradicts_claim` declines | 58 | **34** |
+| claims answered | 175 | 197 |
+| accuracy | 58.9% | **53.8%** |
+
+The fix did exactly what it was designed to do, halving the operation clashes. Accuracy fell 5
+points. **The units guard had been acting as a filter**, and removing the defect let 22 more bad
+extractions through to be answered wrongly instead of declined.
+
+**Supportable:** *"a prompt revision that halved the operation-selection errors reduced accuracy,
+because the errors it removed had been causing the component to abstain."*
+
+#### Decline reasons, and what they say
+
+| reason | v1 | v2 |
+|---|---|---|
+| `operation_contradicts_claim` | 58 | 34 |
+| `operands_not_in_evidence` | 14 | 15 |
+| `computation_failed` | 2 | 3 |
+| `incomplete_extraction` | 1 | 1 |
+
+**Output format was never the problem.** 1 of 250 failed to produce the three-line format. The 3B
+follows the format and fills it with the wrong numbers.
+
+#### THE PATTERN ACROSS TWO COMPONENTS, and it is the transferable finding
+
+The 3B has now failed two tasks that are both **selective extraction** rather than reasoning:
+
+- **Claim decomposition** (§4.5): best variant 57.53% against a 57.88% bar, n=174.
+- **Operand extraction** (here): 58.9% against a cloud arm at 81.1%, n=250.
+
+**Supportable:** *"we twice asked the 3B to identify which part of a long document a claim depends
+on, once by decomposing the claim and once by naming the operands of its calculation, and both
+times the component performed no better than not having it."* This is a sharper statement of the
+local model's limit than either result alone, and it is consistent with §2.7: the 3B's accuracy is
+unchanged by whether the gold evidence reached its prompt.
+
+#### TWO SPOILED SAMPLES, recorded so they are never quoted
+
+Both were mine and both were **data trap 2**, the trap this project has documented since week 1.
+
+1. **The 9-claim live run**, aborted 28 August. Ordered by the run loop's shuffle but reported
+   before checking balance. Gave "7 of 9 correct". Meaningless.
+2. **The 30-claim prompt comparison.** Sorted by `example_id` and took the first 30. Because
+   `numeric-val-0` through `-124` are all refuted, the sample was **30 refuted, 0 entailed**. A
+   component that always answers refuted scores 100% on it. Every label figure from it is void.
+
+`decide_arith_skill.py` samples 125 of each label with a fixed seed and **raises before any model
+call** if the balance is off.
+
+#### What may and may not be said
+
+**Supportable:** *"we built the interpreter-based arithmetic component, evaluated it on all 250
+arithmetic claims of the development split, and it scored 58.9% against 81.1% for the cloud model
+on the same claims (paired McNemar, 73 disagreements, p = 0.00001). The bottleneck is not
+computation but identifying which figures the claim refers to: supplying the correct operands
+raises the same rule to 91.2%."*
+
+**Not supportable:** any framing in which the component "nearly worked", or in which a further
+prompt revision is expected to fix it. One was tried, it addressed its target defect, and accuracy
+fell.
+
+**Open, and NOT tested:** the same component with the **7B** doing the extraction. The failure is
+attributed to the 3B's extraction ability, and that attribution is untested against a larger local
+model. Say "the 3B" and not "a small model" until it is.
 
 ---
 
@@ -2362,7 +2490,7 @@ Condition 1 is never-escalate, condition 3 is always-escalate, and Tier 5's swee
 
 ## 4.5 What we tried and did not use — the negative results
 
-**These belong in the paper.** Five things were built, measured and set aside, each for a stated reason, and each is a result. The first three are retrieval; the last two are model choice, added 9 August. FINDVER's literature has one method paper on it (MACE), which declined to work on retrieval at all, so "we tried the obvious retrieval upgrades and here is what they were actually worth" is a contribution rather than an admission.
+**These belong in the paper.** Seven things were built, measured and set aside, each for a stated reason, and each is a result. The first three are retrieval; the last two are model choice, added 9 August. FINDVER's literature has one method paper on it (MACE), which declined to work on retrieval at all, so "we tried the obvious retrieval upgrades and here is what they were actually worth" is a contribution rather than an admission.
 
 The honest framing throughout: **each was expected to help, and the measurement said otherwise.**
 
@@ -2373,6 +2501,7 @@ The honest framing throughout: **each was expected to help, and the measurement 
 | **`k1`/`b` tuning** | a free point or two | best 74.97% vs default 74.60%, n=700 | inside noise, and selecting the winner is selecting on the test set |
 | **`qwen3:4b` as the local model** | a stronger local model for one extra billion parameters | 145 s/claim on the GPU vs 6.6, n=6 | **rejected on cost, not accuracy.** At the measured 36.8x MacBook-to-GPU ratio that is ~90 min per claim on the device of record. Also truncated on claim 4 of 4: 18,282 characters of reasoning, `done_reason=length` at the 8,000 cap, **zero characters** in `response` |
 | **`qwen2.5:3b` instead of the Coder variant** | the professor's objection, that code tuning suits financial text badly | 67.6% vs 66.7%, n=102 | **not rejected on accuracy — it is a tie**, one claim in 102. Coder kept on format compliance (102/102 vs 92/102 anchored), 0.0% vs 2.0% unparseable, and 17% faster. See §2.5 |
+| **Interpreter-based arithmetic (the "skill")** | replace cloud calls on arithmetic claims with on-device Python | 58.9% vs the cloud's 81.1% on the same 175 claims, n=250, p = 0.00001 | **rejected on accuracy, and the mechanism is the finding.** A wrong operand set can only produce a refutation, so the component over-predicted refuted 110 to 65 against a true 125/125 split. With correct operands supplied the same rule reaches 91.2%, so the bottleneck is identifying which figures the claim refers to, not computing with them. See §2.23 |
 | **`qwen3:4b-instruct` as the local model** | one extra billion parameters, no thinking overhead, should beat a 3B | 67.6% vs 66.7% at **3.5x the seconds per claim**, n=102 | **rejected on deployment cost.** Tied on accuracy (p = 1.000), generates 3.1x more output tokens, and truncated 13 times at `num_predict` 2000 where the 3B truncated zero. Its true score at an adequate cap is likely ~72%, and that still does not buy 3.5x latency on a CPU-only 2017 laptop. See §2.5.1 |
 
 **Two further negatives worth a sentence each.**
@@ -2421,4 +2550,7 @@ Listed so they are not written by accident.
 - **[NEW 27 Aug] "FDV-IE is our weakest subset."** It is not. Routed: FDV-IE 77.5%, FDV-MATH 77.3%, **FDV-KNOW 72.0%**. **Supportable: "FDV-IE is the only subset where the routed pipeline loses significantly to the cloud baseline."** That is a different sentence and it is the one that matters.
 - **[NEW 27 Aug] That the arithmetic skill improves accuracy over the current pipeline.** It cannot, by construction. `escalate_numeric` is `true`, so every numeric claim already goes to the cloud, which scores 77.2% on that subset. **Supportable if measured: "arithmetic claims are verified on device at accuracy comparable to the cloud arm, removing N cloud calls."** The win is cost and locality. Writing it as an accuracy gain is the error this entry exists to prevent.
 - **[NEW 27 Aug] Any skill result before the gate analysis has run.** See `working_state.md`, 27 August. The coverage ceiling and the two kill criteria were written down before the numbers were read, and they are binding.
+- **[NEW 28 Aug] That the arithmetic skill works, nearly works, or needs one more prompt.** §2.23: 58.9% against the cloud's 81.1%, p = 0.00001, on all 250 arithmetic claims. A prompt revision targeting the main defect halved that defect and made accuracy **worse**. **Supportable: "we built it, measured it on the full subset, and it loses."**
+- **[NEW 28 Aug] "A small model cannot identify the operands."** Only the **3B** was tested. The 7B has not been. Say "the 3B".
+- **[NEW 28 Aug] Any figure from the 9-claim or 30-claim skill samples.** Both were single-label through data trap 2. §2.23.
 - **[NEW 27 Aug] That our design was not shaped by FINDVER.** It was, and from 27 August this is deliberate and approved. The two sentences claiming otherwise come out of `neurips_2026.tex` (line 100, lines 326 to 333). Nothing replaces them; the obligation is to stop claiming the opposite, not to advertise it.

@@ -165,9 +165,9 @@ arithmetic itself, Program of Thoughts \citep{chen2022pot} and PAL \citep{gao202
 it to an interpreter,
 and TART \citep{lu2025tart} applies it to tabular reasoning through a table formatter and a
 code generator. TART fine-tunes every module and evaluates on single-table, closed-domain
-data, so neither its training requirements nor its setting transfer here. We treated code
-execution as the obvious remedy for the arithmetic subset, measured what it would be worth,
-and report in Section~\ref{sec:sandbox} why we did not build it.
+data, so neither its training requirements nor its setting transfer here. We built the same
+component for the arithmetic subset of this benchmark, and report in
+Section~\ref{sec:sandbox} why it does not work at the model scale a consumer device allows.
 
 % Citation gap CLOSED 27 August 2026. Twelve verified entries added to refs.bib.
 Routing between a small local model and a large remote one is a familiar idea in deployment,
@@ -320,21 +320,33 @@ how much each trigger contributes.
 
 Given that one subset of this benchmark turns on arithmetic, the natural design is to have
 the model emit a calculation and an interpreter evaluate it, following Program of Thoughts
-\citep{chen2022pot}. We measured the value of that component before building it, and the
-measurement did not support it.
+\citep{chen2022pot}. We built that component and measured it, and it does not work at this
+model scale.
 
-Three findings weighed against building it. The failure that motivated the component was a
-transcription error, not a computation error, so an interpreter given the same
-mis-transcribed operand returns the same wrong result. Arithmetic performed in prose already
-yields the correct value on 64.4\% of numerical claims, which leaves considerably less
-headroom than we assumed. Most decisively, producing the correct value barely predicts
-producing the correct verdict: the two coincide on 34.8\% of claims against 41\% expected
-under independence, and 73 claims reach the correct verdict without the correct value ever
-appearing. The magnitude error the component was conceived to eliminate occurs on 8 of 250
-responses.
+The component runs on claims the arithmetic detector has already routed to the cloud, so it
+can remove work but never add any. The local model is asked for the operands, the operation
+and the value the claim asserts, rather than for a verdict. An interpreter then performs the
+calculation and compares the result to the claim at the precision the claim itself states,
+which is a rule with no threshold to tune. It abstains, and the claim proceeds to the cloud,
+whenever the operands it names do not appear in the retrieved text or the operation
+contradicts the units of the claimed value.
+
+On all \arithN{} arithmetic claims of the development split it answered \arithAnswered{} and
+scored \arithAcc{}, against \arithCloudAcc{} for the cloud model on those same claims
+(paired McNemar, \arithDisagree{} disagreements, $p = \arithP{}$). Output format was not the
+difficulty: \arithFormatFail{} response of \arithN{} failed to produce the requested fields.
+The failure is operand selection. A component that names the wrong figures computes a value
+that cannot match the claim, and therefore always answers refuted; ours answered refuted
+\arithSaidRefuted{} times against \arithSaidEntailed{} entailed, on a split that is half
+each. Supplying the correct operands and leaving everything else unchanged raises the same
+rule to \arithOracle{}, so the interpreter was never the bottleneck. Identifying which two of
+several hundred figures in a retrieved passage a claim refers to is the bottleneck, and it is
+the same weakness that made claim decomposition unusable in Section~\ref{sec:retrieval}.
 
 We therefore route arithmetic claims to the cloud model instead of executing them, and
-Section~\ref{sec:triggers} reports the escalation value this buys.
+Section~\ref{sec:triggers} reports the escalation value this buys. We report the component
+rather than omitting it, because the negative result locates a limit of small on-device models
+that an accuracy table does not show.
 
 \section{Experimental setup}
 \label{sec:setup}

@@ -267,3 +267,24 @@
 \newcommand{\latSevenBMed}{13.5}
 \newcommand{\latCloudStageMed}{8.2}
 \newcommand{\latRunHours}{15.8}          % routed, whole test split, summed
+
+
+% ---------------------------------------------------------------------------
+% The interpreter-based arithmetic component. BUILT, MEASURED, REJECTED.
+% docs/paper_numbers.md 2.23. Reproduce: test_scripts/decide_arith_skill.py 125
+%
+% READ BEFORE USING THESE. The component LOST. Every sentence built from these
+% macros must say so. The oracle figure exists to locate the failure in operand
+% selection, never to suggest the component nearly worked.
+% ---------------------------------------------------------------------------
+
+\newcommand{\arithN}{250}                % numeric claims, development split
+\newcommand{\arithAnswered}{175}         % claims the component did not decline
+\newcommand{\arithAcc}{58.9\%}           % component, on the claims it answered
+\newcommand{\arithCloudAcc}{81.1\%}      % cloud, on those SAME claims
+\newcommand{\arithDisagree}{73}          % paired McNemar discordant pairs
+\newcommand{\arithP}{0.00001}
+\newcommand{\arithOracle}{91.2\%}        % same rule, correct operands supplied
+\newcommand{\arithSaidRefuted}{110}      % against 65 entailed, true split 125/125
+\newcommand{\arithSaidEntailed}{65}
+\newcommand{\arithFormatFail}{1}         % of 250 failed to produce the format
