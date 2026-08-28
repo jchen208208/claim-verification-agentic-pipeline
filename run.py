@@ -47,6 +47,13 @@ def build_sample(config):
     if len(claims) != expected:
         raise ValueError(f"expected {expected} claims in {split}, loaded {len(claims)}")
 
+    # optional single-subset run used to test skills
+    subset = config.get("subset")
+    if subset is not None:
+        claims = [c for c in claims if c.subset == subset]
+        if not claims:
+            raise ValueError(f"no claims in subset {subset!r}")
+        
     random.Random(config["sample_seed"]).shuffle(claims)
     return claims
 
