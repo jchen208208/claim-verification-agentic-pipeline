@@ -19,7 +19,14 @@ deepseek-v4-flash's answer for every testmini claim, so the comparison is paired
 and costs no API quota.
 
 Usage:
-    python3 test_scripts/decide_arith_skill.py [per_label]
+    python3 test_scripts/decide_arith_skill.py [per_label] [model] [prompt_version]
+
+    per_label        claims per label. 125 is the whole numeric subset.
+    model            ollama tag, default qwen2.5-coder:3b
+    prompt_version   restrict to one prompt, default both
+
+The model argument exists because the 3B result attributes the failure to operand
+identification, and that attribution is untested against a larger local model.
 """
 
 import math
@@ -43,8 +50,10 @@ PERCENT_OPERATIONS = {"percent_change", "percent_of"}
 CLOUD_RUN = "condition2_flash_v2_full700"
 SEED = 0
 
+DEFAULT_MODEL = "qwen2.5-coder:3b"
+
 SKILL_CONFIG = {
-    "model": "qwen2.5-coder:3b",
+    "model": DEFAULT_MODEL,
     "num_ctx": 32768,
     "num_predict": 1000,
     "temperature": 0,
@@ -121,19 +130,24 @@ def balanced_sample(per_label):
 
 def main():
     per_label = int(sys.argv[1]) if len(sys.argv) > 1 else 30
+    if len(sys.argv) > 2:
+        SKILL_CONFIG["model"] = sys.argv[2]
+    only_prompt = sys.argv[3] if len(sys.argv) > 3 else None
+
     sample = balanced_sample(per_label)
     cloud = load_run(CLOUD_RUN)
     main_template = load_prompt_template("baseline_v1")
 
     versions = {}
-    for name in ("arithmetics_v1", "arithmetics_v2"):
+    candidates = (only_prompt,) if only_prompt else ("arithmetics_v1", "arithmetics_v2")
+    for name in candidates:
         path = REPO_ROOT / "prompts" / f"{name}.txt"
         text = path.read_text() if path.exists() else ""
         if "<REPORT>" not in text:
             raise SystemExit(f"{path} is empty or has no <REPORT> placeholder")
         versions[name] = text
 
-    print(f"{len(sample)} claims, qwen2.5-coder:3b, temperature 0, seed 0\n")
+    print(f"{len(sample)} claims, {SKILL_CONFIG['model']}, temperature 0, seed 0\n")
 
     outcomes = {name: {} for name in versions}
     for index, claim in enumerate(sample, 1):
