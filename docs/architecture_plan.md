@@ -1443,6 +1443,15 @@ Three comparisons, in descending order of rigour:
 
 ### 9.4 **[NEW 11 Aug 2026] THE OVERFITTING LIMIT, and the split that fixes it**
 
+> **[PARTLY OVERRIDDEN 27 Aug 2026 by the professor.]** The develop-on-testmini, report-on-`test.json`
+> protocol below stands and produced every reported number. What is void from 27 August is the rule
+> that a component motivated by reading `test.json` output may not be built. His reasoning: the
+> system has **no trained parameters**, and FINDVER **ships test splits only**, so there is no
+> training split any method could have used. The accepted cost is that our design is now optimised
+> for FINDVER, which is why a second benchmark is on the after-workshop list. See
+> `working_state.md`, 27 August. The statistical warning below is untouched and still binds: several
+> rounds of "try a wording, check the split" fits noise regardless of who approves it.
+
 **This became a live constraint the moment prompt v2 worked.** It is a protocol decision, not a status note, and it should be settled before any further prompt iteration.
 
 #### The problem, stated plainly

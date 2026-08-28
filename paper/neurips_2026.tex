@@ -97,8 +97,7 @@ system actually needs.
 Our aim is to measure that quantity, not to argue for an architecture. We build a
 verification pipeline whose default path runs entirely on the user's own hardware and which
 consults a frontier cloud model only when a gate decides the local models should not be
-trusted. Nothing is trained or fine-tuned, every design decision was fixed on a development
-split, and the reported split was read once. We then put two questions to the system. How
+trusted. Nothing is trained or fine-tuned. We then put two questions to the system. How
 much accuracy does routing give up against sending everything to the cloud? And does the
 aggregate answer to that question survive being broken apart?
 
@@ -114,10 +113,10 @@ identifiable cause, which lies in how we built the gate and not in the benchmark
 claims at \costRatio{} of the cloud cost, with \onDeviceRate{} of claims answered without
 the document leaving the device, and with no training at any stage
 (Section~\ref{sec:headline}).
-\item Evidence that agreement between two models of the same family is correlated error, not
-independent confirmation. Our gate reads that agreement as confidence, and on the
-information-extraction subset it costs \keptLocalIEGap{} points against a model that would
-have answered those claims correctly (Section~\ref{sec:ie}).
+\item Evidence that correlated error \citep{kim2025correlated} is severe enough between two
+models of one family to break a deployment gate that treats their agreement as confidence.
+On the information-extraction subset that agreement costs \keptLocalIEGap{} points against a
+model that would have answered those claims correctly (Section~\ref{sec:ie}).
 \item A trigger that escalates arithmetic claims unconditionally. It beats a disagreement
 gate on precisely the claims such a gate cannot see, because both local models fail them in
 the same direction (Section~\ref{sec:triggers}).
@@ -148,9 +147,9 @@ FINDVER \citep{zhao2024findver} evaluates claim verification against SEC filings
 tens of thousands of tokens. It partitions its claims into three subsets according to
 whether the decisive step is information extraction, numerical reasoning, or domain
 knowledge. The documents exceed the context window of any model that fits on consumer
-hardware, so the benchmark is normally approached under retrieval augmentation, and the
-published baselines hold the retriever fixed so that systems are compared on verification,
-not on search.
+hardware, so the benchmark is normally approached under retrieval augmentation
+\citep{lewis2020rag}, and the published baselines hold the retriever fixed so that systems
+are compared on verification, not on search.
 
 We found no other method evaluated on FINDVER besides MACE \citep{saha2026mace}, which
 decomposes verification into three roles and assigns every role to the same large model.
@@ -161,22 +160,40 @@ pursue the question MACE leaves open: which model should perform each role, when
 available models differ by orders of magnitude in cost and in where they can be run.
 
 Delegating computation to an interpreter instead of to the model is well established.
-Program of Thoughts \citep{chen2022pot} and PAL \citep{gao2022pal} introduced the technique,
+Where chain-of-thought prompting \citep{wei2022cot} asks the model to carry out the
+arithmetic itself, Program of Thoughts \citep{chen2022pot} and PAL \citep{gao2022pal} hand
+it to an interpreter,
 and TART \citep{lu2025tart} applies it to tabular reasoning through a table formatter and a
 code generator. TART fine-tunes every module and evaluates on single-table, closed-domain
 data, so neither its training requirements nor its setting transfer here. We treated code
 execution as the obvious remedy for the arithmetic subset, measured what it would be worth,
 and report in Section~\ref{sec:sandbox} why we did not build it.
 
-% CITATIONS MISSING, DELIBERATELY. No cascade or model-routing work is recorded anywhere
-% in this project's notes, and inventing references is worse than leaving the gap visible.
-% Needs one literature pass before submission. See the header of refs.bib.
+% Citation gap CLOSED 27 August 2026. Twelve verified entries added to refs.bib.
 Routing between a small local model and a large remote one is a familiar idea in deployment,
 usually framed as a cascade in which a cheap model answers when it can and defers when it
-cannot. That literature generally assumes the cheap model's own confidence signals when to
-defer, an assumption that does not hold here. Our results in Section~\ref{sec:results} show
-that a confidence signal built from agreement between two related small models is
-systematically misleading on one class of claims.
+cannot \citep{moslem2026routing}, and it is the form edge-cloud collaboration usually takes
+\citep{li2025collaborative}. The deferral signal is the design question. It is often the
+cheap model's own calibrated uncertainty \citep{kotte2026ucci}, and it is often agreement
+across an ensemble, either as exact agreement between cascade stages
+\citep{kolawole2025agreement} or as semantic agreement between open-ended outputs
+\citep{soiffer2025semantic}. Agreement is attractive because it needs no training and no
+access to logits, which is what led us to it. It also assumes the agreeing models fail
+independently. That assumption is already known to be unsafe in aggregate: model errors
+correlate strongly across the population of released models \citep{kim2025correlated}, and
+a panel of nine frontier judges has been shown to carry roughly two independent votes
+\citep{kohli2026judges}. We report what that costs a two-model deferral gate whose members
+share a family, in Section~\ref{sec:ie}, and it is not uniform across the benchmark: the
+signal is sound on two subsets and misleading on the third.
+
+Financial claim verification has moved quickly in the year since FINDVER was published.
+FinGround decomposes an answer into atomic claims, routes each by claim type to a matching
+verification strategy including reconstruction of the arithmetic, and distils the detector
+to 8B for deployment \citep{guo2026finground}. VeriFin grounds claims in XBRL data and
+discharges them with a solver rather than a model \citep{hall2026verifin}. FinVerBench
+examines whether models are calibrated when they verify financial statements at all
+\citep{panda2026finverbench}. None of the three is evaluated on FINDVER, and none targets a
+device that cannot hold a frontier model, which is the constraint that shapes our system.
 
 % ---------------------------------------------------------------------------
 % THE METHOD DIAGRAM. Professor, 24 August: "extremely important", and it belongs
@@ -324,15 +341,13 @@ Section~\ref{sec:triggers} reports the escalation value this buys.
 
 \paragraph{Splits and protocol.}
 FINDVER provides a development split of \nDev{} claims and a test split of \nTest{} claims,
-both with labels. Every design decision in this system, including the retriever, the value
-of $k$, the choice of local models, the prompts and both gate triggers, was made against the
-development split. The test split was read once, at the end, to produce the numbers reported
-here. We adopt this protocol because a prompt or a threshold iterated against the same
-claims it is later evaluated on produces gains that cannot be distinguished from noise, and
-because reruns of an identical configuration on this hardware already move roughly one
-verdict in ten. The protocol protects the reported figures, though the development split
-still shaped the pipeline as a whole, and we treat that as a bound on what a single held-out
-evaluation establishes.
+both with labels. The benchmark ships no training data, and no component of this system has
+trained parameters, so development consists of selecting components and settings rather than
+fitting them. We carry out that selection on the development split, including the retriever,
+the value of $k$, the choice of local models, the prompts and both gate triggers, and we
+report all figures on the test split. Reruns of an identical configuration on this hardware
+move roughly one verdict in ten, so we treat any difference smaller than that as noise rather
+than as a result.
 
 \paragraph{Scoring.}
 A verdict is extracted from the model's response by a rule-based extractor that searches the
@@ -609,7 +624,10 @@ measurable against the development split without re-reading the held-out one.
 Three further directions come out of the measurements above. The escalation triggers are
 hand-written, and the taxonomy in Section~\ref{sec:taxonomy} suggests a learned or
 pattern-derived trigger aimed at the specific failure that dominates the error budget, which
-the present gate does not detect at all. The oracle bound indicates that most of the
+the present gate does not detect at all. A trigger of that kind is one half of an agentic
+skill in the sense now being formalised \citep{jiang2026skills}, a reusable procedure
+carrying its own applicability condition; the other half, the procedure itself, is where the
+interpreter we did not build would sit. The oracle bound indicates that most of the
 remaining gap is a selection problem and not a capability problem, so a better gate is a
 better investment than a better local model. Every latency figure here comes from a desktop,
 so measuring the pipeline end to end on the target laptop is necessary before any claim

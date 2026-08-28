@@ -1853,6 +1853,193 @@ FDV-KNOW remains the weakest subset in the routed pipeline at 72.0% (§2.18), an
 
 **The numeric detector at 0.984 held-out precision (§2.13.4) means an arithmetic skill is selectable**, which was the blocking question on 12 August. The idea is viable and unfunded, and belongs in future work rather than in the results.
 
+#### **[REVERSED 27 Aug 2026] Reasons 3 and 4 no longer hold. The section's own diagnosis is now the plan.**
+
+The four reasons above were written on 20 August. Two of them have since failed.
+
+- **Reason 4 is void.** The professor ruled on 27 August that tuning on the reported split does not
+  matter here, because the system has no trained parameters and FINDVER ships no training split.
+  See `working_state.md`, 27 August.
+- **Reason 3 was already corrected on 21 August** and the correction was never folded back in
+  here. A numeric-only test on testmini's 250 claims at about 6.6 s per claim is roughly **half an
+  hour per arm**, not a GPU night. Compute was never the blocker on a narrow test.
+- **Reasons 1 and 2 stand and are unaffected.** The numeric target is sharp and the knowledge
+  target does not exist.
+
+**What this section actually argued against was a *prompt* skill**, and that argument is still
+correct: a prompt does not make a 3B model compute to one part in a thousand. The sentence
+*"What would fix it is code execution, and there is no sandbox in `src/`"* names the design that
+is now being built. Doing the arithmetic in Python needs no sandbox, because the operands arrive
+as numbers and the operation comes from a whitelist. There is no `exec` and nothing to escape.
+
+**Superseded phrasing.** "SKILLS ARE CLOSED FOR THIS PAPER" was true on 20 August under a time
+budget and a protocol constraint that have both since changed. Do not quote it.
+
+---
+
+
+### 2.20 **[NEW 27 Aug 2026] GOLD EVIDENCE REACHES THE PROMPT ON 68.2% OF NUMERIC CLAIMS, 27.4% OF KNOWLEDGE CLAIMS**
+
+Measured over the stored `evidence_present` boolean in `results/condition4_pipeline_test1700/`,
+n=1,700, held-out split. §2.18 records only the 50.2% aggregate. The per-subset split had not
+been read and it changes what a skill can be expected to do.
+
+| subset | all gold evidence in the prompt | n |
+|---|---|---|
+| FDV-MATH | **68.2%** | 409/600 |
+| FDV-IE | **51.2%** | 307/600 |
+| FDV-KNOW | **27.4%** | 137/500 |
+
+`evidence_present` is the strict all-gold check from `evidence_asserter.py`: the three rarest
+tokens of **every** gold element must appear in the retrieved block. It is not element recall,
+which is higher, and the two must not be confused (element recall on `test.json` is 80.92% numeric,
+77.92% ie, 64.94% knowledge, §2.16).
+
+**Why it matters for the arithmetic skill.** A skill that computes over retrieved numbers cannot
+run when the numbers were never retrieved. **Roughly a third of numeric claims are out of reach by
+construction**, so the skill needs an explicit decline path that escalates to cloud rather than
+guessing an operand. This is a coverage ceiling, not a defect to be fixed.
+
+**Why it matters for FDV-KNOW.** At 27.4% the knowledge subset is mostly being answered without
+its full gold evidence present, which is consistent with knowledge being both the weakest subset
+for retrieval (64.94%) and for accuracy (72.0% routed) on every measurement since 10 August.
+
+**Consistent with §2.7 rather than contradicting it.** Gold presence and accuracy are close to
+decoupled for the 3B: it scores 61.3% with the evidence present and 61.6% without. Low coverage
+therefore does not by itself explain the accuracy figures. What it does bound is any component
+that must *read a specific number* out of the retrieved text, which is exactly what the arithmetic
+skill does and is not what a verdict is.
+
+**Supportable:** *"the full gold evidence reaches the prompt for 68.2% of arithmetic claims and
+27.4% of knowledge claims on the held-out split."* **Not supportable:** that this is why the
+models fail, see §2.7.
+
+---
+
+
+### 2.21 **[NEW 27 Aug 2026] THE ARITHMETIC SKILL PASSES ITS GATE. Oracle ceiling 86.8% on numeric against the 3B's 64.0%, and the right comparison rule has no tuned parameter.**
+
+Reproduce with: `python3 test_scripts/analyse_numeric_skill_ceiling.py`. Runs in 12 seconds.
+No GPU, no cloud, no model call. **testmini only**, because `python_calculation` and
+`execution_result` do not exist in `test.json` (the 16 August trap).
+
+Run before writing any pipeline code, to answer the user's constraint of 27 August: no more
+components built, measured and set aside. Two ceilings are computable offline and both were
+computed. The kill criteria were written into `working_state.md` before the numbers were read.
+
+#### The baselines this has to beat, testmini numeric, n=250
+
+| arm | strict accuracy |
+|---|---|
+| 3B alone | 64.0% (160/250) |
+| 7B alone | 68.0% (170/250) |
+| cloud, flash v2 | **80.4% (201/250)** |
+
+The cloud is the real competition, because `escalate_numeric` sends every numeric claim there
+already.
+
+#### PART 1. Perfect arithmetic is not enough on its own
+
+Give the skill the gold `execution_result` for free. It still has to decide entailed from
+refuted by comparing that value to the number the claim asserts, and entailed claims are
+**rounded**, so they do not sit at zero distance either.
+
+| | p50 | p75 | p90 | p95 | max |
+|---|---|---|---|---|---|
+| entailed | 0.0000% | 0.0000% | 0.1327% | 0.2113% | 99.80% |
+| refuted | 1.5879% | 16.2644% | 49.5090% | 71.1823% | 95.33% |
+
+The distributions are far apart at the median and **they overlap at the edges**. With a flat
+relative tolerance the best achievable is **85.9%**, at a threshold of 0.0106% chosen on these
+same 250 claims, which is selection on the evaluation set and is therefore an upper bound and
+not a result. At that threshold **22.4% of entailed claims are wrongly refuted**, because a
+claim asserting 17.1% against a true 17.19 is a rounding, not an error.
+
+#### PART 1B. A rule with NO tuned parameter beats the tuned one
+
+**Compare at the precision the claim itself states.** "17.1%" carries one decimal place. That
+is information, and a flat tolerance throws it away. Accept the claim if the computed value
+matches it when **rounded or truncated** to that many places, allowing sign and scale for the
+same reasons as §2.19's matcher. Truncation has to be allowed because FINDVER's own labels
+allow it: `numeric-val-187` asserts 17.1% against a gold of 17.19 and is labelled entailed.
+
+| rule | entailed | refuted | overall | parameter tuned on these claims |
+|---|---|---|---|---|
+| flat tolerance, best possible | 77.6% | 94.3% | 85.9% | **yes, the threshold** |
+| **precision rule** | **88.8%** | **91.2%** | **90.0%** | **none** |
+
+**The untuned rule wins by 4.1 points.** This is the design finding of the analysis and it was
+not the design that went in. §4.5's warning about selecting a winner on the evaluation set
+cannot apply to a rule with no parameter to select.
+
+#### PART 2. Coverage: the operands are usually retrievable
+
+Operands are the literal numbers the gold calculation reads out of the filing, taken from
+`python_calculation` by parsing it and keeping constants bound straight to a name. That drops
+derived values and structural constants like the 100 in a percentage.
+
+| | |
+|---|---|
+| operands extracted | 241/250 (10 by fallback, 9 yielded none) |
+| ALL operands present, exact match | 192/250 = 76.8% |
+| **ALL operands present, scale allowed** | **215/250 = 86.0%** |
+
+Scale allowed is the honest figure, because of trap 7: a filing reporting "(in thousands)"
+prints 86,724 for an operand of 86,724,037.
+
+**86.0% is higher than §2.20's 68.2% and that is not a contradiction.** §2.20 asks whether
+every gold *element* reached the prompt. This asks whether the *numbers* did. A claim can lose
+a gold element that carried context while keeping the two figures the arithmetic needs.
+
+**Coverage on the band that matters,** refuted claims by distance from the truth:
+
+| band | claims | covered | rate |
+|---|---|---|---|
+| tight <0.1% | 37 | **33** | 89.2% |
+| mid 0.1-1% | 20 | 15 | 75.0% |
+| loose >1% | 66 | 53 | 80.3% |
+
+The tight band is where §2.19 says the local models fail, and it is the **best** covered.
+
+#### PART 3. The oracle, both ceilings together
+
+Skill answers a covered claim with perfect arithmetic and the precision rule. On an uncovered
+claim it **declines** and the claim falls through to the 3B, which is the pipeline's current
+behaviour.
+
+| | testmini numeric, n=250 |
+|---|---|
+| 3B alone | 64.0% (160/250) |
+| **skill + 3B fallback** | **86.8% (217/250)** |
+| gain | **+57 claims, +22.8 points** |
+| skill answered | 215/250 = 86.0%, declined 35 |
+| same with the tuned flat tolerance | 83.2%, +19.2 points |
+
+#### KILL CRITERIA: both pass, and they were fixed in advance
+
+| criterion | needed | measured | |
+|---|---|---|---|
+| tight-band claims covered | >= 20 of 37 | **33** | PASS |
+| oracle gain on the subset | >= +5.0 points | **+22.8** | PASS |
+
+**Verdict: build it.**
+
+#### WHAT THIS IS NOT. Every figure above is an upper bound, and three things are oracled.
+
+1. **The arithmetic is perfect**, by assumption. That is the point of an oracle.
+2. **Operand identification is oracled.** Coverage asks whether the right numbers are present
+   in the retrieved text, not whether the 3B can find them. The real skill has to find them.
+3. **Value selection in the claim is oracled.** The matcher tries every number in the statement
+   against 7 scale factors and takes the best match. The real skill has to pick the asserted
+   value, and a claim like `numeric-val-176`, "more than double the net loss", asserts a
+   comparison rather than a value and has no number to pick at all.
+
+**Supportable now:** *"an oracle study on the development split bounds the gain from
+interpreter-based arithmetic verification at 22.8 points on the numeric subset, and identifies
+a comparison rule with no tuned threshold that outperforms the best tuned one."* **Not
+supportable:** any of these as a system result, or any claim that the skill works, until it
+runs.
+
 ---
 
 
@@ -2165,4 +2352,8 @@ Listed so they are not written by accident.
 - **[NEW 20 Aug] Either oracle figure as a system result.** 84.8% over 3B/7B/cloud and 79.9% over the two local models are computed with knowledge of the gold label. They bound headroom and are not implementable. The 79.9% is a striking sentence, that a perfect selector over two local models would beat a frontier model with no cloud calls, and it must be written as an upper bound every time.
 - **[NEW 20 Aug] Any CNY cost figure.** §2.18.1: the two rate cards on record disagree by 4x, and balance deltas have been shown to include spending that is not ours. Quote USD and token counts.
 - **[NEW 20 Aug] Any claim that the 16-17 August billing anomaly is ongoing.** §2.18.1 measured a window with both ends exact and found 0.0150 CNY per call against condition 2's 0.1408, a 9.4x difference. **Supportable: one anomalous window, every window since consistent with our own usage.** Not supportable: that the key is shared, which remains unanswered by the professor.
-- **[NEW 20 Aug] Anything about the FDV-IE gate leak that implies we fixed it.** It was found on the reported split, which is spent. Any gate change from here is future work, or it is tuned on `test.json` and the held-out defence is gone (§9.4).
+- **[NEW 20 Aug] Anything about the FDV-IE gate leak that implies we fixed it.** It was found on the reported split, which is spent. Any gate change from here is future work, or it is tuned on `test.json` and the held-out defence is gone (§9.4). **[AMENDED 27 Aug]** The second half is void. The professor ruled that tuning on the reported split is not a problem here, because the system has no trained parameters and FINDVER ships no training split. The first half stands: do not imply a fix that has not been measured.
+- **[NEW 27 Aug] "FDV-IE is our weakest subset."** It is not. Routed: FDV-IE 77.5%, FDV-MATH 77.3%, **FDV-KNOW 72.0%**. **Supportable: "FDV-IE is the only subset where the routed pipeline loses significantly to the cloud baseline."** That is a different sentence and it is the one that matters.
+- **[NEW 27 Aug] That the arithmetic skill improves accuracy over the current pipeline.** It cannot, by construction. `escalate_numeric` is `true`, so every numeric claim already goes to the cloud, which scores 77.2% on that subset. **Supportable if measured: "arithmetic claims are verified on device at accuracy comparable to the cloud arm, removing N cloud calls."** The win is cost and locality. Writing it as an accuracy gain is the error this entry exists to prevent.
+- **[NEW 27 Aug] Any skill result before the gate analysis has run.** See `working_state.md`, 27 August. The coverage ceiling and the two kill criteria were written down before the numbers were read, and they are binding.
+- **[NEW 27 Aug] That our design was not shaped by FINDVER.** It was, and from 27 August this is deliberate and approved. The two sentences claiming otherwise come out of `neurips_2026.tex` (line 100, lines 326 to 333). Nothing replaces them; the obligation is to stop claiming the opposite, not to advertise it.

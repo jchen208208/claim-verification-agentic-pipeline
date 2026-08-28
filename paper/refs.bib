@@ -5,10 +5,14 @@
 % left out rather than guessed. Before submission every entry needs one pass against the
 % actual paper: exact author list, venue, year, page numbers.
 %
-% STILL MISSING: the cascade and model-routing literature. Section 2 of the paper has a
-% paragraph on it with no citations, because no routing work is recorded anywhere in this
-% project's notes and inventing references is worse than leaving a gap. Search terms for
-% that pass: LLM cascades, model routing, adaptive inference, deferral to a larger model.
+% CLOSED 27 August 2026: the cascade and model-routing gap. Twelve entries were added in a
+% literature sweep that day. Every one of them was verified by fetching its arXiv abstract
+% page: exact title, full author list, arXiv id and submission month were read off the
+% record rather than recalled. They are marked VERIFIED 27 Aug below.
+%
+% The seven original entries above them are NOT verified to that standard. They come from
+% architecture plan section 16 and several use "and others" for author lists. They still
+% need one pass against the real papers before submission.
 
 @inproceedings{zhao2024findver,
   title     = {{FINDVER}: Explainable Claim Verification over Long and Hybrid-Content
@@ -65,4 +69,129 @@
   number  = {4},
   year    = {2009},
   note    = {VERIFY: not recorded in project notes, added from general knowledge}
+}
+
+
+% ===========================================================================
+% ADDED 27 August 2026. All VERIFIED against the arXiv abstract page that day.
+% ===========================================================================
+
+% --- Cascades and model routing. This is the paragraph that had no citations. ---
+
+@article{moslem2026routing,
+  title   = {Dynamic Model Routing and Cascading for Efficient {LLM} Inference: A Survey},
+  author  = {Moslem, Yasmin and Kelleher, John D.},
+  journal = {arXiv preprint arXiv:2603.04445},
+  year    = {2026},
+  note    = {VERIFIED 27 Aug 2026}
+}
+
+@article{kolawole2025agreement,
+  title   = {Agreement-Based Cascading for Efficient Inference},
+  author  = {Kolawole, Steven and Dennis, Don and Talwalkar, Ameet and Smith, Virginia},
+  journal = {Transactions on Machine Learning Research},
+  year    = {2025},
+  note    = {arXiv:2407.02348. VERIFIED 27 Aug 2026}
+}
+
+@article{soiffer2025semantic,
+  title   = {Semantic Agreement Enables Efficient Open-Ended {LLM} Cascades},
+  author  = {Soiffer, Duncan and Kolawole, Steven and Smith, Virginia},
+  journal = {arXiv preprint arXiv:2509.21837},
+  year    = {2025},
+  note    = {VERIFIED 27 Aug 2026}
+}
+
+@article{kotte2026ucci,
+  title   = {{UCCI}: Calibrated Uncertainty for Cost-Optimal {LLM} Cascade Routing},
+  author  = {Kotte, Varun},
+  journal = {arXiv preprint arXiv:2605.18796},
+  year    = {2026},
+  note    = {VERIFIED 27 Aug 2026}
+}
+
+% --- Correlated error. Our contribution 2 is an instance of this, not a discovery of it. ---
+
+@inproceedings{kim2025correlated,
+  title     = {Correlated Errors in Large Language Models},
+  author    = {Kim, Elliot and Garg, Avi and Peng, Kenny and Garg, Nikhil},
+  booktitle = {Proceedings of the 42nd International Conference on Machine Learning},
+  year      = {2025},
+  note      = {arXiv:2506.07962. VERIFIED 27 Aug 2026}
+}
+
+@article{kohli2026judges,
+  title   = {Nine Judges, Two Effective Votes: Correlated Errors Undermine {LLM}
+             Evaluation Panels},
+  author  = {Kohli, Guneet},
+  journal = {arXiv preprint arXiv:2605.29800},
+  year    = {2026},
+  note    = {VERIFIED 27 Aug 2026}
+}
+
+% --- On-device and edge-cloud collaboration. The venue's own topic. ---
+
+@article{li2025collaborative,
+  title   = {Collaborative Inference and Learning between Edge {SLM}s and Cloud {LLM}s:
+             A Survey of Algorithms, Execution, and Open Challenges},
+  author  = {Li, Senyao and Wang, Haozhao and Xu, Wenchao and Zhang, Rui and Guo, Song
+             and Yuan, Jingling and Zhong, Xian and Zhang, Tianwei and Li, Ruixuan},
+  journal = {arXiv preprint arXiv:2507.16731},
+  year    = {2025},
+  note    = {VERIFIED 27 Aug 2026}
+}
+
+% --- Financial claim verification, 2026. The nearest neighbours to this work. ---
+
+@article{guo2026finground,
+  title   = {{FinGround}: Detecting and Grounding Financial Hallucinations via Atomic
+             Claim Verification},
+  author  = {Guo, Dongxin and Wu, Jikun and Yiu, Siu Ming},
+  journal = {arXiv preprint arXiv:2604.23588},
+  year    = {2026},
+  note    = {VERIFIED 27 Aug 2026. Type-routed verification with arithmetic checks and an
+             8B distilled detector. The closest published work to our numeric skill.
+             It does NOT evaluate on FINDVER, checked 27 Aug.}
+}
+
+@article{hall2026verifin,
+  title   = {{VeriFin}: A Neurosymbolic Framework for Verifying {LLM}-Generated
+             Financial Claims},
+  author  = {Hall, Bethel and Shome, Sachi and Eiers, William},
+  journal = {arXiv preprint arXiv:2608.10213},
+  year    = {2026},
+  note    = {VERIFIED 27 Aug 2026. Evaluates on XBRLFiling and FinanceBench, not FINDVER.}
+}
+
+@article{panda2026finverbench,
+  title   = {{FinVerBench}: Benchmark Validity and Calibration in Large Language Model
+             Financial Statement Verification},
+  author  = {Panda, Silu},
+  journal = {arXiv preprint arXiv:2605.29586},
+  year    = {2026},
+  note    = {VERIFIED 27 Aug 2026}
+}
+
+% --- Skills, for the future-work paragraph. ---
+
+@article{jiang2026skills,
+  title   = {{SoK}: Agentic Skills -- Beyond Tool Use in {LLM} Agents},
+  author  = {Jiang, Yanna and Li, Delong and Deng, Haiyu and Ma, Baihe and Wang, Xu
+             and Wang, Qin and Yu, Guangsheng},
+  journal = {arXiv preprint arXiv:2602.20867},
+  year    = {2026},
+  note    = {VERIFIED 27 Aug 2026}
+}
+
+% --- Retrieval augmentation, the setting the benchmark is run under. ---
+
+@inproceedings{lewis2020rag,
+  title     = {Retrieval-Augmented Generation for Knowledge-Intensive {NLP} Tasks},
+  author    = {Lewis, Patrick and Perez, Ethan and Piktus, Aleksandra and Petroni, Fabio
+               and Karpukhin, Vladimir and Goyal, Naman and K{\"u}ttler, Heinrich
+               and Lewis, Mike and Yih, Wen-tau and Rockt{\"a}schel, Tim and Riedel,
+               Sebastian and Kiela, Douwe},
+  booktitle = {Advances in Neural Information Processing Systems},
+  year      = {2020},
+  note      = {arXiv:2005.11401. VERIFIED 27 Aug 2026}
 }

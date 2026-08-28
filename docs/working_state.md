@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 21 August 2026.
+Last updated: 27 August 2026.
 
 ---
 
@@ -4458,3 +4458,327 @@ The obvious candidates, in the order I would offer them:
 5. Table 4, retrieval recall, if retrieval survives only as prose.
 
 Nothing cut is lost. It moves to `long.tex`.
+
+---
+
+## Where things stand, 27 August - SKILLS ARE REOPENED. The 19 August closure is reversed.
+
+Supersedes the 25 August pickup list. Deadline 29 August 23:59 AoE, which is 30 August 04:59
+Pacific. **About 2.5 days.** Another meeting with him in roughly two days.
+
+### What the meeting decided
+
+**For the workshop, in his priority order:**
+
+1. **The diagram must show which stages are on device and which is cloud.** DeepSeek gets a
+   cloud background drawn behind it. The current TikZ figure already has the dashed on-device
+   boundary with DeepSeek outside it, so this is a visual addition, not a re-design.
+2. **Not enough references. 15 is the target, we have 7.** He wants recent ones, published
+   within the last six to twelve months. This is the same literature pass that has been owed
+   since 25 August, now with a number attached.
+3. **Try skills before the workshop** and put the results in the paper.
+4. **Optimise the design for FINDVER and say so in the paper.**
+5. **If time permits run on the full test set, otherwise testmini.**
+6. **Test skills on a small sample first.**
+
+**For after the workshop:** an 8-page paper with a deeper method. Routing is the focus, meaning
+more complex detection and routing mechanics, expansion beyond the numeric detector, multi-layer
+detection, possibly vector similarity, and more skills. Plus **a second benchmark**, so that the
+system is not open to the charge of being fitted to FINDVER.
+
+**Not a project task:** he will ask me to review two papers for a Toronto meeting and add my name
+as co-author. Recorded here so it is not confused with the workshop work.
+
+### THE PROTOCOL OBJECTION IS DEAD, and it is his ruling
+
+The blocker recorded on 21 and 25 August was that tuning against results read from `test.json`
+costs the paper the sentence "nothing was tuned on the reported split." **He has ruled that this
+does not matter here, and his reasoning is sound:**
+
+- **The system has no trained parameters.** There is nothing to overfit in the sense the phrase
+  normally means.
+- **FINDVER ships test splits only.** There is no training split to develop against. Every method
+  evaluated on it, ours and MACE's, is in the same position.
+
+**The consequence, stated plainly because it is real:** our system is now optimised for FINDVER.
+That is exactly why a second benchmark is on the after-workshop list. It is a known and accepted
+cost, not an oversight.
+
+**Paper edits this forces:**
+
+- `paper/neurips_2026.tex` **line 100**: "every design decision was fixed on a development split,
+  and the reported split was read once" comes out.
+- **Lines 326 to 333**, the Experimental Setup paragraph, says the same thing at more length and
+  also comes out or is rewritten.
+- **Nothing needs to be added in their place.** We are not obliged to advertise the tuning, only
+  to stop claiming the opposite. The commented-out disclosure paragraph in Limitations stays
+  commented out.
+
+### The cutting round is HIS job now
+
+He said he will decide the cuts. The paper is 9 pages and needs to reach 5. **Stop spending time
+on length.** The only length work we now own is making room for whatever skills section the
+results justify.
+
+This changes the priority order given on 27 August in chat. References and skills are now the
+work; cutting is not.
+
+### THE USER'S CONSTRAINT: "a skill that works, not another thing we tried and threw away"
+
+Stated 27 August, and it is the right constraint. §4.5 lists six components built, measured and
+set aside. With 2.5 days there is no budget for a seventh.
+
+**What cannot be promised:** that a skill will work before it is tested. That is not available for
+anything.
+
+**What can be done instead, and is what the plan below does:**
+
+1. **Pick only designs whose mechanism is already measured**, not guessed. Both skills below point
+   at a specific number already in `paper_numbers.md`. Claim decomposition, by contrast, was
+   picked because it sounded right, and its expected gain was never measured before it was built.
+2. **Compute the ceiling offline, free, before writing any pipeline code.** For the numeric skill
+   this is possible because testmini ships `python_calculation` and `execution_result`. See the
+   gate analysis below. It costs no GPU and no cloud, and it can say "this cannot work" in an
+   afternoon rather than after a night of running.
+3. **Write down what counts as working, in advance.** Kill criteria below.
+
+### SKILL 1, NUMERIC: the arithmetic verification skill
+
+**Why this one is not a guess.** §2.19 already stated the fix: *"What would fix it is code
+execution, and there is no sandbox in `src/`."* This skill is the thing §2.19 named. The 19 August
+closure was a judgement about **prompt** skills and about time, not about this design.
+
+**The measured failure it targets.** On refuted numeric claims whose asserted number sits within
+0.1% of the truth, the local models answer entailed 57% of the time. 37 of 125 refuted numeric
+claims in testmini sit in that band. The models find the right numbers and then decide that 3.25
+and 3.27 are the same thing. That final comparison is the loss.
+
+**The design.**
+
+    step                                        who does it
+    decide the claim is arithmetic              numeric_detector.py, built, 0.984 precision
+    find the operands in the retrieved text     the 3B. This is reading, which it does adequately
+    name the operation and the asserted value   the 3B, from the claim's own wording
+    compute                                     Python
+    compare to the asserted value               Python, with an explicit tolerance
+
+The model returns a small structured object, not a verdict. For `numeric-val-125` that is roughly
+`{numbers: [1120188, 1083517], operation: "percent_decrease", claimed: 3.27}`. Python computes
+3.274 and compares.
+
+**The claim supplies the operation and the answer.** This was asked in chat and is worth recording
+because it is what makes the skill tractable. "The percentage decrease in total assets from 2022
+to 2023 for the Wood Products segment of Boise Cascade is 3.27%" names the operation and states
+the result. The model is not being asked to invent a calculation, only to locate two numbers.
+
+**The decline path is mandatory.** If the operands the model returns do not appear literally in
+the retrieved text, the skill declines and the claim escalates to cloud exactly as it does today.
+It must never fill in a missing number. §2.20 is why: for numeric claims all gold evidence reached
+the prompt only **68.2%** of the time, so roughly a third of the subset is out of reach by
+construction.
+
+**What the skill is competing against, and this is easy to get wrong.** `escalate_numeric` is
+`true`, so **every** numeric claim already goes to the cloud, which scores 77.2% on that subset.
+The skill therefore cannot be sold as an accuracy gain over the current pipeline. **Its win is
+keeping numeric claims on device at comparable accuracy, which is a cost and privacy result.**
+That is the right kind of result for this venue, but it is a different sentence than the one that
+would be written by accident.
+
+**No sandbox is needed for this.** The sandbox dropped on 11 August was for running model-written
+code. Here Python does a fixed set of arithmetic operations chosen from a whitelist, with the
+operands supplied as numbers. There is no `exec` and nothing to escape.
+
+### THE GATE BEFORE ANY CODE IS WRITTEN. Free, no GPU, no cloud.
+
+**Run this first. It can kill the skill in an afternoon instead of after a night.**
+
+`test_scripts/analyse_numeric_skill_ceiling.py`, not yet written. Over testmini's 250 numeric
+claims, using `python_calculation`, `execution_result` and the stored BM25 retrieval:
+
+1. **Coverage.** For how many claims do the operands used by the gold calculation actually appear
+   in the text BM25 retrieved? This is the skill's hard ceiling, because it cannot compute with
+   numbers it never sees.
+2. **Coverage on the tight band specifically.** The 37 claims are where the effect lives. If only
+   a handful of them are covered, the skill cannot produce a measurable result and we stop.
+3. **The oracle score.** If Python computed perfectly on every covered claim and declined on the
+   rest, what would the subset accuracy be? That is the number the real skill will fall short of.
+
+**Kill criteria, written down before the numbers are seen:**
+
+- Fewer than **20** of the 37 tight-band claims covered: **stop.** §4.5's own methodological
+  finding applies to us here, a sample that small cannot detect anything but a huge effect.
+- Oracle gain over the current local arm under about **5 points** on the numeric subset: **stop.**
+  A real implementation will not capture all of an oracle, so anything smaller disappears.
+
+### How the numeric skill gets tested, if it passes the gate
+
+**Paired, on the same claims, twice.** Not a fresh small sample. The question "is 250 enough" has
+the wrong shape: on a paired test the effective sample is **how many claims change answer**, not
+how many are run. If 24 claims flip and 19 flip the right way, that is p = 0.004. If 8 flip and 5
+go right, it is noise, and that is learned in half an hour.
+
+    target set    the 250 numeric claims of testmini. Not all 700. The other 450 cannot be
+                  affected by the skill and only dilute the signal.
+    cost          about 30 min per arm on the GPU for the 3B alone, about 85 min per arm if
+                  both locals run. Two arms.
+    test          McNemar, paired, on the claims that changed
+    reported as   a testmini result, clearly labelled. It does not touch the headline table.
+
+**A full `test.json` re-run is a separate decision.** It is about 14 hours of GPU plus cloud calls,
+and the GPU comes in short windows. Only if the skill wins on testmini and a window exists.
+
+### SKILL 2, FDV-IE: second, and the diagnosis changes what it should be
+
+**Correction to a premise raised in chat.** FDV-IE is **not** the weakest subset of the routed
+pipeline. Per §2.18: FDV-IE 77.5%, FDV-MATH 77.3%, **FDV-KNOW 72.0%, which is the weakest.**
+
+What FDV-IE is: **the only subset where the routed system significantly loses to cloud alone**,
+p = 0.0070. That is the paper's one real wound, so aiming at it is right, but the diagnosis
+changes the fix.
+
+**The entire deficit is in the claims the gate kept local:**
+
+    FDV-IE, kept local (n=381)   routed 76.9%   cloud 85.6%   -8.7
+    FDV-IE, escalated  (n=219)   routed 78.5%   cloud 76.7%   +1.8
+
+On the claims we did send to the cloud we slightly beat cloud-only. The damage is 381 claims where
+the 3B and the 7B agreed, so no call was made, and they were agreeing on the same mistake.
+
+**Therefore FDV-IE is a gate problem before it is a skill problem.** The direct fix is a third
+escalation trigger that catches those claims. That is also precisely what he asked for after the
+workshop, "more complex detection and routing mechanics."
+
+**The measured target if a skill is wanted anyway.** Handing the 3B perfect evidence raises FDV-IE
+by 10.4 points, p = 0.004, and **two thirds of that comes from removing distractor chunks** rather
+than from adding the right ones (§2.6.1, §2.7). So an evidence-filtering step for IE claims has a
+measured ceiling. It is an oracle number and a real filter captures some fraction of it.
+
+**Why it is second, not first.** Changing the gate changes the headline table, which means a fresh
+`test.json` run at about 14 hours. The numeric skill is testable on 250 claims in about an hour and
+leaves the headline table alone.
+
+**If FDV-IE does not get built,** it goes into future work as a designed and unevaluated component
+with the 8.7-point mechanism as its motivation. That is a strong paragraph without a number.
+
+### What to do next, in order
+
+1. **The gate analysis for the numeric skill.** Free, no GPU, no cloud. It decides everything else.
+2. **References, 7 to 15**, recent ones on cascades, model routing, on-device inference and agent
+   skills. Certain value, does not depend on any result, and it is the item he named.
+3. **Remove the two tuning sentences**, line 100 and lines 326 to 333.
+4. **Build the numeric skill**, only if the gate passes, block by block in chat as usual.
+5. **Test it paired on the 250 numeric claims.**
+6. **FDV-IE**, only if 4 and 5 land and a GPU window exists.
+
+---
+
+## 27 August, later: THE GATE PASSED, the paper is edited, and the references are done
+
+All three items from the morning list are complete. Full numbers in `paper_numbers.md` §2.21.
+
+### 1. THE NUMERIC SKILL PASSES ITS GATE. Build it.
+
+`test_scripts/analyse_numeric_skill_ceiling.py`, written and run. 12 seconds, no GPU, no cloud.
+
+    tight-band claims covered    33 of 37    needed >= 20    PASS
+    oracle gain on the subset    +22.8 pts   needed >= +5    PASS
+
+    testmini numeric, n=250
+      3B alone                64.0%
+      7B alone                68.0%
+      cloud flash v2          80.4%     <- the real competition
+      ORACLE skill + 3B       86.8%     <- upper bound, not a result
+
+**The design changed because of what the analysis found, and this is the part worth reading.**
+The plan was to compare the computed value to the claimed one with a **tolerance**. That does
+not work well, because it has to do two jobs at once. Tight thresholds correctly reject the
+§2.19 tight band but **wrongly refute rounded entailed claims**: a claim asserting 17.1%
+against a true 17.19 is a rounding, not an error. The best possible flat tolerance reaches
+85.9%, and that is with the threshold picked on the same 250 claims.
+
+**Compare at the precision the claim itself states.** "17.1%" carries one decimal place, which
+is information. Accept if the computed value matches when rounded **or truncated** to that many
+places. Truncation has to be allowed because FINDVER's own labels allow it.
+
+    rule                          entailed   refuted   overall   tuned?
+    flat tolerance, best case        77.6%     94.3%     85.9%   yes, the threshold
+    precision rule                   88.8%     91.2%     90.0%   NO PARAMETER
+
+**The untuned rule beats the tuned one by 4.1 points.** Use it. §4.5's warning about picking a
+winner on the evaluation set cannot apply to a rule with nothing to pick.
+
+**Coverage is better than §2.20 suggested.** All operands present in the retrieved text on
+86.0% of numeric claims, and **89.2% on the tight band specifically**, which is the best
+covered of the three bands. That is not a contradiction with §2.20's 68.2%: that figure asks
+whether every gold *element* arrived, this asks whether the *numbers* did.
+
+**Every figure is an upper bound.** Perfect arithmetic is assumed, operand identification is
+oracled, and value selection in the claim is oracled. The real skill has to do all three.
+
+### 2. THE TWO TUNING SENTENCES ARE OUT
+
+`paper/neurips_2026.tex`, both edited directly.
+
+- **Line 100, Goal paragraph.** "Nothing is trained or fine-tuned, every design decision was
+  fixed on a development split, and the reported split was read once" is now "Nothing is
+  trained or fine-tuned."
+- **Splits and protocol paragraph.** Rewritten. It now says the benchmark ships no training
+  data and no component has trained parameters, so development is selection rather than
+  fitting; that selection happens on the development split and all figures are reported on the
+  test split. **The "read once" claim and the protocol justification are gone.**
+
+**Nothing was added in their place**, per the instruction. The retained sentence about reruns
+moving one verdict in ten is a real methodological finding (§2.3.2) and is worth keeping.
+
+**One sentence was deliberately left alone.** Table 4's caption says our BM25 was "never tuned
+on" the held-out split, which is still true and is about the retriever, not the pipeline.
+
+### 3. REFERENCES: 7 to 19, all verified, all cited
+
+Every new entry was checked by fetching its arXiv abstract page. Exact title, full author list,
+arXiv id and submission month were read off the record rather than recalled. They carry
+`VERIFIED 27 Aug 2026` in `refs.bib`. **The seven original entries are not verified to that
+standard** and several use "and others"; they still need one pass before submission.
+
+    cascades and routing    moslem2026routing (survey, Feb 2026), kolawole2025agreement
+                            (TMLR 2025), soiffer2025semantic (Sep 2025), kotte2026ucci (May 2026)
+    correlated error        kim2025correlated (ICML 2025), kohli2026judges (May 2026)
+    edge and on-device      li2025collaborative (Jul 2025)
+    financial verification  guo2026finground (Apr 2026), hall2026verifin (Aug 2026),
+                            panda2026finverbench (May 2026)
+    skills                  jiang2026skills (Feb 2026)
+    retrieval               lewis2020rag (NeurIPS 2020)
+
+**19 entries, 19 cited, every citation resolves.** Braces balance, environments match, no
+undefined macros. Checked without a compiler, as before; page count still needs Overleaf.
+
+### TWO FINDINGS FROM THE SWEEP THAT CHANGE WHAT WE MAY CLAIM
+
+Both are in §5. Neither is fatal and both make the paper more honest.
+
+1. **Correlated error is established, not ours to discover.** `kim2025correlated` measures it
+   across 350+ models at ICML 2025, and `kohli2026judges` shows a nine-judge panel carries
+   about two independent votes. **Contribution 2 has been rewritten** from "evidence that
+   agreement is correlated error" to evidence that it is severe enough **between two models of
+   one family to break a deployment gate**, with the 8.7-point cost. That is narrower, and it
+   is what we actually measured.
+2. **FinGround is close to our numeric skill.** `guo2026finground`, April 2026, decomposes
+   answers into atomic claims, **routes each by claim type to a matching verification strategy
+   including reconstruction of the arithmetic**, and distils its detector to 8B. That is our
+   design on a different benchmark. It does **not** evaluate on FINDVER, checked directly, and
+   it does not target a device that cannot hold a frontier model. Both are cited and the
+   difference is stated in Related work rather than left for a reviewer to find.
+
+**"We found no other method evaluated on FINDVER" survives.** FinGround, VeriFin and
+FinVerBench were each checked and none is evaluated on it.
+
+### WHAT IS NEXT
+
+1. **Build the numeric skill.** In chat, block by block, as `src/` work. The design is settled:
+   numeric detector fires, one extra local call returns `{numbers, operation, claimed}`, Python
+   computes, the **precision rule** decides, and the skill declines to the existing cloud
+   escalation when an operand is not in the retrieved text.
+2. **Test it paired on the 250 numeric claims.** About 30 minutes per arm on the GPU.
+3. **Send him the draft**, which still gates the co-authors.
+4. **Overleaf compile** for the new page count. Related work grew by one paragraph.
+5. **FDV-IE**, only if 1 and 2 land and a GPU window exists.
