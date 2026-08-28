@@ -171,3 +171,11 @@ def grounded(numbers, evidence):
         return False
     values = numbers_in_filing(evidence)
     return all(_appears(operand, values) for operand in numbers)
+
+
+def build_prompt(statement, evidence_block, template):
+    #fill the skill's prompt template.
+    prompt = template.replace("<REPORT>", evidence_block).replace("<STATEMENT>", statement)
+    assert evidence_block in prompt
+    return prompt
+
