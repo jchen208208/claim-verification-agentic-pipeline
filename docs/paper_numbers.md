@@ -2131,12 +2131,36 @@ claims it answers must beat the cloud's accuracy on those same claims. It does n
 
 #### The result, all 250 numeric claims of testmini, balanced 125/125 and asserted
 
-| prompt | answered | skill accuracy | cloud, same claims | paired McNemar |
-|---|---|---|---|---|
-| `arithmetics_v1` | 175/250 | **58.9%** | **81.1%** | 17 / 56, n=73, **p = 0.00001** |
-| `arithmetics_v2` | 197/250 | **53.8%** | **81.2%** | 16 / 70, n=86, **p = 0.00000** |
+| model | prompt | answered | skill accuracy | cloud, same claims | paired McNemar |
+|---|---|---|---|---|---|
+| `qwen2.5-coder:3b` | `arithmetics_v1` | 175/250 | **58.9%** | **81.1%** | 17 / 56, n=73, **p = 0.00001** |
+| `qwen2.5-coder:3b` | `arithmetics_v2` | 197/250 | **53.8%** | **81.2%** | 16 / 70, n=86, **p = 0.00000** |
+| `qwen2.5-coder:7b` | `arithmetics_v1` | 202/250 | **66.3%** | **82.2%** | 9 / 41, n=50, **p = 0.00001** |
 
-Both significant, both losses. The skill is 22 points worse than the arm it was built to replace.
+Every row is a significant loss. The component is 16 to 27 points worse than the arm it was built
+to replace.
+
+#### **[ADDED 28 Aug, evening] THE 7B DOES NOT RESCUE IT, and that is what makes this a result**
+
+The 3B reading alone attributed the failure to that model's extraction ability, and §2.23 said so
+explicitly and marked the attribution untested. It has now been tested.
+
+    model                  answered   accuracy   cloud, same claims   gap
+    qwen2.5-coder:3b        175/250     58.9%          81.1%         -22.2
+    qwen2.5-coder:7b        202/250     66.3%          82.2%         -15.9
+
+**2.3x the parameters buys 7.4 points and closes about a third of the gap.** The 7B also declines
+less often, 48 against 75, and its operation-selection errors fall from 58 to 26, so it is
+genuinely better at the task. It still loses significantly, and it still over-predicts refuted,
+131 against 71 entailed on a 125/125 split, which is the same mechanism.
+
+**Supportable, and it is a stronger claim than the 3B result alone:** *"interpreter-based
+arithmetic verification fails for both local models we can host. Scaling from 3B to 7B recovers a
+third of the gap to the cloud model and does not close it, because the bottleneck is identifying
+which figures the claim refers to rather than computing with them."*
+
+**Not supportable:** that a larger local model would close it. Two points do not fix a trend, and
+nothing between 7B and a frontier model was tested.
 
 #### THE MECHANISM: it is operand selection, not arithmetic
 
@@ -2229,12 +2253,169 @@ raises the same rule to 91.2%."*
 prompt revision is expected to fix it. One was tried, it addressed its target defect, and accuracy
 fell.
 
-**Open, and NOT tested:** the same component with the **7B** doing the extraction. The failure is
-attributed to the 3B's extraction ability, and that attribution is untested against a larger local
-model. Say "the 3B" and not "a small model" until it is.
+~~**Open, and NOT tested:** the same component with the **7B** doing the extraction.~~ **CLOSED 28
+Aug, evening. The 7B was tested and also loses**, 66.3% against 82.2%, p = 0.00001. Both local
+models fail, so "small local models" is now supportable where "the 3B" was required before.
 
 ---
 
+
+### 2.24 **[NEW 28 Aug 2026] THE FDV-IE DEFICIT IS ONE-DIRECTIONAL: false ENTAILED verdicts on refuted conjunctions. The free detectors all fail, so a skill needs a model call.**
+
+Reproduce with, in order:
+`sweep_ie_gap.py`, `sweep_ie_direction.py`, `sweep_ie_number_signal.py`,
+`sweep_ie_response_signal.py`, `sweep_ie_selfconflict.py`, `sweep_ie_structure.py`,
+`sweep_ie_replicate.py`, `sweep_ie_target.py`, all in `test_scripts/`. **No model calls and no
+cloud calls in any of them.** Total runtime about two minutes.
+
+#### The deficit is entirely on refuted claims, and we beat the cloud on entailed ones
+
+FDV-IE, `test.json`, the 381 claims the gate kept local (§2.18).
+
+| gold label | n | routed | cloud alone | gap |
+|---|---|---|---|---|
+| entailed | 191 | **82.7%** | 74.3% | **+8.4** |
+| refuted | 190 | 71.1% | **96.8%** | **-25.8** |
+
+**This corrects the reading carried since 20 August.** §2.18 established that the whole FDV-IE
+loss sits on the kept-local claims and attributed it to correlated error between two models of
+one family. That is still true, but it is not the whole description. **The correlated error has a
+direction.** Of the 66 claims the cloud answers correctly and the routed system does not, **49 are
+refuted claims both local models called entailed.** The system is not broadly weaker on FDV-IE. It
+fails to detect refutation, and it is better than the cloud at confirming true claims.
+
+#### Why the cloud wins here, stated so it is not over-read
+
+Cloud alone answers entailed on **39.4%** of these 381 claims when the true rate is 50.1%. Its
+96.8% on refuted is partly the refuted bias of §2.10 and §2.18 paying off on a balanced partition.
+**Not supportable: "the cloud model understands FDV-IE better."** Supportable: on this partition
+its label prior is closer to correct than ours, and our error is one-sided.
+
+The same bias costs the cloud elsewhere. On kept-local FDV-KNOW it scores 73.8% against our 74.8%,
+losing 21.4 points to us on entailed claims while gaining 15.7 on refuted.
+
+#### The mechanism is structural, and it is measurable in the benchmark itself
+
+FDV-IE refuted claims are conjunctions of three to five separate facts with **exactly one altered**:
+a changed number, a reversed direction, a swapped term, or a negation. Measured against the gold
+explanations, which name the incorrect element:
+
+| split | subset | refuted claims whose explanation flags exactly one step as the error |
+|---|---|---|
+| test | FDV-IE | **242/300 = 80.7%** |
+| test | FDV-KNOW | 169/249 = 67.9% |
+| testmini | FDV-IE | 93/125 = 74.4% |
+| testmini | FDV-KNOW | 68/100 = 68.0% |
+
+FDV-IE claims average 39.8 words and 2.09 conjunctions against FDV-MATH's 21.0 and 0.46. The local
+models read four true facts and one false one and answer entailed. **The numeric subset cannot be
+measured this way**: its `test.json` explanations carry no numbered steps, so its 0% is a format
+artefact and not a finding.
+
+#### EVERY FREE DETECTOR FAILS. This is why the skill needs a model call.
+
+Population: the 213 kept-local FDV-IE claims run 1 called entailed, of which **55 are wrong**
+(74.2% precision). A detector fires to say "this entailed verdict is wrong".
+
+| rule | fires | catches | breaks | precision | recall | net |
+|---|---|---|---|---|---|---|
+| a claim number appears nowhere in the filing | 13 | 9/55 | 4 | 69.2% | 16.4% | **+5** |
+| a local model states a near-miss value in its own response | 7 | 5/55 | 2 | 71.4% | 9.1% | +3 |
+| both of the above | 18 | 12/55 | 6 | 66.7% | 21.8% | **+6** |
+| response length, hedging words, conjunction count, gold-element count | — | — | — | — | — | noise |
+
+**+6 verdicts is +1.0 point on FDV-IE.** Precision near 70% is real signal, but recall stays under
+22% because most FDV-IE refutations are word-level, not numeric. The thresholds in the third block
+were chosen on this same population and even so reach only +1 to +3, so they are noise.
+
+**Evidence presence does not explain the failure.** 24.2% of these verdicts are wrong when the gold
+evidence reached the prompt and 28.4% when it did not. **This contradicts the plan recorded on
+27 August**, which named evidence filtering as the FDV-IE fix on the strength of the +10.4 oracle
+from perfect evidence (§2.6.1, §2.7). That oracle is real, but it is not what is failing on this
+population. The failure is that every conjunct is not checked.
+
+#### IT REPLICATES ON testmini, and it is not IE-only
+
+The routed pipeline was only ever run on `test.json`. testmini has the same three arms on disk
+(3B and 7B on `baseline_v1`, cloud on `baseline_v2`), so the gate is reconstructed exactly:
+escalate on disagreement or when the numeric detector fires. Reconstructed testmini: 3B 61.4%,
+7B 72.4%, routed 79.0%, cloud 79.9%, escalation 54.0%, against run 1's 59.8 / 67.8 / 75.8 / 77.4 /
+53.4%. The arms line up; the splits differ, so the levels are not comparable and only the direction is.
+
+| split | subset | kept-local, gold entailed | kept-local, gold refuted |
+|---|---|---|---|
+| test | FDV-IE | +8.4 | **-25.8** |
+| testmini | FDV-IE | +17.7 | **-22.5** |
+| test | FDV-KNOW | +21.4 | **-15.7** |
+| testmini | FDV-KNOW | +22.0 | **-18.8** |
+
+Share of kept-local entailed verdicts that are wrong: FDV-IE 25.8% on test, 21.1% on testmini;
+FDV-KNOW 23.6% on test, 22.2% on testmini. **The failure is one mechanism across two subsets and
+two splits, not a property of FDV-IE.**
+
+#### THE TARGET, AND THE BAR A DETECTOR HAS TO CLEAR
+
+Across all of `test.json`, the skill would fire only on claims kept local whose verdict is entailed:
+
+| subset | kept local | said entailed | wrong |
+|---|---|---|---|
+| FDV-IE | 381 | 213 | 55 |
+| FDV-MATH | 121 | 35 | 10 |
+| FDV-KNOW | 290 | 110 | 26 |
+| **all** | **792** | **358 = 21.1% of 1,700** | **91 = 25.4%** |
+
+| | accuracy |
+|---|---|
+| routed, actual | 75.8% |
+| **oracle: perfect flip of the 91 wrong entailed verdicts** | **81.2% (+5.4)** |
+| cloud alone | 77.4% |
+
+**The oracle beats cloud alone by 3.8 points with zero extra cloud calls.** It is an upper bound
+computed with the gold label and must never be reported as a system result.
+
+Overall `test.json` accuracy for a real detector, flipping every claim it fires on:
+
+| recall on the 91 wrong | fpr 0% | fpr 5% | fpr 10% | fpr 20% |
+|---|---|---|---|---|
+| 30% | 77.4 | 76.6 | 75.9 | 74.3 |
+| 50% | 78.5 | 77.7 | 76.9 | 75.4 |
+| 70% | 79.6 | 78.8 | 78.0 | 76.4 |
+
+FDV-IE only, the subset with the significant loss (routed 77.5%, cloud 82.3%):
+
+| recall on the 55 wrong | fpr 0% | fpr 5% | fpr 10% | fpr 20% |
+|---|---|---|---|---|
+| 30% | 80.2 | 78.9 | 77.6 | 75.0 |
+| 50% | 82.1 | 80.8 | 79.5 | 76.8 |
+| 70% | 83.9 | 82.6 | 81.3 | 78.6 |
+
+**THE KILL CRITERIA, written before any model has been run on this task:**
+
+- **To close the FDV-IE gap**, the detector needs about **50% recall at a 5% false-positive rate**,
+  or 60% at 10%. Below that the subset loss stands.
+- **To beat cloud alone overall** it needs a net of **+26 verdicts**, which is about 40% recall at
+  5% false positives.
+- **A detector at 20% false positives loses at every recall we could plausibly reach.** False
+  positives are three times as expensive as true positives are valuable, because the population is
+  74.6% correct. This is the number that kills naive designs, and it is why "flip everything"
+  scores -103.
+
+#### What may be written now
+
+- *"The FDV-IE deficit is one-directional: on claims kept on device the routed system exceeds the
+  cloud baseline by 8.4 points on entailed claims and loses 25.8 points on refuted ones."*
+- *"80.7% of refuted FDV-IE claims alter exactly one conjunct of a multi-part statement."*
+- *"The same one-directional failure appears on FDV-KNOW and replicates on both splits."*
+
+#### What may NOT be written
+
+- **That the cloud model is better at FDV-IE.** It has a label prior closer to correct on this
+  partition. See above.
+- **The +5.4 oracle as a result.** Upper bound, gold label required.
+- **That evidence filtering fixes FDV-IE.** Measured here and it does not address this population.
+- **Any figure for the audit skill itself.** Nothing has been run. The pilot was cut off by hardware.
+
+---
 
 ## 3. Deployment cost
 
@@ -2551,6 +2732,6 @@ Listed so they are not written by accident.
 - **[NEW 27 Aug] That the arithmetic skill improves accuracy over the current pipeline.** It cannot, by construction. `escalate_numeric` is `true`, so every numeric claim already goes to the cloud, which scores 77.2% on that subset. **Supportable if measured: "arithmetic claims are verified on device at accuracy comparable to the cloud arm, removing N cloud calls."** The win is cost and locality. Writing it as an accuracy gain is the error this entry exists to prevent.
 - **[NEW 27 Aug] Any skill result before the gate analysis has run.** See `working_state.md`, 27 August. The coverage ceiling and the two kill criteria were written down before the numbers were read, and they are binding.
 - **[NEW 28 Aug] That the arithmetic skill works, nearly works, or needs one more prompt.** §2.23: 58.9% against the cloud's 81.1%, p = 0.00001, on all 250 arithmetic claims. A prompt revision targeting the main defect halved that defect and made accuracy **worse**. **Supportable: "we built it, measured it on the full subset, and it loses."**
-- **[NEW 28 Aug] "A small model cannot identify the operands."** Only the **3B** was tested. The 7B has not been. Say "the 3B".
+- ~~**[NEW 28 Aug] "A small model cannot identify the operands." Only the 3B was tested.**~~ **Resolved 28 Aug, evening.** The 7B ran the same test and also loses, 66.3% against the cloud's 82.2%, p = 0.00001. **Supportable: "the local tier".** Still not supportable: that a larger local model would close the gap. Two points are not a trend.
 - **[NEW 28 Aug] Any figure from the 9-claim or 30-claim skill samples.** Both were single-label through data trap 2. §2.23.
 - **[NEW 27 Aug] That our design was not shaped by FINDVER.** It was, and from 27 August this is deliberate and approved. The two sentences claiming otherwise come out of `neurips_2026.tex` (line 100, lines 326 to 333). Nothing replaces them; the obligation is to stop claiming the opposite, not to advertise it.

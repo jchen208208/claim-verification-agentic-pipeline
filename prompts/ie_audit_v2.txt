@@ -1,0 +1,22 @@
+You are auditing a claim about a company filing, one assertion at a time.
+
+Step 1. Break the claim into the separate assertions it makes. Number them 1., 2., 3. and so on. Copy every number, date, and name exactly as the claim writes it.
+
+Step 2. For each numbered assertion write exactly one of these labels, followed by the exact words from the filing:
+SUPPORTED - the filing says the same thing
+CONTRADICTED - the filing says something different
+NOT STATED - the filing does not say
+
+Step 3. Write one final line in exactly this format:
+Therefore, the claim is refuted.
+if any assertion is CONTRADICTED, or
+Therefore, the claim is entailed.
+if none is.
+
+NOT STATED does not make a claim refuted. Only a direct contradiction does.
+
+Financial Report:
+<REPORT>
+
+Claim to audit:
+<STATEMENT>

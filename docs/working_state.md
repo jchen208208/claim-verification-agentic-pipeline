@@ -4914,3 +4914,161 @@ mis-transcribed operand returns the same wrong result."*
 
 Rewriting §3.4 to report the built-and-measured result is stronger than adding a section
 describing a component that is not in the method.
+
+### 28 August, evening: THE 7B ALSO FAILS. The result now covers both local models.
+
+`python3 test_scripts/decide_arith_skill.py 125 qwen2.5-coder:7b arithmetics_v1`, about 21
+minutes, no cloud calls. Log in `logs/skill_7b_v1.txt`.
+
+    model                  answered   accuracy   CLOUD, same claims   gap    McNemar
+    qwen2.5-coder:3b        175/250     58.9%          81.1%        -22.2   17/56, p=0.00001
+    qwen2.5-coder:7b        202/250     66.3%          82.2%        -15.9    9/41, p=0.00001
+
+**2.3x the parameters buys 7.4 points and closes about a third of the gap.** The 7B is
+genuinely better at the task: it declines less (48 against 75) and its operation-selection
+errors fall from 58 to 26. It still loses significantly, and it still over-predicts refuted,
+131 against 71 entailed on a 125/125 split. Same mechanism, smaller.
+
+**This makes the result stronger.** The paper can now say **"the local tier"** rather than
+"the 3B", because both models we can host fail the same way. **Not supportable:** that a larger
+local model would close the gap. Two points are not a trend.
+
+**One cosmetic defect in `logs/skill_7b_v1.txt`:** the banner line says `qwen2.5-coder:3b`
+because that string was hardcoded in the print. The run genuinely used the 7B, confirmed
+against Ollama's `/api/ps` mid-run (`qwen2.5-coder:7b`, 6.6 GB loaded). The print is fixed for
+future runs. Do not quote that log's header.
+
+---
+
+## 28 August, night: THE IE SWEEP IS DONE. The design is chosen and the pilot is blocked on the GPU.
+
+Full numbers in `paper_numbers.md` §2.24, session detail in `build_log.md`. Everything below was
+measured with **no model calls and no cloud calls**, from run 1 and the testmini runs already on disk.
+
+### What the data says, and it is not what the 27 August plan assumed
+
+**The FDV-IE deficit is one-directional.** On the 381 FDV-IE claims the gate kept local:
+
+    gold label      n     routed    cloud     gap
+    entailed      191      82.7%    74.3%    +8.4   we win
+    refuted       190      71.1%    96.8%   -25.8   the entire loss
+
+49 of the 66 claims the cloud gets right and we get wrong are **refuted claims both local models
+called entailed**. We are not weaker on FDV-IE. We fail to detect refutation.
+
+**The mechanism is structural and measured, not guessed.** FDV-IE refuted claims are conjunctions
+of three to five facts with exactly one altered: a changed number, a reversed direction, a swapped
+term, a negation. **80.7% of refuted FDV-IE claims flag exactly one step as the error in their gold
+explanation**, 74.4% on testmini. The models read four true facts and one false one and say entailed.
+
+**It replicates on testmini, and FDV-KNOW does the same thing.** The gate was reconstructed on
+testmini from the three arms on disk. Direction holds on both splits and both subsets. So this is
+one mechanism over 1,100 of the 1,700 claims, not an FDV-IE patch.
+
+### CORRECTION TO THE 27 AUGUST PLAN
+
+The plan says the FDV-IE fix is **evidence filtering**, motivated by the +10.4 oracle from perfect
+evidence. **That does not describe this population.** 24.2% of these verdicts are wrong when the
+gold evidence reached the prompt and 28.4% when it did not. The oracle is real and is not
+withdrawn, but the failure here is not missing evidence, it is not checking every conjunct.
+
+### THE FREE PATH IS EXHAUSTED, and that is what justifies spending a model call
+
+Three free detectors were built and measured first, on the 213 kept-local FDV-IE claims run 1
+called entailed, 55 of which are wrong:
+
+    rule                                        precision  recall   net
+    claim number absent from the whole filing      69.2%    16.4%    +5
+    a model states a near-miss value itself        71.4%     9.1%    +3
+    both together                                  66.7%    21.8%    +6
+    length, hedging, conjunctions, gold count       noise
+
++6 verdicts is +1.0 point on FDV-IE. Precision is real, recall is the wall, because most FDV-IE
+refutations are word-level rather than numeric. **A model call is required, and that is now
+measured rather than assumed.**
+
+### THE TARGET AND THE BAR, both written down before any model ran
+
+The skill fires only on claims kept local whose verdict is entailed: **358 of 1,700 = 21.1%**, of
+which **91 are wrong**. Perfect flipping of those 91 scores **81.2% against cloud alone's 77.4%**,
+with zero extra cloud calls. That is an oracle and is not a reportable result.
+
+    to close the FDV-IE gap        about 50% recall at 5% false positives, or 60% at 10%
+    to beat cloud alone overall    a net of +26 verdicts, about 40% recall at 5% false positives
+    fatal                          20% false positives loses at every reachable recall
+
+A false positive costs three times what a true positive gains, because the population is 74.6%
+correct. This is the number that kills naive designs. "Flip everything" scores -103.
+
+### THE DESIGN, and why it is not a guess
+
+**One extra local call on kept-local entailed verdicts only.** The claim and the same retrieved
+evidence go back to the 7B with an adversarial framing: find the one detail the filing
+contradicts, quote the claim part and the filing line, or answer NONE. Python then checks both
+quotes are literally present, and the skill declines when either is not. Declining leaves the
+verdict alone, so a decline costs nothing.
+
+Why it is not the numeric skill's mistake again:
+
+- The failure it targets is **measured** (§2.24), not inferred from a plausible story.
+- The first sub-task, breaking a claim into its conjuncts, has **partial** supporting evidence.
+  §4.5's decomposition result was negative **for retrieval**, and it recorded that the
+  decompositions preserved numbers, dates and names exactly. But that was judged against what
+  BM25 needs, and the same entry says about a fifth of sub-claims came out as fragments rather
+  than self-contained facts. **Stated honestly: the tokens survive, and whether the conjuncts are
+  clean enough to verify one at a time is untested.** That is what `audit_v2` measures. `audit_v1`
+  avoids the question by never asking for an explicit decomposition.
+- The decline path is a **free string check**, the same guard shape that made the numeric skill's
+  failure diagnosable.
+- The cheap decisive test comes **before** any `src/` code. This is the sequencing §2.23 got wrong.
+
+### THE PILOT IS BUILT AND BLOCKED ON HARDWARE
+
+`prompts/ie_audit_v1.txt` and `ie_audit_v2.txt`, `test_scripts/pilot_ie_audit.py`,
+`test_scripts/analyse_ie_audit.py`, and `test_scripts/gate_ie_audit.py` all exist and are tested.
+
+    arm        prompt          what it measures
+    control    baseline_v1     re-roll on a different seed. The noise floor. Without this,
+                               any gain could be re-roll variance (2.3.2: one verdict in ten).
+    audit_v1   ie_audit_v1     contradiction hunt, must quote claim part and filing line
+    audit_v2   ie_audit_v2     enumerate every assertion, label each, then verdict
+
+330 calls, 55 gold-refuted plus 55 gold-entailed per arm, balance asserted before any call.
+**About 1.7 hours on the GPU box.** `audit_v1` measured at ~5 s per call there, the control ~35 s.
+
+**`10.0.0.26` went down mid-run**, then came back the same evening and the pilot was started on it.
+
+**Do not use `ping` to test that box. It does not answer ICMP even when it is serving.** On
+28 August it showed 100% packet loss while `GET /api/tags` returned 200 in 0.3 s and a real
+generation ran in 8.6 s. The reasoning "ping fails, so the host is off the network" was written
+here and was wrong. It happened to reach the right conclusion earlier only because HTTP was
+failing at the same time. **The only valid check is an HTTP call to `/api/tags`, and the only
+proof it can serve is an actual `/api/generate`.**
+
+The MacBook was timed once for comparison and is not viable: 193.7 s for the same call the GPU
+box does in 8.6 s, about 22x, so a realistic FDV-IE prompt is roughly 8 minutes on the 7B and one
+110-claim arm is about 15 hours.
+
+**One example, and it is one example.** On the MacBook the 7B ran `ie_audit_v1` on `ie-test-10`,
+one of the sampled failures, and found the real contradiction, `$1,768 million` in the claim
+against `Reinsurance ceded, excluding crop | 1,878` in the filing, quoted verbatim. The 3B garbled
+the same example.
+
+**A defect the smoke test already found.** Twice in 6 claims `ie_audit_v1` answered CONTRADICTED
+with a filing quote that does not contradict anything; on one gold-entailed claim it quoted the
+line that confirms the claim. The quote-verification guards are therefore load-bearing, and the
+raw firing rate will overstate the detector.
+
+### NEXT, when the GPU is back
+
+1. **Run the 330-call pilot.** `for arm in audit_v1 audit_v2 control; do python3 test_scripts/pilot_ie_audit.py $arm 55; done`
+2. **Score it** with `python3 test_scripts/analyse_ie_audit.py`, against the bar above.
+3. **If it passes**, build the skill in `src/` block by block in chat, as a stage that fires only
+   on kept-local entailed verdicts.
+4. **If it fails**, it is a second negative result with a clean mechanism and it goes in §4.5.
+   The §2.24 analysis stands on its own either way and is the stronger half of this work.
+
+**Note on `gate_ie_audit.py`:** it runs the same audit prompt on **gold evidence only**, which is
+4.2x smaller, 1,074 tokens against 4,550. It was written for the case where only the MacBook is
+available, to separate "cannot find the contradiction" from "retrieval did not supply it". On the
+GPU it is cheap enough to run as a fourth arm and is worth doing for that separation alone.

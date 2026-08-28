@@ -6904,3 +6904,143 @@ move with whether the gold evidence reached the prompt.
 225/225 harness checks pass. `pipeline_test1700.json` builds with no skill stage and run 1 remains
 reproducible. The skill code stays: it is inert unless a config asks for it, and it is what makes
 the negative result reproducible.
+
+### 28 August, evening: the 7B extraction test. It also fails, and the negative result gets stronger.
+
+The one lever left after the 3B result. `decide_arith_skill.py` gained a model argument, and the
+full 250 ran on `qwen2.5-coder:7b` in about 21 minutes with no cloud calls.
+
+    model                  answered   accuracy   CLOUD, same claims   gap     McNemar
+    qwen2.5-coder:3b        175/250     58.9%          81.1%         -22.2   17/56, p=0.00001
+    qwen2.5-coder:7b        202/250     66.3%          82.2%         -15.9    9/41, p=0.00001
+
+Scaling 2.3x recovers 7.4 points, about a third of the gap, and does not close it. The 7B is
+better on every process measure: it declines 48 times against 75, and its operation-selection
+errors fall from 58 to 26. The failure mode is unchanged, over-predicting refuted 131 to 71 on a
+125/125 split, which is the signature of picking the wrong operands.
+
+**This closes the attribution question the 3B result had to leave open.** §2.23 said in writing
+that the failure was attributed to the 3B and that the attribution was untested. It is now
+tested, and the paper says "the local tier" instead of "the 3B". It also stops short of claiming
+a trend, because two points are not one.
+
+Section 3.4 of the paper gained a paragraph for it, and four macros were added to `numbers.tex`.
+
+**One thing to know about the log.** `logs/skill_7b_v1.txt` has a banner line reading
+`qwen2.5-coder:3b`, because that string was hardcoded in the print statement while the model
+itself came from the new argument. The run used the 7B: Ollama's `/api/ps` was read mid-run and
+showed `qwen2.5-coder:7b` at 6.6 GB. The print now interpolates the real value. The header of
+that one log file must not be quoted.
+
+---
+
+## 28 August 2026, night: the FDV-IE sweep. The deficit has a direction, the free detectors all fail, and the pilot was cut off by hardware.
+
+Full numbers in `paper_numbers.md` §2.24. Eight analysis scripts, all in `test_scripts/`, none of
+which makes a model call or a cloud call. They run in about two minutes end to end.
+
+    sweep_ie_gap.py             partitions FDV-IE into kept-local and escalated, writes the row cache
+    sweep_ie_direction.py       splits every partition by gold label, all three subsets
+    sweep_ie_number_signal.py   free detector: a claim number absent from the filing
+    sweep_ie_response_signal.py free detector: response length, hedging, conjunction count
+    sweep_ie_selfconflict.py    free detector: the model states a near-miss value of its own
+    sweep_ie_structure.py       measures the one-altered-conjunct property from gold explanations
+    sweep_ie_replicate.py       reconstructs the gate on testmini from the three arms on disk
+    sweep_ie_target.py          sizes the target population and the required detector quality
+
+### What the sweep found, in order
+
+**The FDV-IE deficit is one-directional.** On the 381 claims the gate kept local we beat cloud
+alone by 8.4 points on entailed claims and lose 25.8 on refuted ones. 49 of the 66 claims we get
+wrong and the cloud gets right are refuted claims both local models called entailed. §2.18 had
+this as correlated error, which is right, but the error has a direction and that changes what a
+fix has to do.
+
+**The mechanism is a property of the benchmark, not a guess.** FDV-IE refuted claims are
+conjunctions of three to five facts with exactly one altered. Measured against the gold
+explanations, which name the incorrect element, 80.7% of refuted FDV-IE claims flag exactly one
+step as the error, and 74.4% on testmini. The models read four true facts and one false one and
+answer entailed.
+
+**Every free detector fails, and that is the result that decides the design.** Three were built
+and measured before anything else was proposed. A claim number absent from the whole filing has
+69.2% precision but 16.4% recall. A model stating a near-miss value in its own response has 71.4%
+precision and 9.1% recall. Together they gain 6 verdicts on 213 claims, which is 1.0 point on
+FDV-IE. Response length, hedging words, conjunction count and gold-element count are all noise.
+Recall is the wall: most FDV-IE refutations are word-level, not numeric. **A skill here needs a
+model call, and that is now measured rather than assumed.**
+
+**It replicates on testmini and it is not IE-only.** The routed pipeline only ever ran on
+`test.json`, but testmini has all three arms on disk, so the gate was reconstructed exactly.
+The direction holds on both splits and on FDV-KNOW as well as FDV-IE. The share of kept-local
+entailed verdicts that are wrong is 25.8% and 21.1% for FDV-IE across the two splits, and 23.6%
+and 22.2% for FDV-KNOW.
+
+**The target is bigger than one subset.** Across `test.json` the skill would fire on the 358
+claims kept local whose verdict is entailed, 21.1% of all claims, of which 91 are wrong. A perfect
+flip of those 91 scores 81.2% against cloud alone's 77.4%, with no extra cloud calls. That is an
+oracle and is not reportable as a result.
+
+### One thing in the 27 August plan is contradicted
+
+`working_state.md` names evidence filtering as the FDV-IE fix, on the strength of the +10.4 point
+oracle from handing the 3B perfect evidence. That oracle is real and is not withdrawn, but it does
+not describe this population. 24.2% of these verdicts are wrong when the gold evidence reached the
+prompt and 28.4% when it did not. The failure is not missing evidence. It is not checking every
+conjunct.
+
+### The bar was written down before any model ran
+
+To close the FDV-IE gap the detector needs about 50% recall at 5% false positives, or 60% at 10%.
+To beat cloud alone overall it needs a net of 26 verdicts, about 40% recall at 5% false positives.
+At 20% false positives it loses at every recall we could reach, because the population is 74.6%
+correct and a false positive costs three times what a true positive gains.
+
+### The pilot, and why there is no result from it
+
+`prompts/ie_audit_v1.txt` and `ie_audit_v2.txt` were written, and `test_scripts/pilot_ie_audit.py`
+runs three arms over 55 gold-refuted plus 55 gold-entailed claims: a re-roll control on
+`baseline_v1`, a contradiction hunt that must quote both the claim part and the filing line, and
+an enumerate-every-assertion prompt. 330 calls. `test_scripts/analyse_ie_audit.py` scores them
+with the quote-verification guards.
+
+**The GPU box went down mid-run.** `10.0.0.26` answered at the start, a 7B call timed at 17.9 s,
+then stopped. 17 of 330 calls completed and are cached; the script resumes. It came back the same
+evening and the pilot was started on it.
+
+**A diagnostic error to not repeat: `ping` is useless on that box.** It does not answer ICMP even
+while serving. When it came back, ping still reported 100% packet loss while `GET /api/tags`
+returned 200 in 0.3 s and a real generation completed in 8.6 s. The sentence "ping gets 100%
+packet loss, so it is off the network" was written in this log and is wrong reasoning. It reached
+the right answer at the time only because HTTP was failing too. **Check `/api/tags` over HTTP, and
+confirm with a real `/api/generate`.**
+
+The MacBook was timed once to see whether the pilot could run without the GPU. On a 1,562-token
+prompt the 3B took 86.1 s and the 7B 193.7 s, so a realistic 4,550-token FDV-IE prompt is about
+8 minutes on the 7B and the 110-claim arm is about 15 hours. Not available before the deadline.
+**The user has said the GPU will come back, so no further local timing was done and every local
+job was stopped.** On the GPU the whole pilot is about 1.7 hours.
+
+One encouraging data point, and it is one example and nothing more: on the MacBook the 7B ran
+`ie_audit_v1` on `ie-test-10`, one of the sampled failures, and returned the real contradiction,
+the claim's `$1,768 million` against the filing's `Reinsurance ceded, excluding crop | 1,878`,
+with a verbatim quote. The 3B on the same example returned a garbled answer that quoted the whole
+claim.
+
+### A defect the smoke test found in the prompt, worth fixing before the real run
+
+On 6 claims `ie_audit_v1` twice returned `CONTRADICTED` with a `FILING SAYS` quote that does not
+contradict anything. On `ie-test-423`, a gold-entailed claim, it quoted the filing line that
+**confirms** the claim. The verdict happened to be wrong; the reasoning was not even wrong. This
+is why the quote-verification guards in `analyse_ie_audit.py` are not optional, and it is a
+concrete reason to expect the raw firing rate to overstate the detector.
+
+### Housekeeping
+
+The intermediate row caches were being written into `test_scripts/`, which is tracked. They are
+derived data and 480 KB of it, so they moved to `results/ie_analysis/`, which `.gitignore`
+already covers, and every script was repointed and re-run to confirm. One hardcoded caption in
+`sweep_ie_target.py` printed "81 wrong / 242 right" while the table used the correct 91 and 267;
+the caption now interpolates. `paper_numbers.md` had a stale entry saying only the 3B had been
+tested on operand extraction, which the 28 August evening 7B run had already answered; it is
+updated.

@@ -343,6 +343,14 @@ rule to \arithOracle{}, so the interpreter was never the bottleneck. Identifying
 several hundred figures in a retrieved passage a claim refers to is the bottleneck, and it is
 the same weakness that made claim decomposition unusable in Section~\ref{sec:retrieval}.
 
+The larger local model does not rescue the component. Running the same extraction on our 7B
+arm raises it to \arithSevenBAcc{} on \arithSevenBAnswered{} answered claims, against
+\arithSevenBCloudAcc{} for the cloud model on those same claims, still a significant loss
+(\arithSevenBDisagree{} disagreements, $p = \arithP{}$). Roughly two and a half times the
+parameters recovers a third of the gap and does not close it, and the larger model exhibits
+the same bias towards refutation. We therefore report this as a limit of the local tier
+rather than of one model in it, while noting that two points do not establish a trend.
+
 We therefore route arithmetic claims to the cloud model instead of executing them, and
 Section~\ref{sec:triggers} reports the escalation value this buys. We report the component
 rather than omitting it, because the negative result locates a limit of small on-device models

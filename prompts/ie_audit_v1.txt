@@ -1,0 +1,20 @@
+You are checking a claim that another reader has already judged to be supported by a company filing. Your job is to look for one specific thing: a detail in the claim that the filing actually contradicts.
+
+Claims like this one usually combine several separate facts. Most such claims are correct. A minority contain exactly one altered detail. The alteration is usually a changed number, a reversed direction (the claim says increased where the filing says decreased), a swapped name or term, or a negation (the filing says the company has no such arrangement and the claim says it has one).
+
+Rules:
+1. Go through the claim one assertion at a time.
+2. If the filing contradicts an assertion, write these three lines and nothing else:
+CONTRADICTED
+CLAIM PART: the exact words from the claim
+FILING SAYS: the exact words from the filing
+3. If every assertion is either supported or simply not mentioned, write one word: NONE
+4. A detail the filing does not mention is NOT a contradiction. It is NONE.
+5. Report at most one contradiction, the clearest one.
+6. Copy both quotes exactly as written. Do not paraphrase, round, or reformat them.
+
+Financial Report:
+<REPORT>
+
+Claim already judged supported:
+<STATEMENT>
