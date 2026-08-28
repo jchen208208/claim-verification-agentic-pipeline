@@ -96,3 +96,38 @@ def precision_match(computed, claim_text):
                 if abs(truncated - candidate) < 1e-9:
                     return True
     return False
+
+
+# The three fields we ask the model for
+_NUMBERS_LINE = re.compile(r"\**\s*NUMBERS?\**\s*:\s*(.+)", re.IGNORECASE)
+_OPERATION_LINE = re.compile(r"\**\s*OPERATION\**\s*:\s*\**\s*([a-z_]+)", re.IGNORECASE)
+_CLAIMED_LINE = re.compile(r"\**\s*CLAIMED\**\s*:\s*(.+)", re.IGNORECASE)
+
+def _last(pattern, text):
+    # returns the last match in the response since small models often restates the instruction first
+    found = pattern.findall(text or "")
+    return found[-1].strip(" *\t") if found else None
+
+def parse_response(text):
+    """ model output format:
+    NUMBERS: <the two values>
+    OPERATION: <name>
+    CLAIMED: <value> """
+
+    numbers = None
+    numbers_text = _last(_NUMBERS_LINE, text)
+    if numbers_text:
+        values = []
+        for token in _CLAIM_NUMBER.findall(numbers_text):
+            cleaned = token.replace("$", "").replace(",", "").strip()
+            try:
+                values.append(float(cleaned))
+            except ValueError:
+                pass
+        numbers = values or None
+
+    operation = _last(_OPERATION_LINE, text)
+    if operation:
+        operation = operation.lower()
+
+    return numbers, operation, _last(_CLAIMED_LINE, text)
