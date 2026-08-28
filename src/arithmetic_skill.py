@@ -179,3 +179,37 @@ def build_prompt(statement, evidence_block, template):
     assert evidence_block in prompt
     return prompt
 
+def verify(statement, evidence_block, template, call_model):
+    # runs the skill on one claim and returns (verdict, detail)
+    
+    prompt = build_prompt(statement, evidence_block, template)
+    detail = {"prompt": prompt, "response": None, "numbers": None,
+              "operation": None, "claimed": None, "computed": None,
+              "declined": None}
+
+    detail["response"] = response = call_model(prompt)
+
+    numbers, operation, claimed_text = parse_response(response)
+    detail["numbers"] = numbers
+    detail["operation"] = operation
+    detail["claimed"] = claimed_text
+
+    if numbers is None or operation is None or claimed_text is None:
+        detail["declined"] = "incomplete_extraction"
+        return None, detail
+
+    if not grounded(numbers, evidence_block):
+        detail["declined"] = "operands_not_in_evidence"
+        return None, detail
+
+    detail["computed"] = computed = compute(operation, numbers)
+    if computed is None:
+        detail["declined"] = "computation_failed"
+        return None, detail
+
+    verdict = precision_match(computed, claimed_text)
+    if verdict is None:
+        detail["declined"] = "no_comparable_value"
+        return None, detail
+
+    return verdict, detail
