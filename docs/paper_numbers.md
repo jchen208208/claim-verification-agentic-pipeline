@@ -1966,9 +1966,18 @@ allow it: `numeric-val-187` asserts 17.1% against a gold of 17.19 and is labelle
 | rule | entailed | refuted | overall | parameter tuned on these claims |
 |---|---|---|---|---|
 | flat tolerance, best possible | 77.6% | 94.3% | 85.9% | **yes, the threshold** |
-| **precision rule** | **88.8%** | **91.2%** | **90.0%** | **none** |
+| **precision rule** | **90.4%** | **90.4%** | **90.4%** | **none** |
 
-**The untuned rule wins by 4.1 points.** This is the design finding of the analysis and it was
+**The untuned rule wins by 4.5 points.**
+
+> **[CORRECTED 28 Aug]** These figures were 88.8 / 91.2 / **90.0%** when this section was
+> written. The comparison rounded the truth at the claim's decimal places and then scaled the
+> claim, which rounds at the wrong magnitude whenever the scale is not 1: a truth of 3270.4
+> units against a claim of "3.27" in thousands is 3.2704, which rounds to 3.27 and should
+> match, but the old order compared 3270.4 against 3270.0 and refused it. Scaling first and
+> rounding second is the correct order. It moved **3 claims of 250**, so read 90.4 against 90.0
+> as a tie: the reason to prefer it is that it is the right computation, not that it scores
+> higher. Found because the user asked whether a scale change can rescue a wrong digit. This is the design finding of the analysis and it was
 not the design that went in. §4.5's warning about selecting a winner on the evaluation set
 cannot apply to a rule with no parameter to select.
 
@@ -2039,6 +2048,62 @@ interpreter-based arithmetic verification at 22.8 points on the numeric subset, 
 a comparison rule with no tuned threshold that outperforms the best tuned one."* **Not
 supportable:** any of these as a system result, or any claim that the skill works, until it
 runs.
+
+---
+
+
+### 2.22 **[NEW 28 Aug 2026] THE REALISTIC CEILING: the 3B already writes the right operands on 50% of numeric claims, and the skill would remove about half the numeric cloud calls**
+
+Reproduce with: `python3 test_scripts/analyse_skill_realistic_ceiling.py`. Free, no GPU, no cloud.
+testmini only.
+
+§2.21's oracle assumed the model finds the operands. **That assumption is the whole risk of the
+skill**, so it was tested against evidence already on disk: for every numeric claim we have the
+3B's stored free-text response from condition 1, and we can ask whether the gold calculation's
+operands are already in it.
+
+| | testmini numeric, n=250 |
+|---|---|
+| operands present in the retrieved text | 215/250 = **86.0%** |
+| operands present in the 3B's **own response** | 125/250 = **50.0%** |
+| both | 125/250 = 50.0% |
+
+**50.0% is a floor, not an estimate.** Those responses were produced by a prompt that asked for
+a verdict and never mentioned operands. The model wrote the numbers down anyway, while
+reasoning. A prompt that asks for them explicitly should do better, so the true value sits
+somewhere between 50.0% and the 86.0% retrieval ceiling. Where exactly is what the GPU run
+measures.
+
+#### On the 125 claims the skill could actually run on
+
+| arm | accuracy |
+|---|---|
+| 3B alone | 67.2% (84/125) |
+| cloud alone | 84.8% (106/125) |
+| **skill, perfect arithmetic + precision rule** | **91.2% (114/125)** |
+
+**The skill beats the cloud on the claims it can run on**, which is the result that makes it
+worth building: those claims stop needing a cloud call at all.
+
+#### Projected effect on cloud calls
+
+| | |
+|---|---|
+| numeric claims kept on device | 50.0% |
+| numeric-detector cloud calls in run 1 | 449 of 908 |
+| projected calls removed | **~224 of 449** |
+| total cloud calls | 908 -> ~684, i.e. **53.4% -> 40.2%** of claims |
+
+**This is a projection and must be labelled as one.** It assumes testmini coverage transfers to
+`test.json`, which cannot be checked offline because `test.json` ships no `python_calculation`.
+
+#### What is still oracled, and it is NOT small
+
+91.2% assumes the model also **names the right operation**. Nothing here tests that, and
+`percent_change` against `percent_of` on the same two numbers gives completely different
+answers. Operand presence is checked; operation choice is assumed. **Supportable: "the operands
+required by the gold calculation are already present in the local model's own response on 50% of
+arithmetic claims."** **Not supportable:** any accuracy figure for the skill until it runs.
 
 ---
 

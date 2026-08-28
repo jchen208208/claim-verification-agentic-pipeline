@@ -183,10 +183,16 @@ def precision_verdict(claim):
         for value, places in tokens:
             factor = 10 ** places
             for scale in SCALES:
-                for candidate in (value * scale, -value * scale):
-                    if abs(round(gold, places) - candidate) < 1e-9:
+                # Convert the truth into the CLAIM'S units BEFORE rounding.
+                # Rounding first rounds at the wrong magnitude: 3270.4 units
+                # against a claim of "3.27" in thousands is 3.2704, which
+                # rounds to 3.27 and should match. Corrected 28 Aug; it moved
+                # 3 claims of 250 and the overall figure 90.0% -> 90.4%.
+                scaled = gold * scale
+                for candidate in (value, -value):
+                    if abs(round(scaled, places) - candidate) < 1e-9:
                         matched = True
-                    if abs(math.trunc(gold * factor) / factor - candidate) < 1e-9:
+                    if abs(math.trunc(scaled * factor) / factor - candidate) < 1e-9:
                         matched = True
         if not matched:
             return False
