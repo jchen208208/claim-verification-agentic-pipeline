@@ -169,13 +169,13 @@ def route_one_claim(claim, config, stages, retrieve, ollama_version=None):
 
 
 STAGE_NAMES = ("local_a", "local_b", "cloud")
-OPTIONAL_STAGE_NAMES = ("skill")
+OPTIONAL_STAGE_NAMES = ("skill",)
 
 def build_stages(config, clients):
     """load each stage's prompt template and pick its client"""
 
     stages = {}
-    for name in STAGE_NAMES:
+    for name in STAGE_NAMES + OPTIONAL_STAGE_NAMES:
         if name not in config:
             if name in OPTIONAL_STAGE_NAMES:
                 continue
