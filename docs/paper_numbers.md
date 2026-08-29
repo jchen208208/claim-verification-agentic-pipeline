@@ -2626,6 +2626,70 @@ extent of run-to-run variance, about one verdict in ten (§2.3.2), and it is why
 
 ---
 
+### 2.27 **[NEW 29 Aug 2026] THE testmini REPLICATION. The escalating version survives in direction, the local-only version DOES NOT REPLICATE.**
+
+Reproduce: `python3 test_scripts/run_audit_testmini.py ie_audit_v3 qwen2.5-coder:7b`, then
+`python3 test_scripts/analyse_audit_testmini.py`. 104 target claims, no rule re-tuned. The gate is
+reconstructed on testmini from the three arms on disk, as in §2.24.
+
+**Why this was run.** Every configuration in §2.26 was chosen by comparing options on `test.json`,
+the split we report. The professor ruled that acceptable (no trained parameters, no training
+split), but it makes the reported gain optimistic by an unknown amount. testmini is the only data
+the design was not selected on.
+
+#### The result
+
+| policy | fires | gain | lose | overall | delta | p | FDV-IE |
+|---|---|---|---|---|---|---|---|
+| local only, quote <= 33% of claim, flip | 5 | 3 | 2 | 79.1% | **+0.1** | 1.0000 | 83.2% |
+| local only, quote <= 14 words, flip | 6 | 3 | 3 | 79.0% | **+0.0** | 1.0000 | 83.2% |
+| flip every fire | 18 | 7 | 11 | 78.4% | -0.6 | 0.4807 | 82.8% |
+| **escalate every fire** | 18 | 7 | 3 | 79.6% | **+0.6** | 0.3438 | **84.0%** |
+
+testmini baselines: routed 79.0%, cloud alone 79.9%, FDV-IE routed 83.2%.
+
+#### THE LOCAL-ONLY VERSION IS WITHDRAWN
+
+`test.json` gave +0.8 at p = 0.0146 with zero cloud calls. **testmini gives +0.1 at p = 1.0000.**
+The precision filter fires 5 times instead of 25, and gains equal losses.
+
+**The cause is visible in the detector, not only in the policy.** Detector precision is **58.5% on
+`test.json` and 38.9% on testmini.** That drop is not explained by headroom, and it is the number
+that kills the local flip: flipping gains `(2p - 1) x fires`, which is negative below 50%.
+
+**Conclusion: the quote-length precision effect was partly selection on the reported split.** It is
+a real ordering within `test.json` (precision falls monotonically from 79% at six words to 58% at
+no limit) but it does not carry to new data at a level that supports acting locally. Do not write
+the local-only result.
+
+#### THE ESCALATING VERSION SURVIVES, WITH A HONEST QUALIFIER
+
+Same direction on both splits, +1.3 on `test.json` and +0.6 on testmini, and FDV-IE improves on
+both, 77.5 to 80.5 and 83.2 to 84.0. **It is not significant on testmini, p = 0.3438**, on 10
+discordant pairs.
+
+**testmini has structurally less headroom, and this was measured before the replication ran**
+(§2.26): blind escalation of the FDV-IE target is worth +7.5 per 100 calls on `test.json` and
+**+0.0** on testmini, because there the cloud is barely better than our local tier on those claims.
+A null on testmini is therefore weaker evidence against the method than it appears. **This is a
+mitigating factor, not a defence.** The supportable statement is that the effect replicates in
+direction and is underpowered on the smaller split.
+
+#### What may be written
+
+- *"On 1,700 held-out claims the trigger adds 1.3 points, p = 0.0009. On testmini, where the cloud
+  arm holds little advantage over the local tier on these claims, the effect is in the same
+  direction but not significant, +0.6, p = 0.34."*
+
+#### What may NOT be written
+
+- **The local-only, zero-cloud variant, in any form.** +0.8 on the split it was chosen on and +0.1
+  on the split it was not.
+- **That the trigger is validated on two splits.** It replicates in direction only.
+- **Detector precision as a stable property.** 58.5% and 38.9% on the two splits.
+
+---
+
 ## 3. Deployment cost
 
 **The MacBook is the device of record.** Never print a GPU-derived number under a MacBook label; never mix machines in one table (§9.2).
