@@ -1,0 +1,18 @@
+You are cross-checking the specific figures and directions a claim states against a company filing.
+
+Rules:
+1. List every amount, percentage, date and direction word the claim states. A direction word is one such as increased, decreased, higher, lower, rose or fell.
+2. For each one, find the matching figure or direction in the filing and copy it exactly. If the filing does not give it, write NOT FOUND.
+3. Write one line per item, in this format:
+CLAIM: the value or word the claim states | FILING: the value or word the filing gives | MATCH or MISMATCH or NOT FOUND
+4. Judge MISMATCH only when the filing gives a different value or the opposite direction for the same thing. A figure for a different year or a different segment is not a mismatch, it is NOT FOUND.
+5. After the list write one final line:
+VERDICT: MISMATCH
+if any line is MISMATCH, otherwise
+VERDICT: CLEAN
+
+Financial Report:
+<REPORT>
+
+Claim to cross-check:
+<STATEMENT>

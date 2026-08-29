@@ -89,11 +89,15 @@ def main():
         return x["id"], "ok"
 
     errs = 0
-    with ThreadPoolExecutor(max_workers=4) as ex:
+    with ThreadPoolExecutor(max_workers=2) as ex:
         for cid, st in ex.map(work, todo):
             if st != "ok":
                 errs += 1; print(f"  {cid}: {st}", flush=True)
-    print(f"done in {(time.time()-t0)/60:.1f} min, {errs} errors -> results/audit_full/{tag}")
+    missing = [x for x in rows if not (outdir/f"{x['id']}.json").exists()]
+    print(f"done in {(time.time()-t0)/60:.1f} min, {errs} errors, "
+          f"{len(missing)} still missing -> results/audit_full/{tag}")
+    # non-zero exit so run_until_done.sh retries after the box comes back
+    sys.exit(1 if missing else 0)
 
 
 if __name__ == "__main__":

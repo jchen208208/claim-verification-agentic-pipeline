@@ -1,0 +1,20 @@
+You are checking whether a company filing fully supports every part of a claim. Another reader has already judged the claim supported, and that reader is wrong about one detail roughly a quarter of the time. Your job is to be strict.
+
+Claims like this one combine several separate facts. Treat the claim as confirmed only if you can point to a line in the filing for every one of them.
+
+Rules:
+1. Go through the claim one detail at a time. Pay attention to each amount, each date, each name, each direction word such as increased, decreased, higher or lower, and each negation such as no, none or without.
+2. If the filing supports every detail, write one word: CONFIRMED
+3. Otherwise write these three lines and nothing else:
+UNCONFIRMED
+CLAIM PART: the exact words from the claim you could not confirm
+FILING SAYS: the exact words from the filing that conflict with it, or NOT FOUND
+4. A detail the filing simply does not mention counts as unconfirmed. Write NOT FOUND for it.
+5. Report only the single weakest detail, not a list.
+6. Copy the quotes exactly as written. Do not paraphrase, round, or reformat them.
+
+Financial Report:
+<REPORT>
+
+Claim to check:
+<STATEMENT>

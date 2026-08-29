@@ -2417,6 +2417,215 @@ FDV-IE only, the subset with the significant loss (routed 77.5%, cloud 82.3%):
 
 ---
 
+### 2.25 **[NEW 28 Aug 2026] THE IE AUDIT PILOT. As a verdict-flipper it fails. As an escalation trigger it works, because a false positive costs almost nothing.**
+
+Reproduce: `test_scripts/pilot_ie_audit.py <arm> 55`, then `test_scripts/analyse_ie_audit.py`.
+`qwen2.5-coder:7b` on the GPU box, temperature 0, seed 0, the same retrieved evidence run 1 used.
+**No cloud calls.** Balanced pilot, 55 gold-refuted plus 55 gold-entailed, drawn with a fixed seed
+from the 213 kept-local FDV-IE claims run 1 called entailed. Balance asserted before any model call.
+
+#### The three arms
+
+| arm | prompt | what it asks |
+|---|---|---|
+| control | `baseline_v1`, seed 1 | the original question re-asked. The noise floor. |
+| audit_v1 | `ie_audit_v1` | find the one detail the filing contradicts, quote claim part and filing line, or NONE |
+| audit_v2 | `ie_audit_v2` | enumerate every assertion, label each SUPPORTED / CONTRADICTED / NOT STATED, then verdict |
+
+#### Results, on the balanced pilot
+
+| arm and rule | fires | catches | breaks | recall | fpr |
+|---|---|---|---|---|---|
+| control, re-roll says refuted (n=29 so far) | 0 | 0 | 0 | 0.0% | 0.0% |
+| **audit_v1, fires on CONTRADICTED** | 24 | **15/55** | 9 | **27.3%** | **16.4%** |
+| audit_v1, + filing quote verified present | 19 | 12/55 | 7 | 21.8% | 12.7% |
+| audit_v2, final verdict refuted | 0 | 0 | 0 | 0.0% | 0.0% |
+| audit_v2, any assertion CONTRADICTED | 2 | 1/55 | 1 | 1.8% | 1.8% |
+
+**audit_v2 is dead and the mechanism is worth recording.** Across 110 responses it labelled
+**309 assertions SUPPORTED and only 3 CONTRADICTED.** Breaking the claim into conjuncts does not
+help, because the model then agrees with each conjunct in turn. This is the §2.24 failure
+reproduced at finer granularity, and it is evidence that **the gain in audit_v1 comes from the
+adversarial framing, not from decomposition.**
+
+**The control has fired zero times in 29 claims.** A plain re-roll on a different seed never
+turns these verdicts over, so audit_v1's 27.3% is not the run-to-run variance of §2.3.2.
+The arm is not finished; the box dropped out. Do not quote 0/29 as a final rate.
+
+#### FLIPPING FAILS THE PRE-REGISTERED BAR, exactly as §2.24 predicted
+
+§2.24 required about 50% recall at 5% false positives. audit_v1 gives 27.3% at 16.4%.
+
+| | FDV-IE |
+|---|---|
+| run 1 | 77.5% |
+| flip every fired verdict | **75.7%** |
+| flip, with the quote guard | 76.1% |
+
+At a 25.8% base rate a false positive destroys a correct verdict while a true positive only
+repairs a wrong one, so flipping loses. **This is the numeric skill's economics again and it was
+predicted in writing before the run.**
+
+#### ESCALATING INSTEAD OF FLIPPING REVERSES THE RESULT
+
+Measured exactly, from the real cloud verdict on each claim that fired, not a population average:
+
+| | |
+|---|---|
+| on the 15 true positives, cloud is right | **14 = 93%** (we were wrong on all 15) |
+| on the 9 false positives, cloud is right | **8 = 89%** (we were right on all 9) |
+
+**A false positive costs only the 11% of the time the cloud disagrees with our already-correct
+answer.** That is the whole result. The detector does not need precision, it needs to point at
+claims worth paying for.
+
+Projected from the balanced pilot onto the real 213: **FDV-IE 77.5% to 79.4%, for 41 extra cloud
+calls on 600 claims.** This is a projection and the exact figure is being measured on all 358
+target claims.
+
+#### THE CONTROL THAT DECIDES WHETHER THE DETECTOR IS WORTH ANYTHING
+
+Escalating the whole population with no detector at all, exact, from real cloud verdicts:
+
+| what is escalated | calls | gained | lost | net | net per 100 calls |
+|---|---|---|---|---|---|
+| all 358 target claims, no detector | 358 | 82 | 80 | **+2** | +0.6 |
+| all 213 FDV-IE target claims | 213 | 49 | 33 | +16 | +7.5 |
+| **audit_v1 trigger (projected)** | **41** | 14 | 3 | **+11** | **+27.1** |
+
+**Blind escalation of the whole target population gains nothing.** The cloud loses as much as it
+gains outside FDV-IE. So a detector is **necessary**, not merely cheaper, and audit_v1 is about
+3.6x more efficient per cloud call than escalating all of FDV-IE.
+
+#### What may NOT be written yet
+
+- **Any exact end-to-end figure.** The 79.4% is projected from a balanced sample. The full
+  358-claim run is what settles it.
+- **An unparseable or firing rate for audit_v3 or audit_v4.** Neither has run.
+- **A final control rate.** 0 fires in 29 claims is not 0%.
+
+---
+
+### 2.26 **[NEW 29 Aug 2026] THE AUDIT TRIGGER WORKS. +1.3 points at p = 0.0009 on all 1,700 held-out claims, and FDV-IE closes from -4.8 to -1.8.**
+
+Reproduce: `python3 test_scripts/run_audit_full.py ie_audit_v3 qwen2.5-coder:7b`, then
+`python3 test_scripts/analyse_audit_full.py ie_audit_v3_qwen2.5-coder-7b union ie,numeric`.
+**Measured on the whole target population, 358 claims, not projected from a sample.**
+
+#### The component
+
+Fires only on a claim the gate kept on device whose verdict is **entailed**, and not on FDV-KNOW.
+Two checks in parallel, either one escalates to the existing cloud arm:
+
+| step | cost |
+|---|---|
+| the claim asserts a number that appears nowhere in the filing | free, no model |
+| `ie_audit_v3` on `qwen2.5-coder:7b`: confirm every detail or flag the weakest one | one local call |
+
+It is a **third escalation trigger** beside `disagreement` and `numeric_detector`. No new component
+type, and nothing in the existing pipeline changes.
+
+#### The result, all 1,700 claims of test.json
+
+| | run 1 | with the trigger | delta |
+|---|---|---|---|
+| **routed, overall** | 75.8% | **77.1%** | **+1.3** |
+| FDV-IE | 77.5% | **80.5%** | **+3.0** |
+| FDV-MATH | 77.3% | 78.0% | +0.7 |
+| FDV-KNOW | 72.0% | 72.0% | 0.0 |
+| cloud calls | 53.4% | 57.1% | +3.6 points |
+
+**Paired McNemar against run 1: 32 gained, 10 lost, p = 0.0009.** Detector recall 50.8% (33/65),
+false-positive rate 15.8% (29/183), precision 53.2%.
+
+**Against cloud alone (77.4%): 106 we win, 110 cloud wins, p = 0.8383.** Run 1 was 75.8% against
+77.4% at p = 0.1194. The routed system is now within 0.3 points of the frontier cloud model.
+
+#### THE FDV-IE WOUND IS MOSTLY CLOSED
+
+§2.18's one significant loss was FDV-IE, 77.5% against cloud's 82.3%, p = 0.0070. It is now
+**80.5% against 82.3%**, a 1.8-point gap instead of 4.8.
+
+#### FOUR CONFIGURATIONS, all measured on the full 358
+
+| detector | recall | fpr | overall delta | p | extra cloud calls |
+|---|---|---|---|---|---|
+| `ie_audit_v1` alone | 29.2% | 15.8% | +0.7 | 0.0227 | 48 |
+| `ie_audit_v1` + free number check | 43.1% | 22.4% | +1.1 | 0.0019 | 69 |
+| `ie_audit_v3` alone | 36.9% | 9.3% | +0.9 | 0.0107 | 41 |
+| **`ie_audit_v3` + free number check** | **50.8%** | **15.8%** | **+1.3** | **0.0009** | **62** |
+
+The chosen row wins on every axis against the v1 union: larger gain, smaller p, fewer cloud calls.
+
+#### ESCALATING BEATS FLIPPING, AND THIS IS THE TRANSFERABLE FINDING
+
+Same detector, same claims, two ways of using it:
+
+| | overall | p |
+|---|---|---|
+| flip the verdict | 76.2% | 0.3489, not significant |
+| **escalate to cloud** | **77.1%** | **0.0009** |
+
+A false positive under flipping destroys a correct verdict outright. Under escalation it costs
+only the fraction of the time the cloud disagrees with an answer we already had right. **A weak
+detector is useless as a classifier and valuable as a router.** This is the sentence the section
+exists to support, and it generalises past this benchmark.
+
+#### The three prompts, and why the winner won
+
+| prompt | framing | recall | fpr |
+|---|---|---|---|
+| `ie_audit_v1` | find the detail the filing contradicts | 29.2% | 15.8% |
+| `ie_audit_v2` | enumerate every assertion, label each, then decide | 1.8% | 1.8% |
+| `ie_audit_v3` | confirm only if every detail is quotable, else flag | 36.9% | 9.3% |
+
+**`ie_audit_v2` is the informative failure.** Across 110 responses it labelled **309 assertions
+SUPPORTED and 3 CONTRADICTED**. Decomposition does not help, because the model then agrees with
+each conjunct in turn. **The gain comes from inverting the burden of proof, not from
+decomposition.** `ie_audit_v4`, a figure-by-figure cross-check, reached 47.3% recall at 23.6%
+false positives on the pilot and was not carried forward.
+
+#### FDV-KNOW IS EXCLUDED, AND THE RULE WAS SET ON testmini
+
+Escalation is not uniformly worth it. Per 100 calls, blind escalation of the target population:
+
+| subset | test.json | testmini |
+|---|---|---|
+| FDV-IE | +7.5 | +0.0 |
+| FDV-MATH | +5.7 | +7.1 |
+| **FDV-KNOW** | **-14.5** | **-11.1** |
+
+On FDV-KNOW the cloud rescues 96.2% of our wrong answers but keeps only **51.2%** of our right
+ones, because its refuted bias flips correct entailed verdicts. **The exclusion reproduces on
+testmini, so it is a development-split decision.** Including FDV-KNOW gives +0.8 at p = 0.0925,
+worse on both gain and significance, for 4.5 points more cloud.
+
+#### METHOD CAVEAT, and it must be stated wherever this number appears
+
+Newly escalated claims take their cloud verdict from **condition 2**, which ran the same 1,700
+claims with the same prompt (`baseline_v2`), model and config. This is an approximation to the
+extent of run-to-run variance, about one verdict in ten (§2.3.2), and it is why the result cost
+**no new cloud spend**. A confirmatory run that actually issues the 62 calls has not been done.
+
+#### What may be written
+
+- *"A third escalation trigger raises the routed pipeline from 75.8% to 77.1% on 1,700 held-out
+  claims (paired McNemar, p = 0.0009), closing the FDV-IE deficit from 4.8 points to 1.8, for
+  3.6 points more cloud traffic."*
+- *"The same detector used to overturn verdicts directly gives no significant gain (p = 0.349).
+  A detector too weak to classify can still be strong enough to route."*
+
+#### What may NOT be written
+
+- **That the routed system beats cloud alone.** 77.1% against 77.4%. It is now a tie, p = 0.838.
+- **That FDV-IE is fixed.** 1.8 points still separate it from cloud.
+- **Any figure from the pilot as if it were the full result.** `ie_audit_v3`'s false-positive rate
+  was 3.6% on the 110-claim pilot and **9.3%** on the full 358. `ie_audit_v4`'s went 15.6% to
+  23.6% when the last 24 claims landed.
+- **A final re-roll control rate.** The control arm stands at 29/110, 0 fires. Not a rate.
+
+---
+
 ## 3. Deployment cost
 
 **The MacBook is the device of record.** Never print a GPU-derived number under a MacBook label; never mix machines in one table (§9.2).

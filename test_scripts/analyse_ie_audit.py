@@ -47,6 +47,17 @@ def detectors(arm, r):
         out["+ filing quote is real"]           = fired and contains(ev, fs)
         out["+ claim quote is real"]            = fired and contains(stmt, cp)
         out["+ both quotes are real"]           = fired and contains(ev, fs) and contains(stmt, cp)
+    elif arm == "audit_v3":
+        fired = bool(re.search(r"\bUNCONFIRMED\b", resp))
+        cp, fs = quoted(resp, "CLAIM PART"), quoted(resp, "FILING SAYS")
+        out["fires on UNCONFIRMED (no guard)"] = fired
+        out["+ filing quote is real"] = fired and contains(ev, fs)
+        out["+ conflict, not NOT FOUND"] = fired and "NOT FOUND" not in fs.upper()
+    elif arm == "audit_v4":
+        v = re.search(r"VERDICT\s*:?\s*(MISMATCH|CLEAN)", resp, re.I)
+        out["VERDICT: MISMATCH"] = bool(v and v.group(1).upper() == "MISMATCH")
+        out["any MISMATCH line"] = bool(re.search(r"\bMISMATCH\b", resp))
+        out["MISMATCH or NOT FOUND"] = bool(re.search(r"\bMISMATCH\b|\bNOT FOUND\b", resp))
     elif arm == "audit_v2":
         lab = extract_label(resp)
         any_c = bool(re.search(r"\bCONTRADICTED\b", resp))
@@ -71,7 +82,7 @@ def main():
 
     cloud = {x["id"]: x for x in json.load(open(ROOT/"results"/"ie_analysis"/"ie_rows.json"))}
 
-    for arm in ("control", "audit_v1", "audit_v2"):
+    for arm in ("control", "audit_v1", "audit_v2", "audit_v3", "audit_v4"):
         recs = load(arm)
         if not recs:
             print(f"{arm:<46}  (no results yet)"); continue

@@ -5072,3 +5072,102 @@ raw firing rate will overstate the detector.
 4.2x smaller, 1,074 tokens against 4,550. It was written for the case where only the MacBook is
 available, to separate "cannot find the contradiction" from "retrieval did not supply it". On the
 GPU it is cheap enough to run as a fourth arm and is worth doing for that separation alone.
+
+---
+
+## 28 August, late: THE AUDIT PILOT IS IN. The design is settled and it is an escalation trigger, not a verdict-flipper.
+
+Numbers in `paper_numbers.md` §2.25. `qwen2.5-coder:7b` on the GPU box, no cloud calls anywhere.
+
+### The one-line result
+
+**Asking the local model to hunt for a contradiction does not produce a reliable verdict, but it
+produces a reliable signal about which claims are worth paying the cloud for.**
+
+    audit_v1, balanced pilot     recall 27.3%   false positives 16.4%
+    used to FLIP the verdict     FDV-IE 77.5% -> 75.7%    fails
+    used to ESCALATE to cloud    FDV-IE 77.5% -> 79.4%    works (projected)
+
+### Why flipping fails and escalating works
+
+On the claims that fired, measured from the real cloud verdicts, not an average:
+
+    on the 15 true positives   cloud is right 14 = 93%   we were wrong on all 15
+    on the  9 false positives  cloud is right  8 = 89%   we were right on all 9
+
+A false positive under flipping destroys a correct verdict. Under escalation it costs only the
+11% of the time the cloud disagrees with an answer we already had right. **The detector does not
+need precision. It needs to point at claims worth paying for.** That is the whole finding.
+
+### The control that makes it a result rather than an observation
+
+Escalating the target population with no detector at all, exact:
+
+    all 358 target claims       calls 358   NET  +2    +0.6 per 100 calls
+    all 213 FDV-IE targets      calls 213   NET +16    +7.5 per 100 calls
+    audit_v1 trigger            calls  41   NET +11   +27.1 per 100 calls
+
+**Blind escalation of the whole target population gains nothing.** A detector is necessary, not
+merely cheaper.
+
+### audit_v2 is dead, and its failure is informative
+
+Across 110 responses it labelled **309 assertions SUPPORTED and 3 CONTRADICTED**. Breaking the
+claim into conjuncts does not help, because the model then agrees with each conjunct in turn.
+**The gain in audit_v1 comes from the adversarial framing, not from decomposition.** This is
+worth one sentence in the paper.
+
+### The re-roll control has fired zero times in 29 claims
+
+A plain re-roll on a different seed never turns these verdicts over, so audit_v1's signal is not
+the run-to-run variance of §2.3.2. The arm is unfinished because the box dropped out. **Do not
+quote 0/29 as a rate.**
+
+### TWO DESIGN DECISIONS THE DATA FORCED
+
+**1. Do not escalate FDV-KNOW claims.** Escalation economics are not uniform:
+
+    subset      test.json per 100 calls    testmini per 100 calls
+    ie                       +7.5                      +0.0
+    numeric                  +5.7                      +7.1
+    knowledge               -14.5                     -11.1
+
+On FDV-KNOW the cloud rescues 96.2% of our wrong answers but keeps only **51.2%** of our right
+ones, because its refuted bias flips correct entailed verdicts. **The rule reproduces on testmini,
+so it is a development-split decision rather than one read off the reported split.**
+
+**2. Union the model call with the free number check.** They are nearly complementary:
+
+    audit_v1 alone               recall 27.3%   fpr 16.4%   30 calls -> net +13
+    number-absent alone          recall 16.4%   fpr  1.8%   10 calls -> net  +9
+    audit_v1 OR number-absent    recall 36.4%   fpr 18.2%   30 calls -> net +18
+
+The number check is `sweep_ie_number_signal.py`'s rule, costs no model call, and adds 9 points of
+recall for 1.8% false positives. It goes in the design.
+
+### THE PROPOSED PIPELINE STAGE
+
+Fires only on a claim the gate kept on device whose verdict is **entailed**, and not on FDV-KNOW.
+
+    1. free check    does the claim assert a number absent from the whole filing?
+    2. model call    one extra 7B call, ie_audit_v1, adversarial contradiction hunt
+    3. if either fires, escalate to the cloud arm exactly as the existing triggers do
+
+It adds no new component type. It is a third escalation trigger alongside `disagreement` and
+`numeric_detector`, which is what the professor asked for after the workshop.
+
+### RUNNING NOW, and it survives the box dropping out
+
+`test_scripts/queue_audit_work.sh` under `run_until_done.sh`, which polls `/api/tags` over HTTP
+and retries. In order: the full 358-claim `audit_v1` run for exact numbers, then `audit_v3` and
+`audit_v4` which are two higher-recall prompts, then the rest of the control.
+
+**The GPU box has now dropped twice.** It is flaky, not gone. `ping` is useless on it, it does not
+answer ICMP even while serving. Check `/api/tags` over HTTP.
+
+### WHAT IS STILL A PROJECTION
+
+The 79.4% comes from a balanced 110-claim pilot projected onto the real 213. **The full run is
+what settles it**, and `test_scripts/analyse_audit_full.py` computes the end-to-end pipeline
+result on all 1,700 claims with no new cloud spend, by reusing condition 2's verdicts on the same
+claims with the same prompt and config.

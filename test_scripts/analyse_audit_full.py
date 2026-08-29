@@ -32,11 +32,39 @@ def norm(s):
     return re.sub(r"\s+", " ", s).strip()
 
 
+NUM = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
+def _variants(tok):
+    bare = tok.replace(",", ""); out = {tok, bare}
+    if "." in bare: out.add(bare.rstrip("0").rstrip("."))
+    try: v = float(bare)
+    except ValueError: return out
+    for mult in (1, 1_000, 1_000_000):
+        x = v*mult
+        if x == int(x): out.add(str(int(x))); out.add(f"{int(x):,}")
+    return {y for y in out if len(y) >= 2}
+
+
+def number_absent(rec, full_text):
+    """free check: the claim asserts a number that appears nowhere in the filing"""
+    for m in NUM.finditer(rec["statement"]):
+        tok = m.group(0); bare = tok.replace(",", "")
+        try: v = float(bare)
+        except ValueError: continue
+        if "." not in bare and 1900 <= v <= 2100: continue
+        if v < 2: continue
+        if not any(x in full_text for x in _variants(tok)): return True
+    return False
+
+
 def fired(rec, rule):
     r = rec["response"]
-    has = bool(re.search(r"\bCONTRADICTED\b", r))
+    # v1/v2 fire on CONTRADICTED, v3 fires on UNCONFIRMED
+    has = bool(re.search(r"\bCONTRADICTED\b|\bUNCONFIRMED\b", r))
     if rule == "raw":
         return has
+    if rule == "union":
+        return has or rec.get("_numabs", False)
     if rule == "quote_guard":
         m = re.search(r"FILING SAYS\s*:?\s*(.+)", r, re.I)
         q = norm(m.group(1)) if m else ""
@@ -52,8 +80,22 @@ def acc(rows, key):
 def main():
     tag  = sys.argv[1]
     rule = sys.argv[2] if len(sys.argv) > 2 else "raw"
+    # subsets the trigger is allowed to fire on. FDV-KNOW is excluded by default:
+    # escalating it is net negative on BOTH splits (working_state, 28 Aug late).
+    allowed = set((sys.argv[3] if len(sys.argv) > 3 else "ie,numeric").split(","))
     d = ROOT/"results"/"audit_full"/tag
     recs = {json.load(open(p))["example_id"]: json.load(open(p)) for p in d.glob("*.json")}
+    if rule == "union":
+        sys.path.insert(0, str(ROOT))
+        from src.loader import load_claims
+        from src.run_loop import read_report
+        cl = {c.example_id: c for c in load_claims("test")}
+        cache = {}
+        for cid, r in recs.items():
+            fn = cl[cid].report
+            if fn not in cache:
+                cache[fn] = " ".join(e["context"] for e in read_report(fn)["context"])
+            r["_numabs"] = number_absent(r, cache[fn])
     rows = json.load(open(ROWS))
     target = [x for x in rows if x["target"]]
     covered = [x for x in target if x["id"] in recs]
@@ -62,11 +104,14 @@ def main():
     if len(covered) < len(target):
         print(f"  WARNING: {len(target)-len(covered)} not yet run, numbers below are partial")
 
-    fire = {x["id"] for x in covered if fired(recs[x["id"]], rule)}
+    fire = {x["id"] for x in covered
+            if x["subset"] in allowed and fired(recs[x["id"]], rule)}
+    print(f"trigger allowed on: {','.join(sorted(allowed))}")
     tp = [x for x in covered if x["id"] in fire and x["gold"] is False]
     fp = [x for x in covered if x["id"] in fire and x["gold"] is True]
-    nw = sum(1 for x in covered if x["gold"] is False)
-    nr = len(covered) - nw
+    elig = [x for x in covered if x["subset"] in allowed]
+    nw = sum(1 for x in elig if x["gold"] is False)
+    nr = len(elig) - nw
     print(f"\nDETECTOR, exact on the real population")
     print(f"  fires {len(fire)}   catches {len(tp)}/{nw}   breaks {len(fp)}/{nr}")
     print(f"  recall {len(tp)/nw*100:.1f}%   false-positive rate {len(fp)/nr*100:.1f}%   "

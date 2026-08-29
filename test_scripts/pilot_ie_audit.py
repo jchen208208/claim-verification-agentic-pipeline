@@ -24,7 +24,9 @@ CACHE  = ROOT/"results"/"pilot_ie_audit"
 HOST   = "http://10.0.0.26:11434/api/generate"
 MODEL  = "qwen2.5-coder:7b"
 
-ARMS = {"control": ("baseline_v1", 1), "audit_v1": ("ie_audit_v1", 0), "audit_v2": ("ie_audit_v2", 0)}
+ARMS = {"control": ("baseline_v1", 1), "audit_v1": ("ie_audit_v1", 0),
+        "audit_v2": ("ie_audit_v2", 0), "audit_v3": ("ie_audit_v3", 0),
+        "audit_v4": ("ie_audit_v4", 0)}
 
 
 def evidence_block(prompt):
@@ -93,11 +95,14 @@ def main():
                   flush=True)
         return x["id"], "ok"
 
-    with ThreadPoolExecutor(max_workers=4) as ex:
+    with ThreadPoolExecutor(max_workers=2) as ex:
         for cid, st in ex.map(work, todo):
             if st != "ok":
                 print(f"  {cid}: {st}", flush=True)
-    print(f"arm {arm} finished in {(time.time()-t0)/60:.1f} min")
+    missing = [x for x in sample if not (outdir/f"{x['id']}.json").exists()]
+    print(f"arm {arm} finished in {(time.time()-t0)/60:.1f} min, "
+          f"{len(missing)} still missing")
+    sys.exit(1 if missing else 0)
 
 
 if __name__ == "__main__":
