@@ -5171,3 +5171,44 @@ The 79.4% comes from a balanced 110-claim pilot projected onto the real 213. **T
 what settles it**, and `test_scripts/analyse_audit_full.py` computes the end-to-end pipeline
 result on all 1,700 claims with no new cloud spend, by reusing condition 2's verdicts on the same
 claims with the same prompt and config.
+
+---
+
+## 29 August 2026: THE DEADLINE MOVED. A seven-day extension, verified on two sources.
+
+**New deadline: 5 September 2026, 23:59 AoE.** That is **6 September, 04:59 Pacific** and
+**6 September, 19:59 Beijing**. Was 29 August, 23:59 AoE.
+
+Verified 29 August, 14:30 Pacific, on both authorities rather than one:
+
+- **OpenReview**, `NeurIPS.cc/2026/Workshop/ODI`: "Submission start: Jul 24, 2026, 8:35:00 AM,
+  Deadline: Sep 06, 2026, 4:59:00 AM". OpenReview renders in the browser's local timezone, which
+  is Pacific here, and 04:59 Pacific is 23:59 AoE the previous day, matching the old deadline's
+  own pattern.
+- **The workshop site**, `odi2026.github.io`, states it twice with the old date struck through and
+  the word **EXTENDED**: "Paper submission deadline: ~~August 29, 2026, 23:59 AoE~~ September 5,
+  2026, 23:59 AoE".
+
+Review period is 6 to 19 September. Notification 29 September. Workshop 11/12 December, Sydney.
+
+**Everything else on the site is unchanged and was re-read while checking**: 5 pages excluding
+references and appendix, NeurIPS 2026 template, double-blind, non-archival, an appendix is allowed
+in the same PDF, no separate supplementary files. **In-person attendance is expected**, at least
+one author in Sydney. That last point is on the site and has never been recorded here.
+
+**`CLAUDE.md` still says 29 August in two places and needs correcting.** So does the deadline line
+at the top of this file and section 12 of the architecture plan. Do not trust any date written
+before this entry.
+
+### What the extension changes
+
+The 14.6-hour plan is void. With eight days rather than fourteen hours:
+
+1. **The skill goes into `src/` properly**, block by block in chat, rather than living only in
+   `test_scripts/`.
+2. **A real end-to-end run becomes affordable.** A full 1,700-claim pipeline run is about 14 hours
+   of local inference plus roughly 970 cloud calls. That is one overnight job, and it removes the
+   §2.26 caveat that newly escalated claims reuse condition 2's cloud verdicts.
+3. **The testmini null is worth attacking properly.** §2.27 could not separate "the effect is
+   weak" from "testmini has no headroom". A larger or better-powered check is now possible.
+4. **The paper gets a real cutting pass**, 10 pages to 5, instead of being handed over long.

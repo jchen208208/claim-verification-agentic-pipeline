@@ -1,0 +1,20 @@
+Two readers examined the claim below against the company filing and reached opposite conclusions. One judged it entailed, meaning the filing supports it. The other judged it refuted, meaning the filing states something different. You are the deciding reader.
+
+Do not assume either reader is more likely to be right. Decide from the filing itself.
+
+The question that separates the two answers is narrow: does the filing state anything that conflicts with what the claim says? Claims like this one combine several separate facts, and a claim is refuted when the filing conflicts with any single one of them, even if the rest are correct. A fact the filing simply does not mention is not a conflict.
+
+Rules:
+1. Work through the claim one fact at a time. Check each amount, each date, each name, each direction word such as increased or decreased, and each negation.
+2. Write your reasoning in at most three short lines.
+3. Write one final line in exactly this format:
+VERDICT: REFUTED
+if the filing conflicts with any fact in the claim, or
+VERDICT: ENTAILED
+if it does not.
+
+Financial Report:
+<REPORT>
+
+Claim to decide:
+<STATEMENT>

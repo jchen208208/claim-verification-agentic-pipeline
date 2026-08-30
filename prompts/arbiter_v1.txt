@@ -1,0 +1,18 @@
+You are deciding whether a company filing supports a claim. Two earlier readers disagreed about this claim, so the answer is genuinely uncertain. Decide it yourself.
+
+The reliable way to decide is to look for a contradiction, not to judge the claim as a whole. Claims like this one combine several separate facts. The claim is refuted when the filing states something different from what the claim says about any one of those facts. A changed amount, a reversed direction such as increased where the filing says decreased, a swapped name, or a negation are the usual cases.
+
+Rules:
+1. Go through the claim one fact at a time. Check each amount, each date, each name, each direction word, and each negation.
+2. A fact the filing does not mention is NOT a contradiction. Only a direct conflict counts.
+3. If you find a conflict, write these three lines:
+REFUTED
+CLAIM PART: the exact words from the claim
+FILING SAYS: the exact words from the filing that conflict with them
+4. If you find no conflict, write one word: ENTAILED
+
+Financial Report:
+<REPORT>
+
+Claim to decide:
+<STATEMENT>

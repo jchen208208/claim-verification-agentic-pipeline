@@ -2690,6 +2690,105 @@ direction and is underpowered on the smaller split.
 
 ---
 
+### 2.28 **[NEW 29 Aug 2026, PROVISIONAL, n=155] A LOCAL ARBITER ON THE DISAGREEMENT SET. Better accuracy than the cloud on half the cloud calls.**
+
+Reproduce: `python3 test_scripts/run_arbiter.py arbiter_v1 qwen2.5-coder:7b 200`, then
+`python3 test_scripts/analyse_arbiter_frontier.py`. `qwen2.5-coder:7b`, temperature 0, seed 0,
+the same retrieved evidence run 1 used. **No cloud calls.**
+
+**PROVISIONAL. Measured on a 200-claim seeded sample of the 575 disagreement claims, of which
+155 are non-arithmetic. The full 575 run is queued. Do not quote these figures in the paper
+until it lands.**
+
+#### Why this population, and why it is the largest prize in the project
+
+The 3B and the 7B disagree on **575 of 1,700 claims, 33.8%**. On **549 of them, 95.5%, exactly
+one of the two local models is already right.** The correct answer is on the device. The gate
+cannot tell which model holds it, so it pays the cloud: 459 of run 1's 908 cloud calls, **half of
+all cloud traffic**, are `disagreement` escalations.
+
+| on the 575 disagreement claims | |
+|---|---|
+| 3B alone | 35.8% |
+| 7B alone | 59.7% |
+| cloud, what we pay for today | 74.4% |
+| **oracle, pick the correct local** | **95.5%** |
+
+#### No free rule picks the winner
+
+Measured first, before any model call: keeping the 7B scores 59.7%, fewest hedge words 60.0%,
+longer response 48.3%, shorter response 47.3%, believe-whoever-said-entailed 55.5%. The direction
+of the disagreement carries almost nothing: the 7B is right 60.8% when it says refuted and 63.2%
+when it says entailed. **A model call is required.**
+
+#### The arbiter as a third local opinion
+
+`prompts/arbiter_v1.txt`. One extra 7B call, told that two earlier readers disagreed, asked to
+look for a contradiction rather than judge the claim whole, and to quote the conflicting filing
+line. n=200 sample:
+
+| | n | keep 7B | arbiter | cloud |
+|---|---|---|---|---|
+| overall | 200 | 60.0% | 63.5% | 75.5% |
+| FDV-IE | 70 | 52.9% | **68.6%** | 77.1% |
+| FDV-KNOW | 73 | 58.9% | 64.4% | 74.0% |
+| FDV-MATH | 57 | 70.2% | **56.1%** | 75.4% |
+
+**The arbiter helps on FDV-IE and FDV-KNOW and actively hurts on FDV-MATH.** Consistent with
+§2.23: its mechanism is contradiction hunting, which suits conjunctive claims and is useless for
+arithmetic, where both local models already failed.
+
+**Excluding arithmetic needs no benchmark label.** `numeric_detector` is label-free at 0.984
+precision (§2.13.4), and run 1's `disagreement` escalations are by construction the claims where
+it stayed silent. The deployable population is those 459 claims.
+
+#### THE RESULT: selective escalation beats full escalation on both axes
+
+On the 155 sampled claims where the locals disagree and the numeric detector is silent:
+
+| policy | accuracy | cloud calls | escalated |
+|---|---|---|---|
+| escalate everything (run 1 today) | 74.2% | 155 | 100% |
+| arbiter decides everything, no cloud | 66.5% | 0 | 0% |
+| keep the 7B, no arbiter, no cloud | 56.1% | 0 | 0% |
+| **arbiter agrees with the 7B, keep local; else cloud** | **75.5%** | **77** | **49.7%** |
+
+**Higher accuracy than today, on half the cloud calls.** Every other partial policy tested was
+worse: arbiter-if-REFUTED 69.0%, arbiter-if-ENTAILED 71.6%, arbiter-if-agrees-with-3B 65.8%.
+
+#### The mechanism, and it is the reason the policy is principled rather than tuned
+
+| | n | local answer correct | cloud correct on the same claims |
+|---|---|---|---|
+| arbiter sides with the 7B | 78 | **76.9%** | 74.4% |
+| arbiter sides with the 3B | 69 | 55.1% | 73.9% |
+
+**When a third local opinion confirms the 7B, that two-of-three majority beats the cloud on those
+exact claims, so escalating them is waste.** When the arbiter sides with the 3B instead, the local
+tier is right 55.1% against the cloud's 73.9%, and those claims are worth paying for.
+
+The rule is therefore **escalate only when three local opinions fail to produce a clear majority
+winner**. It is a majority vote, not a threshold fitted to the data, which is a materially better
+position than the quote-length rule of §2.26 that failed to replicate in §2.27.
+
+#### A CONFIGURATION BUG, recorded because it nearly produced a false negative
+
+The first run capped `num_predict` at 400. **Every unparseable response was exactly 400 tokens**:
+the model reasons at length and was cut off before stating its verdict. Unparseable was 21.7%, and
+those claims fell back to the 7B, masking the effect. Raising the cap to 1,200 took unparseable to
+**1.5%**. The first numbers were discarded and the cache cleared. **A truncation artefact of ours,
+not a model failure**, and the same class of error as data trap 3.
+
+#### What may NOT be written
+
+- **Any of this in the paper yet.** n=155 of a 575-claim population, and the policy was selected by
+  comparing eight candidates on that sample.
+- **That the arbiter replaces the cloud.** Deciding everything locally scores 66.5% against 74.2%.
+  The result is selective escalation, not elimination.
+- **Any projection to overall pipeline accuracy.** Not yet computed on the full set.
+
+---
+
 ## 3. Deployment cost
 
 **The MacBook is the device of record.** Never print a GPU-derived number under a MacBook label; never mix machines in one table (§9.2).
