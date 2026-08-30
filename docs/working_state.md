@@ -5212,3 +5212,66 @@ The 14.6-hour plan is void. With eight days rather than fourteen hours:
 3. **The testmini null is worth attacking properly.** §2.27 could not separate "the effect is
    weak" from "testmini has no headroom". A larger or better-powered check is now possible.
 4. **The paper gets a real cutting pass**, 10 pages to 5, instead of being handed over long.
+
+---
+
+## 29 August, evening: THE SYSTEM RESULT. 76.9% against cloud's 77.4%, tied, on 42.3% of the cloud calls.
+
+Full numbers in `paper_numbers.md` §2.29. Two components, both measured on all 1,700 claims of
+`test.json`, no new cloud spend.
+
+    system                    overall  FDV-IE   MATH   KNOW   calls   %esc   p vs cloud
+    run 1, as published          75.8    77.5   77.3   72.0     908   53.4     0.1194
+    + audit trigger              77.1    80.5   78.0   72.0     970   57.1     0.8383
+    + arbiter                    75.6    76.3   77.3   72.6     657   38.6     0.1199
+    + both                       76.9    79.3   78.0   72.6     719   42.3     0.6891
+    cloud alone                  77.4    82.3   77.2   71.6    1700  100.0        -
+
+**+1.1 points of accuracy while removing 189 cloud calls.** Run 1 was 75.8% on 53.4% escalation.
+Both components together give 76.9% on 42.3%.
+
+**The paper's sentence about the cloud changes materially.** Run 1 was 75.8% against 77.4% at
+p = 0.1194, a tie that had to be defended because the sign favoured the cloud by 1.6 points. It is
+now **76.9% against 77.4% at p = 0.6891**, reached with 719 cloud calls against a cloud-only
+system's 1,700.
+
+**The headline: the routed system matches a frontier cloud model, statistically indistinguishable,
+using 42% of the cloud calls.** That is an on-device result rather than "we pay more and get more".
+
+### The two components, and they do opposite things
+
+They act on **disjoint** claim sets, which is why they compose.
+
+    audit trigger   fires where the locals AGREED and said entailed. ADDS 62 cloud calls,
+                    buys +1.3 points. FDV-IE 77.5 -> 80.5.
+    arbiter         fires where the locals DISAGREED and the numeric detector is silent.
+                    REMOVES 251 cloud calls, costs -0.2 points at p = 0.7666, a tie.
+
+### A CORRECTION THAT MATTERS, and it is the second in two days
+
+§2.28 was first written from a 155-claim sample and claimed the arbiter gave **better accuracy on
+half the cloud calls**. **The accuracy gain did not survive the full 459.** The key number, that a
+local two-of-three majority beats the cloud on those claims, read 76.9% against 74.4% on the sample
+and is **73.3% against 74.9%** on the full set. It reverses. What survives is the cost result.
+
+**Both replication failures this week had the same cause**: a policy chosen from several candidates
+and then scored on a sample too small for the effect. The sample looked adequate because its
+*bars* matched the full set closely, but the quantity being estimated was a 1 to 2 point
+difference. §2.27 was the first, §2.28 the second. **Do not report a policy from a sample again.**
+
+### A prompt-design finding worth one sentence in the paper
+
+`arbiter_v2` told the model that two readers disagreed and asked it to decide. `arbiter_v1` never
+mentioned the disagreement and asked only for a contradiction hunt. **v1's agreement with the 7B
+is a confidence signal and v2's is not**, 76.9% against 69.8% on the claims where each sides with
+the 7B. Telling the model the question is contested made its answer less informative. Same shape
+as `ie_audit_v2`, which labelled 309 assertions SUPPORTED and 3 CONTRADICTED.
+
+### STILL OPEN
+
+1. **testmini for the arbiter.** Running now, 196 non-arithmetic disagreement claims. Note the bars
+   differ: keep-7B is 64.8% there against 57.3% on test, and cloud is 77.6% against 73.4%, so there
+   is less room to remove calls without cost. The same headroom problem as §2.27.
+2. **The reused cloud verdicts.** Newly escalated claims take condition 2's verdict on the same
+   claim. A confirmatory run issuing the real calls has not been done.
+3. **Neither component is in `src/`.** Both live in `test_scripts/`.

@@ -2690,7 +2690,24 @@ direction and is underpowered on the smaller split.
 
 ---
 
-### 2.28 **[NEW 29 Aug 2026, PROVISIONAL, n=155] A LOCAL ARBITER ON THE DISAGREEMENT SET. Better accuracy than the cloud on half the cloud calls.**
+### 2.28 **[NEW 29 Aug 2026, CORRECTED on the full 459] A LOCAL ARBITER ON THE DISAGREEMENT SET. It removes 27.6% of all cloud calls at no measurable accuracy cost.**
+
+> **CORRECTION, read this first.** This section was written from a 155-claim sample and claimed
+> *better accuracy on half the cloud calls*. **The accuracy gain did not survive the full 459.**
+> The sample said the policy scored 75.5% against an escalate-everything baseline of 74.2%, a gain
+> of +1.3. The full set says **72.5% against 73.4%, a loss of 0.9**. The load-bearing number, that
+> a local majority beats the cloud on those claims, was 76.9% against 74.4% on the sample and is
+> **73.3% against 74.9%** on the full set. It reverses.
+>
+> **What survives is the cost result**, and it is real: 251 of 908 cloud calls removed, **27.6% of
+> all cloud traffic**, for a pipeline-level change of **-0.2 points at p = 0.7666**, which is a tie
+> rather than a loss. Everything below the "THE RESULT" heading is the corrected full-set version.
+> The sample figures are kept only as the record of the error.
+>
+> **This is the second replication failure in two days** (§2.27 was the first) and the mechanism
+> was identical both times: a policy chosen from several candidates and then scored on a sample too
+> small for the effect. The 200-claim sample looked adequate because the *bars* matched the full set
+> closely, but the quantity being estimated was a 1 to 2 point difference, which needs far more.
 
 Reproduce: `python3 test_scripts/run_arbiter.py arbiter_v1 qwen2.5-coder:7b 200`, then
 `python3 test_scripts/analyse_arbiter_frontier.py`. `qwen2.5-coder:7b`, temperature 0, seed 0,
@@ -2742,30 +2759,37 @@ arithmetic, where both local models already failed.
 precision (§2.13.4), and run 1's `disagreement` escalations are by construction the claims where
 it stayed silent. The deployable population is those 459 claims.
 
-#### THE RESULT: selective escalation beats full escalation on both axes
-
-On the 155 sampled claims where the locals disagree and the numeric detector is silent:
+#### THE RESULT, on all 459 claims where the locals disagree and the numeric detector is silent
 
 | policy | accuracy | cloud calls | escalated |
 |---|---|---|---|
-| escalate everything (run 1 today) | 74.2% | 155 | 100% |
-| arbiter decides everything, no cloud | 66.5% | 0 | 0% |
-| keep the 7B, no arbiter, no cloud | 56.1% | 0 | 0% |
-| **arbiter agrees with the 7B, keep local; else cloud** | **75.5%** | **77** | **49.7%** |
+| escalate everything (run 1 today) | **73.4%** | 459 | 100% |
+| arbiter decides everything, no cloud | 64.1% | 0 | 0% |
+| keep the 7B, no arbiter, no cloud | 57.3% | 0 | 0% |
+| **arbiter agrees with the 7B, keep local; else cloud** | **72.5%** | **208** | **45.3%** |
 
-**Higher accuracy than today, on half the cloud calls.** Every other partial policy tested was
-worse: arbiter-if-REFUTED 69.0%, arbiter-if-ENTAILED 71.6%, arbiter-if-agrees-with-3B 65.8%.
+Other partial policies, all worse: arbiter-if-REFUTED 67.1%, arbiter-if-ENTAILED 70.6%,
+arbiter-if-agrees-with-3B 67.1%, arbiter-if-REFUTED-with-short-quote 73.0% at 97.8% escalation.
+
+**Pipeline level, all 1,700 claims: 49 verdicts gained, 53 lost, net -4, McNemar p = 0.7666.**
+Overall 75.8% to 75.6%. Cloud calls 908 to 657, from 53.4% of claims to **38.6%**.
+
+**The supportable claim is a cost result at no measurable accuracy cost, not an accuracy gain.**
 
 #### The mechanism, and it is the reason the policy is principled rather than tuned
 
+Full set, n=459:
+
 | | n | local answer correct | cloud correct on the same claims |
 |---|---|---|---|
-| arbiter sides with the 7B | 78 | **76.9%** | 74.4% |
-| arbiter sides with the 3B | 69 | 55.1% | 73.9% |
+| arbiter sides with the 7B | 251 | **73.3%** | 74.9% |
+| arbiter sides with the 3B | 174 | 54.0% | 70.7% |
 
-**When a third local opinion confirms the 7B, that two-of-three majority beats the cloud on those
-exact claims, so escalating them is waste.** When the arbiter sides with the 3B instead, the local
-tier is right 55.1% against the cloud's 73.9%, and those claims are worth paying for.
+**When a third local opinion confirms the 7B, that two-of-three majority matches the cloud on
+those exact claims**, 73.3% against 74.9%, so paying for them buys almost nothing. When the
+arbiter sides with the 3B instead, the local tier is right 54.0% against the cloud's 70.7%, and
+those claims are worth paying for. **On the 155-claim sample the first row read 76.9% against
+74.4% and appeared to beat the cloud. It does not.**
 
 The rule is therefore **escalate only when three local opinions fail to produce a clear majority
 winner**. It is a majority vote, not a threshold fitted to the data, which is a materially better
@@ -2786,6 +2810,88 @@ not a model failure**, and the same class of error as data trap 3.
 - **That the arbiter replaces the cloud.** Deciding everything locally scores 66.5% against 74.2%.
   The result is selective escalation, not elimination.
 - **Any projection to overall pipeline accuracy.** Not yet computed on the full set.
+
+---
+
+### 2.28.1 **[NEW 29 Aug 2026] arbiter_v1 BEATS arbiter_v2, and the reason is a prompt-design finding**
+
+Head-to-head on the same 155 non-arithmetic claims, `qwen2.5-coder:7b`, temperature 0, seed 0.
+
+| | arbiter_v1 | arbiter_v2 |
+|---|---|---|
+| unparseable | 1.3% | 0.0% |
+| arbiter decides everything | 66.5% | 60.0% |
+| policy: agrees-with-7B, else cloud | **75.5%** | 70.3% |
+| cloud calls | 49.7% | 44.5% |
+| **when it sides with the 7B, correct** | **76.9%** | 69.8% |
+| **cloud on those same claims** | 74.4% | **76.7%** |
+
+The last two rows decide it. **`v1`'s agreement with the 7B is a confidence signal and `v2`'s is
+not**: `v2` agrees with the 7B on more claims and is right less often than the cloud on exactly
+those claims, so its cheaper escalation rate buys nothing.
+
+**The difference is one sentence of framing.** `arbiter_v2` tells the model that two earlier
+readers disagreed and asks it to decide. `arbiter_v1` never mentions the disagreement and asks
+only for a contradiction hunt. **Telling the model the question is contested made its answer less
+informative.** This is the same result as `ie_audit_v2` in §2.26, where inviting the model to
+deliberate over each conjunct produced agreement rather than judgement. `arbiter_v2` was dropped
+and never run on the full set.
+
+---
+
+### 2.29 **[NEW 29 Aug 2026] THE FULL SYSTEM. 76.9% against a frontier cloud model's 77.4%, statistically indistinguishable, on 42.3% of the cloud calls.**
+
+Reproduce: `python3 test_scripts/analyse_combined.py`. All 1,700 claims of `test.json`.
+The two components act on **disjoint** claim sets and therefore compose:
+
+- the **audit trigger** (§2.26) fires on claims the gate KEPT, where the two locals agreed and the
+  verdict is entailed. It **adds** cloud calls.
+- the **arbiter** (§2.28) fires on claims where the two locals DISAGREED and the numeric detector
+  is silent. It **removes** cloud calls.
+
+| system | overall | FDV-IE | FDV-MATH | FDV-KNOW | cloud calls | % escalated | p vs cloud alone |
+|---|---|---|---|---|---|---|---|
+| run 1, as published | 75.8 | 77.5 | 77.3 | 72.0 | 908 | 53.4 | 0.1194 |
+| + audit trigger | 77.1 | 80.5 | 78.0 | 72.0 | 970 | 57.1 | 0.8383 |
+| + arbiter | 75.6 | 76.3 | 77.3 | 72.6 | 657 | 38.6 | 0.1199 |
+| **+ both** | **76.9** | **79.3** | **78.0** | **72.6** | **719** | **42.3** | **0.6891** |
+| cloud alone | 77.4 | 82.3 | 77.2 | 71.6 | 1,700 | 100.0 | — |
+
+#### The two headline changes
+
+**1. Both components together beat run 1 on both axes.** +1.1 points of accuracy while removing
+189 cloud calls. Run 1 was 75.8% on 53.4% escalation. Both components give **76.9% on 42.3%**.
+
+**2. The sentence about the cloud comparison changes materially.** Run 1 was 75.8% against 77.4%
+at p = 0.1194, a tie that had to be defended because the sign favoured the cloud by 1.6 points.
+It is now **76.9% against 77.4% at p = 0.6891**, reached with **719 cloud calls against a
+cloud-only system's 1,700, so 42.3%**.
+
+**Supportable headline: the routed system matches a frontier cloud model, statistically
+indistinguishable, using 42% of the cloud calls.** That is an on-device result rather than
+"we pay more and get more".
+
+#### Per subset
+
+FDV-IE 77.5 to 79.3, which largely closes the one significant loss in §2.18 (p = 0.0070 there).
+FDV-MATH 77.3 to 78.0. FDV-KNOW 72.0 to 72.6, and the arbiter is the component that moves it.
+
+#### METHOD CAVEAT, to be repeated wherever these numbers appear
+
+Newly escalated claims take their cloud verdict from **condition 2**, which ran the same 1,700
+claims with the same prompt (`baseline_v2`), model and config. That is an approximation to the
+extent of run-to-run variance, about one verdict in ten (§2.3.2), and it is why this cost **no new
+cloud spend**. Claims the arbiter keeps on device need no such approximation, since the local
+verdict is the one already recorded in run 1. A confirmatory run that issues the real calls has
+not been done.
+
+#### What may NOT be written
+
+- **That the routed system beats cloud alone.** 76.9 against 77.4. It ties.
+- **That the arbiter improves accuracy.** It does not; it is a cost result (§2.28).
+- **Anything from testmini yet.** The arbiter replication is running. §2.27 already showed the
+  audit half is underpowered there.
+- **These figures without the reused-cloud-verdict caveat above.**
 
 ---
 
