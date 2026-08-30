@@ -5275,3 +5275,86 @@ as `ie_audit_v2`, which labelled 309 assertions SUPPORTED and 3 CONTRADICTED.
 2. **The reused cloud verdicts.** Newly escalated claims take condition 2's verdict on the same
    claim. A confirmatory run issuing the real calls has not been done.
 3. **Neither component is in `src/`.** Both live in `test_scripts/`.
+
+---
+
+## 29 August, late: BOTH SPLITS ARE IN. The cost result replicates, the accuracy result replicates in direction only.
+
+Full tables in `paper_numbers.md` §2.30. Nothing was re-tuned for testmini.
+
+    test.json, n=1,700        overall  FDV-IE   MATH   KNOW   calls   %esc   p vs cloud
+    run 1, as published          75.8    77.5   77.3   72.0     908   53.4     0.1194
+    + audit trigger              77.1    80.5   78.0   72.0     970   57.1     0.8383
+    + arbiter                    75.6    76.3   77.3   72.6     657   38.6     0.1199
+    + both                       76.9    79.3   78.0   72.6     719   42.3     0.6891
+    cloud alone                  77.4    82.3   77.2   71.6    1700  100.0        -
+
+    testmini, n=700           overall  FDV-IE   MATH   KNOW   calls   %esc   p vs cloud
+    reconstructed run 1          79.0    83.2   78.4   74.5     378   54.0     0.5811
+    + audit trigger              79.7    84.4   79.2   74.5     405   57.9     1.0000
+    + arbiter                    78.3    82.4   77.6   74.0     267   38.1     0.3553
+    + both                       79.0    83.6   78.4   74.0     294   42.0     0.6208
+    cloud alone                  79.9    84.0   80.4   74.0     700  100.0        -
+
+### THE TEST THAT WAS MISSING, and it qualifies the headline
+
+Significance **against run 1**, which had not been computed when §2.29 was written:
+
+                    test.json                 testmini
+    + audit      +22 net, p = 0.0009      +5 net, p = 0.3018
+    + arbiter    -10 net, p = 0.4191      -5 net, p = 0.4996
+    + both       +12 net, p = 0.3933      +0 net, p = 1.0000
+
+**Only the audit trigger alone is significant, and only on `test.json`.** The combined +1.1 is not
+distinguishable from run 1, because the arbiter churns verdicts both ways, 57 gained and 67 lost,
+which inflates the discordant pairs and dilutes the audit's clean signal.
+
+### What replicates
+
+**The escalation rate, almost exactly.** This is the robust finding of the week.
+
+    run 1 escalation            53.4%  test    54.0%  testmini
+    + both escalation           42.3%  test    42.0%  testmini
+    arbiter calls removed       54.7%  test    56.6%  testmini
+
+**The arbiter's mechanism**, which is what §2.27 and the first §2.28 draft failed to do:
+
+    arbiter sides with the 7B, local correct    73.3% test   75.7% testmini
+    arbiter sides with the 3B, local correct    54.0% test   47.8% testmini
+
+A 19 to 28 point separation on both. The arbiter genuinely knows when the local tier can be
+trusted. On both splits the cloud is still slightly better on the claims it keeps, 74.9% and
+80.2%, so it is a small cost and never a gain.
+
+**The accuracy gain replicates in direction only.** +1.3 on test, +0.7 on testmini, same sign,
+significant on one. Same headroom caveat as §2.27: testmini's disagreement bars are tougher,
+keep-7B 64.8% against 57.3% and cloud 77.6% against 73.4%.
+
+### HOW TO PRESENT IT: a frontier, not a single system
+
+Every row is statistically indistinguishable from cloud alone on both splits.
+
+    operating point        test acc   esc     testmini acc   esc
+    arbiter only            75.6     38.6%       78.3      38.1%
+    both                    76.9     42.3%       79.0      42.0%
+    audit only              77.1     57.1%       79.7      57.9%
+    cloud alone             77.4    100.0%       79.9     100.0%
+
+The two components pull opposite ways and compose because their claim sets are disjoint. The audit
+trigger fires where the locals **agreed** and said entailed, and **adds** calls. The arbiter fires
+where they **disagreed**, and **removes** calls. **Both belong in the paper**, presented as
+operating points rather than as one system.
+
+### Two corrections made tonight, recorded so they are not repeated
+
+1. **"The accuracy gain does not replicate" was too strong.** It replicates in direction for the
+   audit trigger on both splits. It is the **combined** number that is flat on testmini.
+2. **"Both components reduce cost" is wrong.** The audit trigger runs at a *higher* escalation
+   rate, 57.1% and 57.9%, up from 53.4% and 54.0%. Only the arbiter reduces cost.
+
+### STILL OPEN
+
+1. **Neither component is in `src/`.** Both live in `test_scripts/`.
+2. **The reused cloud verdicts.** Newly escalated claims take condition 2's verdict on the same
+   claim rather than a fresh call. About one verdict in ten of run-to-run variance (§2.3.2).
+3. **The paper.** 10 pages, needs 5, and now has two new components to describe.

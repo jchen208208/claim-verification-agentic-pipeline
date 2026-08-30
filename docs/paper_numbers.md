@@ -2862,6 +2862,11 @@ The two components act on **disjoint** claim sets and therefore compose:
 **1. Both components together beat run 1 on both axes.** +1.1 points of accuracy while removing
 189 cloud calls. Run 1 was 75.8% on 53.4% escalation. Both components give **76.9% on 42.3%**.
 
+> **QUALIFIED by §2.30.** The +1.1 is **not significant against run 1**, p = 0.3933, because the
+> arbiter churns verdicts in both directions. The significant component is the audit trigger alone,
+> +1.3 at p = 0.0009. The robust combined result is the **cost** reduction, which replicates on
+> both splits at 42.3% and 42.0% escalation.
+
 **2. The sentence about the cloud comparison changes materially.** Run 1 was 75.8% against 77.4%
 at p = 0.1194, a tie that had to be defended because the sign favoured the cloud by 1.6 points.
 It is now **76.9% against 77.4% at p = 0.6891**, reached with **719 cloud calls against a
@@ -2892,6 +2897,109 @@ not been done.
 - **Anything from testmini yet.** The arbiter replication is running. §2.27 already showed the
   audit half is underpowered there.
 - **These figures without the reused-cloud-verdict caveat above.**
+
+---
+
+### 2.30 **[NEW 29 Aug 2026] BOTH COMPONENTS ON BOTH SPLITS. The cost reduction replicates almost exactly. The accuracy gain replicates in direction only.**
+
+Reproduce: `python3 test_scripts/analyse_combined.py` and
+`python3 test_scripts/analyse_combined_testmini.py`. Nothing was re-tuned for testmini: same
+prompts, same rules, same code. The routed pipeline never ran on testmini, so its gate is
+reconstructed from the three arms on disk exactly as in §2.24. **No cloud calls anywhere.**
+
+#### test.json, n=1,700
+
+| system | overall | FDV-IE | FDV-MATH | FDV-KNOW | cloud calls | % escalated | p vs cloud alone |
+|---|---|---|---|---|---|---|---|
+| run 1, as published | 75.8 | 77.5 | 77.3 | 72.0 | 908 | 53.4 | 0.1194 |
+| + audit trigger | 77.1 | 80.5 | 78.0 | 72.0 | 970 | 57.1 | 0.8383 |
+| + arbiter | 75.6 | 76.3 | 77.3 | 72.6 | 657 | 38.6 | 0.1199 |
+| + both | 76.9 | 79.3 | 78.0 | 72.6 | 719 | 42.3 | 0.6891 |
+| cloud alone | 77.4 | 82.3 | 77.2 | 71.6 | 1,700 | 100.0 | — |
+
+#### testmini, n=700, reconstructed gate
+
+| system | overall | FDV-IE | FDV-MATH | FDV-KNOW | cloud calls | % escalated | p vs cloud alone |
+|---|---|---|---|---|---|---|---|
+| reconstructed run 1 | 79.0 | 83.2 | 78.4 | 74.5 | 378 | 54.0 | 0.5811 |
+| + audit trigger | 79.7 | 84.4 | 79.2 | 74.5 | 405 | 57.9 | 1.0000 |
+| + arbiter | 78.3 | 82.4 | 77.6 | 74.0 | 267 | 38.1 | 0.3553 |
+| + both | 79.0 | 83.6 | 78.4 | 74.0 | 294 | 42.0 | 0.6208 |
+| cloud alone | 79.9 | 84.0 | 80.4 | 74.0 | 700 | 100.0 | — |
+
+#### SIGNIFICANCE AGAINST RUN 1, which is the test that was missing
+
+| | test.json | testmini |
+|---|---|---|
+| + audit trigger | +22 net, **p = 0.0009** | +5 net, p = 0.3018 |
+| + arbiter | -10 net, p = 0.4191 | -5 net, p = 0.4996 |
+| + both | +12 net, p = 0.3933 | +0 net, p = 1.0000 |
+
+**Only the audit trigger alone is significant, and only on `test.json`.** The combined system's
++1.1 points is **not** statistically distinguishable from run 1 (p = 0.3933), because the arbiter
+churns verdicts in both directions, 57 gained and 67 lost, which inflates the discordant pairs and
+dilutes the audit's clean signal. **This was not computed when §2.29 was written and it qualifies
+that section's headline.**
+
+#### WHAT REPLICATES AND WHAT DOES NOT
+
+**The escalation rate replicates almost exactly.** This is the robust finding of the whole week.
+
+| | test.json | testmini |
+|---|---|---|
+| run 1 escalation | 53.4% | 54.0% |
+| + both escalation | **42.3%** | **42.0%** |
+| arbiter: share of its population's cloud calls removed | 54.7% | 56.6% |
+
+**The arbiter's mechanism replicates**, which is what §2.27 and the first §2.28 draft failed to do:
+
+| | test.json | testmini |
+|---|---|---|
+| arbiter sides with the 7B, local correct | 73.3% | 75.7% |
+| arbiter sides with the 3B, local correct | 54.0% | 47.8% |
+| separation | 19.3 pts | 27.9 pts |
+
+On both splits the cloud is still slightly better on the claims the arbiter keeps (74.9% and
+80.2%), so it is always a small cost and never a gain. **Arbiter accuracy cost: -4 verdicts at
+p = 0.7666 on test, -5 at p = 0.4996 on testmini. A tie on both.**
+
+**The accuracy gain replicates in direction only.** The audit trigger gives +1.3 on `test.json`
+and +0.7 on testmini, the same sign on both, significant on one. This is the §2.27 pattern and the
+same headroom caveat applies: testmini's disagreement bars are structurally tougher, keep-7B 64.8%
+against 57.3% and cloud 77.6% against 73.4%.
+
+#### THE FRONTIER, which is how this should be presented
+
+Every row below is statistically indistinguishable from cloud alone on both splits.
+
+| operating point | test.json accuracy | escalation | testmini accuracy | escalation |
+|---|---|---|---|---|
+| arbiter only, cheapest | 75.6 | 38.6% | 78.3 | 38.1% |
+| both, balanced | 76.9 | 42.3% | 79.0 | 42.0% |
+| audit only, most accurate | 77.1 | 57.1% | 79.7 | 57.9% |
+| cloud alone | 77.4 | 100.0% | 79.9 | 100.0% |
+
+The two components pull in opposite directions and compose because they act on disjoint claim
+sets: the audit trigger fires where the locals **agreed** and said entailed and **adds** calls, the
+arbiter fires where they **disagreed** and **removes** calls.
+
+#### What may be written
+
+- *"The routed system reaches accuracy statistically indistinguishable from a frontier cloud model
+  at operating points between 38% and 57% of the cloud calls, on both splits."*
+- *"Adding both components cuts escalation from 53.4% to 42.3% on the test split and from 54.0% to
+  42.0% on the development split."*
+- *"The audit trigger raises test-split accuracy by 1.3 points (p = 0.0009); on the smaller
+  development split the effect has the same sign but is not significant (+0.7, p = 0.30)."*
+
+#### What may NOT be written
+
+- **That the combined system significantly improves on run 1.** p = 0.3933. Only the audit trigger
+  alone is significant, and only on `test.json`.
+- **That the arbiter improves accuracy.** It costs a non-significant 4 to 5 verdicts on both splits.
+- **That either component helps FDV-KNOW.** 72.0 to 72.6 and 74.5 to 74.0. Noise.
+- **These numbers without the reused-cloud-verdict caveat** (§2.29): newly escalated claims take
+  condition 2's verdict on the same claim rather than a fresh call.
 
 ---
 
