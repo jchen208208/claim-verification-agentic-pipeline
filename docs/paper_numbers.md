@@ -2983,6 +2983,22 @@ The two components pull in opposite directions and compose because they act on d
 sets: the audit trigger fires where the locals **agreed** and said entailed and **adds** calls, the
 arbiter fires where they **disagreed** and **removes** calls.
 
+**All three operating points tie cloud alone statistically. That is the frontier: the reader picks
+whether they want 38%, 42% or 57% of the cloud calls, and accuracy stays within 1.8 points of a
+frontier model at every point.**
+
+Gap to cloud alone at each operating point:
+
+| operating point | test.json gap | testmini gap |
+|---|---|---|
+| arbiter only, 38% of calls | 1.8 | 1.6 |
+| both, 42% of calls | 0.5 | 0.9 |
+| audit only, 57% of calls | 0.3 | 0.2 |
+
+**Say "within 1.8 points", not "within about a point".** The two richer operating points are inside
+one point on both splits, but arbiter-only is 1.8 and 1.6. The larger number is the one that
+survives a reviewer checking the table.
+
 #### What may be written
 
 - *"The routed system reaches accuracy statistically indistinguishable from a frontier cloud model

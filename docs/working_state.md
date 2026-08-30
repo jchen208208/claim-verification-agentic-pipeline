@@ -5345,6 +5345,19 @@ trigger fires where the locals **agreed** and said entailed, and **adds** calls.
 where they **disagreed**, and **removes** calls. **Both belong in the paper**, presented as
 operating points rather than as one system.
 
+**All three operating points tie cloud alone statistically. That is the frontier: the reader picks
+whether they want 38%, 42% or 57% of the cloud calls, and accuracy stays within 1.8 points of a
+frontier model at every point.**
+
+    gap to cloud alone      test.json   testmini
+    arbiter only, 38%          1.8        1.6
+    both, 42%                  0.5        0.9
+    audit only, 57%            0.3        0.2
+
+**Write "within 1.8 points", not "within about a point".** The two richer points are inside one
+point on both splits, arbiter-only is not. Quote the number that survives a reviewer checking the
+table.
+
 ### Two corrections made tonight, recorded so they are not repeated
 
 1. **"The accuracy gain does not replicate" was too strong.** It replicates in direction for the
