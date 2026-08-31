@@ -15,6 +15,8 @@ from src.loader import load_claims
 from src.run_loop import read_report
 from src.numeric_detector import is_numeric_claim
 
+import os
+ALLOW=None if os.environ.get("AUDIT_ALL") else ("ie","numeric")
 R=ROOT/"results"/"condition4_pipeline_test1700"
 AUD=ROOT/"results"/"audit_full"/"ie_audit_v3_qwen2.5-coder-7b"
 ARB=ROOT/"results"/"arbiter"/"arbiter_v1_qwen2.5-coder-7b"
@@ -66,7 +68,7 @@ def build(use_audit, use_arb):
     out=[]; calls=0
     for cid,x in rows.items():
         r=raw[cid]; v=x["routed"]; called=r["cloud_called"]
-        if use_audit and x["target"] and x["subset"] in ("ie","numeric") and cid in aud:
+        if use_audit and x["target"] and (ALLOW is None or x["subset"] in ALLOW) and cid in aud:
             fired = re.search(r"\bUNCONFIRMED\b",aud[cid]["response"]) or \
                     num_absent(cid,aud[cid]["statement"])
             if fired: v=x["cloud"]; called=True
