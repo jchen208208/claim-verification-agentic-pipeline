@@ -90,6 +90,15 @@ ROUTED_FIELDS = {f.name for f in dataclasses.fields(RoutedRecord)}
 # Model names used only by the routed stubs. They never reach a real server;
 # they exist so a stub can tell the three stages apart by config["model"].
 STUB_3B, STUB_7B, STUB_CLOUD = "stub:3b", "stub:7b", "stub:cloud"
+STUB_ARBITER, STUB_AUDIT = "stub:arbiter", "stub:audit"
+
+# what the two new prompts are told to answer with
+ARB_ENTAILED = "ENTAILED"
+ARB_REFUTED = "REFUTED\nCLAIM PART: the segment revenue increased\nFILING SAYS: revenue decreased"
+AUDIT_CONFIRMED = "CONFIRMED"
+AUDIT_UNCONFIRMED = ("UNCONFIRMED\nCLAIM PART: the segment revenue increased\n"
+                     "FILING SAYS: revenue decreased")
+ARB_GARBAGE = "I cannot tell whether this is entailed or refuted from the filing."
 
 PIPELINE_CONFIG = {
     "experiment": "harness_pipeline",
@@ -185,6 +194,23 @@ class RoutedModelStub:
 def routed_clients(stub):
     """Both client names point at the one stub, as run.py's CLIENTS would."""
     return {"ollama": stub, "deepseek": stub}
+
+
+def components_config(**overrides):
+    """PIPELINE_CONFIG plus the audit and arbiter stages.
+
+    Kept separate so every section 7 check still runs against a pipeline that has
+    neither, which is also the backwards-compatibility test: a config without the
+    two stage blocks must behave exactly like run 1.
+    """
+    config = pipeline_config(**overrides)
+    config["arbiter"] = {"client": "ollama", "model": STUB_ARBITER, "num_ctx": 16384,
+                         "num_predict": 1200, "temperature": 0, "seed": 0,
+                         "prompt_version": "arbiter_v1", "ollama_host": "localhost"}
+    config["audit"] = {"client": "ollama", "model": STUB_AUDIT, "num_ctx": 16384,
+                       "num_predict": 400, "temperature": 0, "seed": 0,
+                       "prompt_version": "ie_audit_v3", "ollama_host": "localhost"}
+    return config
 
 
 def pipeline_config(**overrides):
@@ -627,6 +653,178 @@ def main():
         route([unflagged, flagged], idle, tmp=tmp)
         check("routed resume calls no model when everything is done",
               idle.models_called() == [], str(idle.models_called()))
+
+    # --- 8. the audit skill and the arbiter -----------------------------
+    # Added 31 Aug. Two optional stages that change routing in opposite directions:
+    # the arbiter takes a disagreeing claim back from the cloud (section 2.28), the
+    # audit sends an agreeing "entailed" claim to it (section 2.26). They must act on
+    # disjoint claim sets, which is the one thing a wiring bug would silently break.
+    try:
+        from src import arbiter, audit_skill
+    except ImportError as exc:
+        check("src/arbiter.py and src/audit_skill.py exist", False, str(exc))
+        arbiter = audit_skill = None
+
+    if arbiter is not None:
+        # 8a. a config WITHOUT the two stages must behave exactly like run 1
+        with tempfile.TemporaryDirectory() as tmp:
+            stub = RoutedModelStub({STUB_3B: REFUTED, STUB_7B: ENTAILED,
+                                    STUB_CLOUD: REFUTED})
+            rec = route([unflagged], stub, tmp=tmp)[unflagged.example_id]
+            check("no stages declared: neither component runs",
+                  STUB_ARBITER not in stub.models_called()
+                  and STUB_AUDIT not in stub.models_called(),
+                  str(stub.models_called()))
+            check("no stages declared: run 1 behaviour is unchanged",
+                  rec["cloud_called"] is True
+                  and rec["escalation_reason"] == "disagreement")
+
+        cfg = components_config()
+
+        # The audit runs two checks and the free one comes first. To exercise the
+        # model-call path these tests need a claim whose figures all appear in its
+        # own report, otherwise the short-circuit fires and the stub is never asked.
+        audit_safe = next(
+            (c for c in all_claims
+             if not is_numeric_claim(c.statement)
+             and not audit_skill.number_absent(
+                 c.statement,
+                 " ".join(e["context"] for e in read_report(c)["context"]))),
+            None)
+        check("harness found a claim the free number check ignores",
+              audit_safe is not None)
+
+        # 8b. arbiter agrees with the 7B: the claim is taken back from the cloud
+        with tempfile.TemporaryDirectory() as tmp:
+            stub = RoutedModelStub({STUB_3B: REFUTED, STUB_7B: ENTAILED,
+                                    STUB_ARBITER: ARB_ENTAILED, STUB_CLOUD: REFUTED})
+            rec = route([unflagged], stub, cfg, tmp)[unflagged.example_id]
+            check("arbiter agrees with 7B: cloud NOT called",
+                  rec["cloud_called"] is False, str(stub.models_called()))
+            check("arbiter agrees with 7B: answer is the 7B's",
+                  rec["extracted_label"] is True and rec["final_source"] == "local_b")
+            check("arbiter agrees with 7B: escalation reason cleared",
+                  rec["escalation_reason"] is None, str(rec["escalation_reason"]))
+            check("arbiter agrees with 7B: verdict recorded",
+                  rec["arbiter_verdict"] is True)
+            check("arbiter ran exactly once",
+                  stub.models_called().count(STUB_ARBITER) == 1,
+                  str(stub.models_called()))
+
+        # 8c. arbiter sides with the 3B: the claim still goes to the cloud
+        with tempfile.TemporaryDirectory() as tmp:
+            stub = RoutedModelStub({STUB_3B: REFUTED, STUB_7B: ENTAILED,
+                                    STUB_ARBITER: ARB_REFUTED, STUB_CLOUD: REFUTED})
+            rec = route([unflagged], stub, cfg, tmp)[unflagged.example_id]
+            check("arbiter sides with 3B: cloud called", rec["cloud_called"] is True)
+            check("arbiter sides with 3B: reason stays disagreement",
+                  rec["escalation_reason"] == "disagreement",
+                  str(rec["escalation_reason"]))
+            check("arbiter sides with 3B: verdict recorded as refuted",
+                  rec["arbiter_verdict"] is False)
+
+        # 8d. an unreadable arbiter answer must not keep the claim on device
+        with tempfile.TemporaryDirectory() as tmp:
+            stub = RoutedModelStub({STUB_3B: REFUTED, STUB_7B: ENTAILED,
+                                    STUB_ARBITER: ARB_GARBAGE, STUB_CLOUD: REFUTED})
+            rec = route([unflagged], stub, cfg, tmp)[unflagged.example_id]
+            check("unparseable arbiter: cloud still called",
+                  rec["cloud_called"] is True)
+            check("unparseable arbiter: verdict recorded as None",
+                  rec["arbiter_verdict"] is None, str(rec["arbiter_verdict"]))
+
+        # 8e. the arbiter must not touch a claim the numeric detector flagged
+        with tempfile.TemporaryDirectory() as tmp:
+            stub = RoutedModelStub({STUB_3B: REFUTED, STUB_7B: ENTAILED,
+                                    STUB_ARBITER: ARB_ENTAILED, STUB_CLOUD: REFUTED})
+            rec = route([flagged], stub, cfg, tmp)[flagged.example_id]
+            check("numeric claim: arbiter never runs",
+                  STUB_ARBITER not in stub.models_called(),
+                  str(stub.models_called()))
+            check("numeric claim: still escalated by the detector",
+                  rec["escalation_reason"] == "numeric_detector")
+
+        # 8f. locals agree on entailed and the audit fires: cloud is called
+        with tempfile.TemporaryDirectory() as tmp:
+            stub = RoutedModelStub({STUB_3B: ENTAILED, STUB_7B: ENTAILED,
+                                    STUB_AUDIT: AUDIT_UNCONFIRMED, STUB_CLOUD: REFUTED})
+            rec = route([audit_safe], stub, cfg, tmp)[audit_safe.example_id]
+            check("audit fires: cloud called", rec["cloud_called"] is True)
+            check("audit fires: reason is audit_detector",
+                  rec["escalation_reason"] == "audit_detector",
+                  str(rec["escalation_reason"]))
+            check("audit fires: answer comes from the cloud",
+                  rec["extracted_label"] is False and rec["final_source"] == "cloud")
+            check("audit fires: audit_fired recorded True", rec["audit_fired"] is True)
+
+        # 8g. the audit confirms: the claim stays on device
+        with tempfile.TemporaryDirectory() as tmp:
+            stub = RoutedModelStub({STUB_3B: ENTAILED, STUB_7B: ENTAILED,
+                                    STUB_AUDIT: AUDIT_CONFIRMED, STUB_CLOUD: REFUTED})
+            rec = route([audit_safe], stub, cfg, tmp)[audit_safe.example_id]
+            check("audit confirms: cloud not called", rec["cloud_called"] is False)
+            check("audit confirms: audit_fired recorded False",
+                  rec["audit_fired"] is False)
+            check("audit confirms: answer stays the 7B's",
+                  rec["extracted_label"] is True)
+
+        # 8h. the audit must not run on an agreeing REFUTED verdict
+        with tempfile.TemporaryDirectory() as tmp:
+            stub = RoutedModelStub({STUB_3B: REFUTED, STUB_7B: REFUTED,
+                                    STUB_AUDIT: AUDIT_UNCONFIRMED, STUB_CLOUD: ENTAILED})
+            rec = route([unflagged], stub, cfg, tmp)[unflagged.example_id]
+            check("agreeing refuted: audit never runs",
+                  STUB_AUDIT not in stub.models_called(), str(stub.models_called()))
+            check("agreeing refuted: cloud not called", rec["cloud_called"] is False)
+
+        # 8i. THE DISJOINTNESS TEST. The arbiter can clear the escalation on a
+        # DISAGREEING claim whose 7B verdict is entailed. The audit must still not
+        # run on it: it was measured only on claims where the two locals agreed.
+        with tempfile.TemporaryDirectory() as tmp:
+            stub = RoutedModelStub({STUB_3B: REFUTED, STUB_7B: ENTAILED,
+                                    STUB_ARBITER: ARB_ENTAILED,
+                                    STUB_AUDIT: AUDIT_UNCONFIRMED, STUB_CLOUD: REFUTED})
+            rec = route([unflagged], stub, cfg, tmp)[unflagged.example_id]
+            check("arbiter-released claim: audit does NOT run",
+                  STUB_AUDIT not in stub.models_called(), str(stub.models_called()))
+            check("arbiter-released claim: stays on device",
+                  rec["cloud_called"] is False)
+
+        # 8j. the free number check short-circuits the model call.
+        # Note: claim_numbers can keep a trailing comma from a date, so
+        # "December 31, 2023" yields "31,". Measured as immaterial: the
+        # surface forms include "31", and over all 358 audited claims the
+        # stripped and unstripped rules fire on exactly the same 50.
+        raiser = RoutedModelStub({STUB_AUDIT: AUDIT_CONFIRMED},
+                                 raise_on=[STUB_AUDIT])
+        fired, detail = audit_skill.should_escalate(
+            "Revenue was $999,999,999 in the quarter.",
+            "evidence block", "the filing says nothing of the sort",
+            "<REPORT> <STATEMENT>",
+            lambda prompt: raiser(prompt, {"model": STUB_AUDIT})["response"])
+        check("number absent: fires without calling the model",
+              fired is True and detail["model_called"] is False, str(detail))
+
+        present, detail2 = audit_skill.should_escalate(
+            "Revenue was $999,999,999 in the quarter.",
+            "evidence block", "revenue of 999,999,999 for the quarter",
+            "<REPORT> <STATEMENT>",
+            lambda prompt: AUDIT_CONFIRMED)
+        check("number present: falls through to the model call",
+              present is False and detail2["model_called"] is True, str(detail2))
+
+        # 8k. the parsers, on the shapes the two prompts actually produce
+        check("arbiter parses ENTAILED",
+              arbiter.parse_verdict(ARB_ENTAILED) is True)
+        check("arbiter parses REFUTED with quotes",
+              arbiter.parse_verdict(ARB_REFUTED) is False)
+        check("arbiter returns None on an unreadable answer",
+              arbiter.parse_verdict(ARB_GARBAGE) is None)
+        check("arbiter returns None on empty", arbiter.parse_verdict("") is None)
+        check("CONFIRMED is not read as UNCONFIRMED",
+              audit_skill._CONFIRMED.search("UNCONFIRMED") is None)
+        check("UNCONFIRMED is matched",
+              audit_skill._UNCONFIRMED.search(AUDIT_UNCONFIRMED) is not None)
 
     # ---------------------------------------------------------------- report
     width = max(len(n) for n, _, _ in CHECKS)

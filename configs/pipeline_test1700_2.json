@@ -1,0 +1,71 @@
+{
+  "experiment": "condition5_audit_arbiter_test1700",
+  "pipeline": true,
+  "model": "routed_3b_7b_flashv2_audit_arbiter",
+
+  "local_a": {
+    "client": "ollama",
+    "model": "qwen2.5-coder:3b",
+    "num_ctx": 32768,
+    "num_predict": 2000,
+    "temperature": 0,
+    "seed": 0,
+    "prompt_version": "baseline_v1",
+    "ollama_host": "10.0.0.26"
+  },
+
+  "local_b": {
+    "client": "ollama",
+    "model": "qwen2.5-coder:7b",
+    "num_ctx": 32768,
+    "num_predict": 2000,
+    "temperature": 0,
+    "seed": 0,
+    "prompt_version": "baseline_v1",
+    "ollama_host": "10.0.0.26"
+  },
+
+  "arbiter": {
+    "client": "ollama",
+    "model": "qwen2.5-coder:7b",
+    "num_ctx": 32768,
+    "num_predict": 1200,
+    "temperature": 0,
+    "seed": 0,
+    "prompt_version": "arbiter_v1",
+    "ollama_host": "10.0.0.26"
+  },
+
+  "audit": {
+    "client": "ollama",
+    "model": "qwen2.5-coder:7b",
+    "num_ctx": 32768,
+    "num_predict": 400,
+    "temperature": 0,
+    "seed": 0,
+    "prompt_version": "ie_audit_v3",
+    "ollama_host": "10.0.0.26"
+  },
+
+  "cloud": {
+    "client": "deepseek",
+    "model": "deepseek-v4-flash",
+    "num_ctx": 1000000,
+    "num_predict": 16000,
+    "prompt_budget_tokens": 30768,
+    "temperature": 0,
+    "seed": 0,
+    "prompt_version": "baseline_v2"
+  },
+
+  "escalate_numeric": true,
+  "skip_local_when_escalating": false,
+
+  "retriever": "bm25",
+  "top_k": 10,
+  "per_cell": null,
+  "split": "test",
+  "sample_seed": 0,
+
+  "expect_ollama_version": "0.32.9"
+}
