@@ -2,15 +2,17 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 27 August 2026.
+Last updated: 31 August 2026.
 
 ---
 
 ## The deadline
 
-The paper is due **29 August 2026, 23:59 anywhere on earth**. That is 04:59 Pacific on 30 August, and 19:59 Beijing on 30 August.
+The paper is due **5 September 2026, 23:59 anywhere on earth**. That is 04:59 Pacific on 6 September, and 19:59 Beijing on 6 September.
 
-**Corrected 1 August.** Every document said 30 August, taken from the professor at the 30 July meeting. The workshop site says 29 August. One day of the writing phase is gone.
+**Extended 29 August, verified on OpenReview and on the workshop site.** It was 29 August AoE. The old date is struck through on `odi2026.github.io` with the word EXTENDED. Review runs 6 to 19 September, notification 29 September, workshop 11/12 December in Sydney. In-person attendance is expected, at least one author there. See the 29 August section below.
+
+**Corrected 1 August, superseded but kept for the record.** Every document said 30 August, taken from the professor at the 30 July meeting. The workshop site said 29 August. `CLAUDE.md` and section 12 of the architecture plan still carry pre-extension dates in places.
 
 The deliverable is a paper of about five pages, submitted to a workshop in Australia called *On-Device Intelligence: Foundation Models under Real-World Constraints*. I am first author. My professor is a co-author and will recruit about two industry co-authors.
 
@@ -5371,3 +5373,59 @@ table.
 2. **The reused cloud verdicts.** Newly escalated claims take condition 2's verdict on the same
    claim rather than a fresh call. About one verdict in ten of run-to-run variance (§2.3.2).
 3. **The paper.** 10 pages, needs 5, and now has two new components to describe.
+
+---
+
+## 31 August, morning: BOTH COMPONENTS ARE IN `src/`, and condition 5 is running on all 1,700.
+
+Two of the three items left open on 29 August are now closed or closing. Build detail in
+`build_log.md` under 30 August night and 31 August morning.
+
+### Closed: the components are no longer test scripts
+
+`src/audit_skill.py` and `src/arbiter.py` exist, and `src/routed_loop.py` runs them as two optional
+stages beside `skill`. The record gained four fields, `arbiter_verdict`, `arbiter_detail`,
+`audit_fired`, `audit_detail`, so every firing is on disk per claim.
+
+**The property to protect is that the two act on disjoint claim sets.** The arbiter fires only on a
+`disagreement` escalation of a non-numeric claim. The audit fires only when the claim is not
+already escalating and both locals said ENTAILED. A claim the arbiter has just released is not
+eligible for the audit, because the locals disagreed on it, and that is a population the audit was
+never measured on. Harness check 8i asserts exactly this and it is the one thing a wiring bug would
+break without any visible symptom.
+
+**The harness is now 131 checks, 35 new.** It stays a gate, not a suggestion. Check 8a is the
+backwards-compatibility test: a config with neither stage block must behave exactly like run 1.
+
+### Closing: the reused cloud verdicts
+
+`configs/pipeline_test1700_2.json`, experiment `condition5_audit_arbiter_test1700`, started 09:30
+Pacific. Both components on, all 1,700 claims of `test.json`, real cloud calls rather than condition
+2's verdicts reused. This is what §2.26 said was missing.
+
+In flight, 19 of 1,700, status ok on every claim, all four escalation reasons observed. **Nothing is
+quotable from 19 claims and no rate is recorded.**
+
+### The timing rule for this run: exclude claims 1 to 9, or report the median
+
+A game was loaded on the GPU box for the first nine claims and was then closed.
+
+    claims 1-9    median 82.5 s   mean 111.4 s
+    claims 10-19  median 23.9 s   mean  32.3 s
+
+Same contamination as 18 August, with one difference. **The boundary was recorded at the time**,
+so this is not a window fitted to the data afterwards and the exclusion is legitimate. On run 1 no
+boundary was recorded, which is why the standing rule there is median only.
+
+**Rule for the latency paragraph: exclude claims 1 to 9, or report the median over all 1,700. Never
+quote the mean over all 1,700.** The clean median, 23.9 s over ten claims, matches run 1's 26.0 s,
+so the system did not change. `paper_numbers.md` §3.6.
+
+### STILL OPEN
+
+1. **Condition 5 has to finish.** About 14 hours at the clean rate. Until it does, every number for
+   the two components rests on reused cloud verdicts.
+2. **The paper.** 10 pages, needs 5, and has two new components to describe. This is now the
+   binding item, not compute.
+3. **Pre-extension dates.** `CLAUDE.md` and parts of section 12 of the architecture plan still say
+   29 August. The plan's §1.1 mechanics table is corrected as of today; `CLAUDE.md` is not.

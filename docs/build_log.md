@@ -7044,3 +7044,203 @@ already covers, and every script was repointed and re-run to confirm. One hardco
 the caption now interpolates. `paper_numbers.md` had a stale entry saying only the 3B had been
 tested on operand extraction, which the 28 August evening 7B run had already answered; it is
 updated.
+
+---
+
+## 29 August 2026 - the deadline moves, and both components are measured on both splits
+
+Written up on 31 August from `working_state.md` and `paper_numbers.md`, which were kept current
+that day while this file was not. Full tables in `paper_numbers.md` §2.26 to §2.30.
+
+**The deadline moved to 5 September 2026, 23:59 AoE**, a seven-day extension. That is 6 September
+04:59 Pacific, 6 September 19:59 Beijing. Verified at 14:30 Pacific on two authorities, not one:
+OpenReview's `NeurIPS.cc/2026/Workshop/ODI` page and the workshop site `odi2026.github.io`, which
+shows the old date struck through with the word EXTENDED. Review runs 6 to 19 September,
+notification 29 September, workshop 11/12 December in Sydney. One thing on the site had never been
+recorded here: **in-person attendance is expected**, at least one author in Sydney.
+
+### What was built and measured
+
+Two components, both first measured in `test_scripts/` rather than `src/`.
+
+**The audit trigger** re-checks claims where both local models agreed on ENTAILED, and sends the
+suspicious ones to the cloud. It is an escalation trigger, not a verdict-flipper, which is what
+§2.25 settled: a false positive costs almost nothing because the cloud is right more often anyway.
+On all 1,700 test claims it moves the pipeline from 75.8% to 77.1%, +22 net verdicts, **p = 0.0009**,
+and closes the FDV-IE deficit from -4.8 to -1.8 points. It **adds** cloud calls, 53.4% to 57.1%.
+
+**The arbiter** asks the 7B a third question when the two local models disagree, and keeps the
+claim on device when the answer matches the 7B. It removes **27.6% of all cloud calls**, 53.4% down
+to 38.6%, and costs 10 net verdicts, p = 0.4191.
+
+### The replication, and the part of it that did not survive
+
+Both were re-run on testmini with nothing re-tuned.
+
+    test.json, n=1,700        overall  FDV-IE   MATH   KNOW   calls   %esc   p vs cloud
+    run 1, as published          75.8    77.5   77.3   72.0     908   53.4     0.1194
+    + audit trigger              77.1    80.5   78.0   72.0     970   57.1     0.8383
+    + arbiter                    75.6    76.3   77.3   72.6     657   38.6     0.1199
+    + both                       76.9    79.3   78.0   72.6     719   42.3     0.6891
+    cloud alone                  77.4    82.3   77.2   71.6    1700  100.0        -
+
+    testmini, n=700           overall  FDV-IE   MATH   KNOW   calls   %esc   p vs cloud
+    reconstructed run 1          79.0    83.2   78.4   74.5     378   54.0     0.5811
+    + audit trigger              79.7    84.4   79.2   74.5     405   57.9     1.0000
+    + arbiter                    78.3    82.4   77.6   74.0     267   38.1     0.3553
+    + both                       79.0    83.6   78.4   74.0     294   42.0     0.6208
+    cloud alone                  79.9    84.0   80.4   74.0     700  100.0        -
+
+**The escalation rate replicates almost exactly**: 53.4/54.0 for run 1, 42.3/42.0 with both
+components, 54.7/56.6 for the calls the arbiter removes. That is the robust finding of the week.
+
+**The arbiter's mechanism replicates too.** Where it sides with the 7B the local tier is right
+73.3% of the time on test and 75.7% on testmini; where it sides with the 3B, 54.0% and 47.8%. A 19
+to 28 point separation on both splits, so it genuinely knows when the local tier can be trusted.
+
+**The accuracy gain replicates in direction only**, +1.3 on test and +0.7 on testmini. Significance
+against run 1, which had not been computed when the first draft of §2.29 was written, says only
+the audit trigger alone is significant and only on `test.json`. The combined number is not
+distinguishable from run 1, because the arbiter churns verdicts both ways, 57 gained and 67 lost,
+which inflates the discordant pairs and dilutes the audit's clean signal.
+
+### Two corrections made the same night, recorded so they are not repeated
+
+1. **"The accuracy gain does not replicate" was too strong.** It replicates in direction for the
+   audit trigger on both splits. It is the combined number that is flat on testmini.
+2. **"Both components reduce cost" is wrong.** The audit trigger runs at a higher escalation rate,
+   57.1% and 57.9%, up from 53.4% and 54.0%. Only the arbiter reduces cost.
+
+### The presentation decision: a frontier, not a system
+
+Every operating point ties cloud alone statistically on both splits, so the paper presents a curve
+and lets the reader pick the point. Gap to cloud alone: arbiter only 1.8 and 1.6, both 0.5 and 0.9,
+audit only 0.3 and 0.2. **Write "within 1.8 points", not "within about a point"**, because that is
+the number a reviewer checking the table will find.
+
+### A prompt-design finding worth one sentence in the paper
+
+`arbiter_v2` told the model that two readers disagreed and asked it to decide. `arbiter_v1` never
+mentioned the disagreement and asked only for a contradiction hunt. **v1's agreement with the 7B is
+a confidence signal and v2's is not**, 76.9% against 69.8% on the claims where each sides with the
+7B. Telling the model the question was contested made its answer less informative. Same shape as
+`ie_audit_v2`, which labelled 309 assertions SUPPORTED and 3 CONTRADICTED.
+
+### The methodological rule that came out of both replication failures
+
+Both failures this week, §2.27 and the first draft of §2.28, had one cause: a policy chosen from
+several candidates and then scored on a sample too small for the effect. The sample looked adequate
+because its bars matched the full set closely, but the quantity being estimated was a 1 to 2 point
+difference. **Do not report a policy chosen and scored on the same sample again.**
+
+---
+
+## 30 August 2026, night - both components move into `src/`, and the harness grows a section 8
+
+Four commits, 22:45 to 23:18. This closes the "neither component is in `src/`" item that had been
+open since 29 August. Everything below was written block by block in chat and applied by hand.
+
+### Built: `src/audit_skill.py`
+
+Two checks, and either one escalates a kept-local ENTAILED verdict to the cloud.
+
+1. **The free check, `number_absent`.** It pulls every figure the claim asserts and asks whether any
+   printed form of it appears anywhere in the filing text. `_surface_forms` covers the ways a filing
+   prints the same magnitude: with and without thousands separators, `8.50` also written `8.5`, and
+   the three scale multipliers 1, 1,000 and 1,000,000, since a claim saying `$3.27 billion` meets a
+   filing table printing `3,270`. Two guards keep it from firing on everything: bare integers
+   between 1900 and 2100 are read as years and skipped, values under 2 are skipped as counts or
+   item indices, and any surface form shorter than two characters is dropped because a
+   one-character string matches almost any text.
+2. **The model check.** `ie_audit_v3` asks the 7B to confirm every detail or name the weakest one.
+   UNCONFIRMED escalates and the two quoted lines, `CLAIM PART` and `FILING SAYS`, are parsed out
+   and stored. CONFIRMED keeps the claim local. **An answer that reads as neither is recorded as
+   `unparseable` and does not fire**, which is the conservative direction here: the claim keeps its
+   local verdict and no cloud call is spent.
+
+`should_escalate` returns `(bool, detail)` and the free check runs first, so a claim whose figure is
+absent never costs a model call.
+
+### Built: `src/arbiter.py`
+
+`parse_verdict` reads the third answer, with four levels tried in order: an explicit `VERDICT: X`
+line, which is what `arbiter_v2` asked for; a line that begins with the verdict, which is what
+`arbiter_v1` asked for; the word appearing somewhere but only one of the two; and otherwise None.
+Both words or neither returns None. **None never keeps a claim on device**, so an unreadable arbiter
+answer falls through to the cloud.
+
+### Wired into `src/routed_loop.py`
+
+Two optional stages, `audit` and `arbiter`, added to `OPTIONAL_STAGE_NAMES` beside `skill`. Four new
+`RoutedRecord` fields, `arbiter_verdict`, `arbiter_detail`, `audit_fired`, `audit_detail`. The
+evidence block is rebuilt once and shared by both, so neither adds a retrieval pass.
+
+**The two act on disjoint claim sets, and that is the property a wiring bug would break silently.**
+The arbiter fires only when the escalation reason is `disagreement` and the claim is not numeric.
+The audit fires only when the claim is not already escalating and both locals said ENTAILED. A
+claim the arbiter has just released is therefore not eligible for the audit, because the locals
+disagreed on it, which is the population the audit was never measured on.
+
+### The harness now has 131 checks, 35 of them new
+
+`test_scripts/test_harness.py` section 8. Two stub models, `stub:arbiter` and `stub:audit`, and a
+`components_config()` helper kept separate from `pipeline_config()` so that every section 7 check
+still runs against a pipeline with neither stage. That separation is itself the
+backwards-compatibility test: **a config with no `audit` and no `arbiter` block must behave exactly
+like run 1**, and 8a asserts both that neither stub is called and that the routing is unchanged.
+
+What the rest covers: the arbiter agreeing with the 7B clears the escalation and runs exactly once;
+siding with the 3B leaves the reason as `disagreement`; an unreadable answer still calls the cloud;
+a numeric claim never reaches the arbiter at all. The audit firing sets the reason to
+`audit_detector` and takes the cloud's answer; confirming keeps the 7B's; an agreeing REFUTED pair
+never reaches it. 8i is the disjointness test named above. 8j asserts the free number check
+short-circuits the model call, using a stub that raises if it is called.
+
+Two things found while writing the harness and worth keeping:
+
+- **The model-call path needed a hand-picked claim.** The free check short-circuits so often that a
+  test using an arbitrary claim would never reach the stub. The harness now searches for a claim
+  whose figures all appear in its own report and asserts that it found one.
+- **`claim_numbers` can keep a trailing comma from a date**, so "December 31, 2023" yields `31,`.
+  Measured before deciding to leave it: the surface forms include `31`, and over all 358 audited
+  claims the stripped and unstripped rules fire on exactly the same 50. Immaterial, and the note is
+  in the harness beside the check so nobody re-derives it.
+
+---
+
+## 31 August 2026, morning - condition 5 starts on all 1,700, and the first nine timings are contaminated
+
+### The run
+
+`configs/pipeline_test1700_2.json`, experiment `condition5_audit_arbiter_test1700`, the routed 3B to
+7B to `deepseek-v4-flash` pipeline with both new components switched on, over all 1,700 claims of
+`test.json`. Started 09:30 Pacific behind the harness gate. Arbiter is the 7B on `arbiter_v1` at
+`num_predict` 1200, audit is the 7B on `ie_audit_v3` at 400, both at `num_ctx` 32768, temperature 0,
+seed 0, on the GPU box at `10.0.0.26` running Ollama 0.32.9. Retriever BM25, k=10.
+
+**This is the run that removes the §2.26 caveat.** Every measurement of the two components so far
+reused condition 2's cloud verdict for a newly escalated claim rather than issuing a real call.
+Condition 5 issues them.
+
+In flight at the time of writing, 19 of 1,700, status ok on every claim. **No rate of any kind is
+quotable from 19 claims** and none is recorded here. All four escalation reasons have been observed
+firing, including `audit_detector`, so the wiring works against the real data and not only stubs.
+
+### The first nine timings are contaminated, and this time the boundary is recorded
+
+A game was loaded on the GPU box for the first nine claims and was closed after that.
+
+    claims 1-9    median 82.5 s   mean 111.4 s   range 45.1 - 247.2
+    claims 10-19  median 23.9 s   mean  32.3 s   range 15.1 -  77.7
+
+A 3.5x difference on the median. The clean figure is consistent with run 1's 26.0 s median, so
+nothing about the system changed; the box was busy.
+
+**This is the same contamination as 18 August, with one difference that matters: the boundary was
+recorded at the time.** On run 1 it was not, which is why `paper_numbers.md` §3.5 and the paper's
+latency table quote the median and forbid the mean. Here the exclusion is a fact recorded before
+the data was looked at, not a window fitted to it afterwards, so **claims 1 to 9 of condition 5 may
+be excluded outright**. Reporting the median over the whole run remains correct and is the
+lower-effort option. Rule for whoever writes the latency paragraph: **exclude claims 1 to 9, or
+report the median over all 1,700. Never quote the mean over all 1,700.** Recorded as
+`paper_numbers.md` §3.6.

@@ -3245,6 +3245,39 @@ Condition 1 is never-escalate, condition 3 is always-escalate, and Tier 5's swee
 
 **Their smallest configuration is 27B of resident parameters** (Mistral-7B plus an independent verifier, at 11.5% of the 235B baseline's memory). Ours is 3B local at ~2.5 GB plus a cloud API. §5.3's "fraction of the cost" must say **which** cost: memory is already claimed by them on other datasets; wall-clock and on-device feasibility on FINDVER are unclaimed.
 
+### 3.6 **[NEW 31 Aug 2026] CONDITION 5 TIMING: the first nine claims are contaminated and this time the boundary IS recorded**
+
+A game was loaded on the GPU box for the first nine claims of
+`condition5_audit_arbiter_test1700` and was closed after that. Measured from the run log:
+
+| condition 5, per claim | n | median | mean | range |
+|---|---|---|---|---|
+| claims 1-9, game loaded | 9 | 82.5 s | 111.4 s | 45.1 - 247.2 s |
+| claims 10 onward, clean | 10 | **23.9 s** | 32.3 s | 15.1 - 77.7 s |
+
+A 3.5x difference on the median. The clean median matches run 1's 26.0 s (§2.18), so this is the
+box being busy and not the system changing. Both figures are from the first 19 claims of a run
+still in flight, so **neither is a throughput figure for the run**; they exist to fix the exclusion.
+
+**The rule: exclude claims 1 to 9, or report the median over all 1,700. Never quote the mean over
+all 1,700.**
+
+**Why the exclusion is allowed here and was not allowed on run 1.** §3.5 and the paper's latency
+table quote the median for run 1 and forbid the mean, because part of 18 August shared the GPU with
+a game and **no boundary was recorded**, so any exclusion would have been a window fitted to the
+data after seeing it. Here the boundary was recorded at the time and before the timings were
+examined. That is the whole difference, and it is what makes one an exclusion and the other a fit.
+
+**This does not license re-opening run 1.** Run 1's boundary is still unrecorded and its rule is
+unchanged.
+
+### 3.7 **[RESERVED 31 Aug 2026] CONDITION 5, the confirmatory run. In flight.**
+
+`configs/pipeline_test1700_2.json`, both components on, all 1,700 claims of `test.json`, started
+09:30 Pacific 31 August. **Every number in §2.26 through §2.30 was produced with condition 2's cloud
+verdict reused for a newly escalated claim rather than a fresh call.** Condition 5 issues the real
+calls and is what replaces that caveat. Nothing goes in this section until the run finishes.
+
 ---
 
 ## 4. Dataset facts

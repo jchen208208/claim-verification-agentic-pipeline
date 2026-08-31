@@ -24,12 +24,17 @@ The FINDVER benchmark (Zhao et al., EMNLP 2024, Yale NLP) tests whether LLMs can
 
 A **5-page workshop paper**, submitted to *On-Device Intelligence: Foundation Models under Real-World Constraints*. Confirmed with the professor at the 30 July meeting (§14 item 9); this closes what was Open Question 4.
 
-**[CORRECTED 1 Aug 2026 from the workshop site, odi2026.github.io] The deadline is 29 August, not 30.** Mechanics read directly from the call for papers, which closes Open Question 10 (§13):
+**[EXTENDED 29 Aug 2026, verified on OpenReview and on odi2026.github.io] The deadline is now 5 September 2026, 23:59 AoE.** A seven-day extension. The workshop site shows the old date struck through with the word EXTENDED. Review runs 6 to 19 September. One item on the site had never been recorded: **in-person attendance is expected**, at least one author in Sydney.
+
+**[CORRECTED 1 Aug 2026 from the workshop site, odi2026.github.io] The deadline is 29 August, not 30.** Superseded by the extension above and kept for the record. Mechanics read directly from the call for papers, which closes Open Question 10 (§13):
 
 | | |
 |---|---|
 | Venue | **NeurIPS 2026 workshop**, Sydney, Australia, 11/12 December 2026 |
-| **Deadline** | **29 August 2026, 23:59 AoE** = **04:59 PDT on 30 August** = 19:59 Beijing, 30 Aug |
+| **Deadline** | **5 September 2026, 23:59 AoE** = **04:59 PDT on 6 September** = 19:59 Beijing, 6 Sept |
+| ~~Deadline, original~~ | ~~29 August 2026, 23:59 AoE~~ extended 29 Aug |
+| Review period | 6 to 19 September 2026 |
+| Attendance | **In person expected**, at least one author in Sydney |
 | Length | **5 pages excluding references** |
 | Template | **NeurIPS 2026 LaTeX template** |
 | Review | **Double-blind** |
@@ -40,7 +45,7 @@ A **5-page workshop paper**, submitted to *On-Device Intelligence: Foundation Mo
 
 Four consequences, in order of how much they change:
 
-1. **One day is gone from Phase 5.** Every plan document said 30 August. The writing window is 24 to 29 August, six days, not seven. The AoE clock gives until 04:59 PDT on the 30th, which is a buffer for the upload and not a working day.
+1. ~~**One day is gone from Phase 5.**~~ **[SUPERSEDED 29 Aug 2026 by the extension.]** The writing window now runs to 5 September AoE. The original text: every plan document said 30 August, the writing window is 24 to 29 August, six days not seven, and the AoE clock gives until 04:59 PDT on the 30th, which is upload buffer and not a working day. **Every date in §12 below is pre-extension and has not been rewritten.**
 2. **Double-blind changes how the paper is written, not only how it is formatted.** No author names, no "our earlier work", and the repository link must be anonymised or withheld. Worth knowing now rather than during the final edit.
 3. **Non-archival means this does not burn the work.** A fuller version can go to an archival venue later, so the paper does not need to be the final word on the project. That lowers the pressure on Band B (§12.3) landing in time.
 4. **It is a NeurIPS workshop**, which the plan had recorded only as "a workshop in Australia". The organisers are from ETH Zurich, MPI for Intelligent Systems, and MIT.
