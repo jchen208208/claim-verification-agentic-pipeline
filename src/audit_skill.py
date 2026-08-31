@@ -54,3 +54,38 @@ def number_absent(statement: str, report_text: str) -> bool:
         if not any(form in report_text for form in _surface_forms(token)):
             return True
     return False
+
+
+# The model answers with CONFIRMED or UNCONFIRMED
+_UNCONFIRMED = re.compile(r"\bUNCONFIRMED\b", re.IGNORECASE)
+_CONFIRMED = re.compile(r"\bCONFIRMED\b", re.IGNORECASE)
+
+# the two quoted lines an UNCONFIRMED answer includes
+_CLAIM_PART = re.compile(r"CLAIM PART\s*:?\s*(.+)", re.IGNORECASE)
+_FILING_SAYS = re.compile(r"FILING SAYS\s*:?\s*(.+)", re.IGNORECASE)
+
+
+def _quoted(pattern, text):
+    found = pattern.findall(text or "")
+    return found[0].strip(" *\t") if found else None
+
+def should_escalate(statement, evidence_block, report_text, template, call_model):
+    #Decide whether a kept-local 'entailed' verdict should be sent to the cloud.
+    if number_absent(statement, report_text):
+        return True, {"reason": "number_absent", "model_called": False}
+
+    prompt = template.replace("<REPORT>", evidence_block).replace("<STATEMENT>", statement)
+    response = call_model(prompt)
+
+    if _UNCONFIRMED.search(response):
+        return True, {
+            "reason": "unconfirmed",
+            "model_called": True,
+            "response": response,
+            "claim_part": _quoted(_CLAIM_PART, response),
+            "filing_says": _quoted(_FILING_SAYS, response),
+        }
+
+    # CONFIRMED, or an answer we cannot read. Neither fires, so the claim keeps its local verdict.
+    reason = "confirmed" if _CONFIRMED.search(response) else "unparseable"
+    return False, {"reason": reason, "model_called": True, "response": response}
