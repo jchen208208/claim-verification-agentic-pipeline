@@ -3171,6 +3171,10 @@ taxonomy replicated (63.4%, §2.17), the numeric failure mechanism (§2.19), and
 **Results are frozen. Nothing left needs the GPU or the cloud. The only remaining work is writing.**
 Freeze is 23 August, deadline is 29 August 23:59 AoE.
 
+> **[SUPERSEDED. Both halves of that line are now wrong.]** The 27 August meeting reopened skills
+> and unfroze results, and the deadline was extended to 5 September AoE on 29 August. This section
+> is kept as the record of 21 August. See the 27 and 29 August sections below.
+
 ### PICK UP HERE — updated end of 21 August
 
 ~~Restart to enable browser tools.~~ **DONE. They work.** Overleaf is driven through Chrome.
@@ -5427,5 +5431,6 @@ so the system did not change. `paper_numbers.md` §3.6.
    the two components rests on reused cloud verdicts.
 2. **The paper.** 10 pages, needs 5, and has two new components to describe. This is now the
    binding item, not compute.
-3. **Pre-extension dates.** `CLAUDE.md` and parts of section 12 of the architecture plan still say
-   29 August. The plan's §1.1 mechanics table is corrected as of today; `CLAUDE.md` is not.
+3. ~~**Pre-extension dates.**~~ **Done 31 August.** `CLAUDE.md` and the architecture plan's §1.1 and
+   §12 now carry 5 September. §12.1 to §12.4 keep their original phase dates as a record of what was
+   planned, under a block that says so. Anything else dated before 29 August is pre-extension.

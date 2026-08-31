@@ -1560,6 +1560,12 @@ If the cloud baseline nevertheless comes back ~90%+ (in order of preference):
 >
 > **Nothing is cut outright.** Scope is banded by what compute is available (§12.3), because faster hardware may become available and would move the bands. Retrieval in particular stays in scope: it is the project's core (§3.3), and its recall measurement needs no model runs at all.
 
+> **[EXTENDED 29 Aug 2026. EVERY DATE BELOW IN §12.1 TO §12.4 IS PRE-EXTENSION AND HAS NOT BEEN REWRITTEN.]** The deadline moved to **5 September 2026 AoE** (§1.1). Read the phases below as a record of what was planned, not as the current schedule.
+>
+> **What actually happened to the phases.** Phase 4's freeze on 23 August did not hold. Run 1, the routed pipeline at n=1,700 on `test.json`, finished on 20 August. The first full draft was written on 25 August. **The 27 August meeting then reopened skills**, which the 19 August closure had ruled out, and two components came out of that: the audit trigger and the arbiter, both measured on both splits by 29 August and both in `src/` by 30 August. Condition 5, the confirmatory run that issues real cloud calls for newly escalated claims, started 31 August on all 1,700 claims.
+>
+> **The current schedule, and it is one line.** Results freeze when condition 5 finishes. Writing runs from there to 5 September AoE, and the binding item is cutting the paper from 10 pages to 5, not compute. `working_state.md` holds the live version of this; do not plan from the phases below.
+
 ### 12.1 The binding constraint is local wall-clock
 
 Measured throughput (§4.6) converts directly into nights, and the machine runs one job at a time.
@@ -1644,10 +1650,10 @@ Two strands run in parallel, because they compete for different resources.
 **Phase 4 · 21 – 23 Aug · Freeze.**
 No new configurations. Final numbers, both scorings (§9), final taxonomy distribution before versus after.
 
-**Phase 5 · 24 – 29 Aug · Write.** **[CORRECTED 1 Aug: six days, not seven.](#)** The deadline is 29 August AoE (§1.1). The AoE clock runs to 04:59 PDT on the 30th, which is upload buffer rather than a working day. Double-blind, so no author names and no identifying repository link in the submitted PDF. Anonymity is for review only: the camera-ready version after notification on 29 September carries full author names, so there is no second permanent version to maintain.
+**Phase 5 · 24 Aug – 5 Sept · Write.** **[EXTENDED 29 Aug 2026: the deadline is 5 September AoE (§1.1), so this phase is twelve days, not six.]** ~~**[CORRECTED 1 Aug: six days, not seven.](#)** The deadline is 29 August AoE.~~ The AoE clock runs to 04:59 PDT on 6 September, which is upload buffer rather than a working day. Double-blind, so no author names and no identifying repository link in the submitted PDF. Anonymity is for review only: the camera-ready version after notification on 29 September carries full author names, so there is no second permanent version to maintain.
 
 **On the submission form, name topics 05 and 02** (§1.1). Topic 05 is benchmarks and evaluation for real-world deployment, which is what the extraction and imputation analysis is. Topic 02 is efficient inference and reasoning under real-world constraints, which is the pipeline. Framing the paper against topic 05 rather than as a generic RAG-accuracy result is the difference between an on-topic submission and an adjacent one.
-Five pages. Intro, related work, method, results, analysis, limitations. Writing cannot start later than 24 August and stay honest, so Phase 4 is a hard stop.
+Five pages. Intro, related work, method, results, analysis, limitations. ~~Writing cannot start later than 24 August and stay honest, so Phase 4 is a hard stop.~~ **[SUPERSEDED 29 Aug 2026.]** The draft was written on 25 August and the extension bought a real cutting pass. The hard stop is now the day condition 5 finishes.
 
 ### 12.3 Scope bands, not cuts
 
@@ -1821,7 +1827,7 @@ Table parsing overruns, cut Tier 1's retry loop before cutting Tier 1. Cloud key
    - **Baselines will not be re-run.** Use the paper's published numbers as the historical baseline, extend the cloud row with two post-publication models, and extend the edge row with local models the paper did not evaluate. See §9.1. He independently reached the same edge-only / cloud-only framing already in the plan.
    - **Confirmed** that establishing both ends before building the routed system is the right order.
 
-   *(The "30 August" above records what he said in the meeting. It was wrong by one day and corrected on 1 Aug from the workshop site. The real deadline is 29 August AoE, §1.1.)*
+   *(The "30 August" above records what he said in the meeting. It was wrong by one day and corrected on 1 Aug from the workshop site to 29 August AoE. **The workshop then extended it to 5 September AoE on 29 Aug, which is the real deadline; see §1.1.**)*
 
 10. **Student, 3 August 2026.** Reported that the harness was nearly finished, that the loader, stratified sampler and label extractor were built and tested, and that the retriever was next. Described the Ollama context-eviction finding and the fix. Asked two questions: which two cloud models and from which provider, and which two local models. Made the case for Anthropic on published-row-continuity grounds. Mentioned a DeepSeek key was already in hand, and that a family desktop with a GPU and 32 GB RAM might become available.
 
