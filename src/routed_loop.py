@@ -16,7 +16,7 @@ from src.run_loop import run_one_claim
 from src.logger import write_result, has_result
 from src.run_loop import load_prompt_template
 
-from src import arithmetic_skill
+from src import arithmetic_skill, arbiter, audit_skill
 from src.run_loop import build_prompt, read_report
 
 
@@ -56,6 +56,11 @@ class RoutedRecord:
 
     skill_verdict: bool | None = None  # the arithmetic skill's answer
     skill_detail: dict | None = None  # its operands, operation, computed value and decline reason
+
+    arbiter_verdict: bool | None = None
+    arbiter_detail: dict | None = None
+    audit_fired: bool | None = None  # did the audit send a kept claim to the cloud
+    audit_detail: dict | None = None
 
     # dictionary containing the full stage's records (1 to 3 record objects): {"local_a": {...}, "local_b": {...}, "cloud": {...}}
     stages: dict = field(default_factory=dict)  # without field, all 700 records would share a dict but with field, each get their own
@@ -118,6 +123,35 @@ def route_one_claim(claim, config, stages, retrieve, ollama_version=None):
             if local_a.extracted_label != local_b.extracted_label:
                 escalate = True
                 reason = reason or "disagreement"
+
+            # audit and arbiter skills
+            audit_stage = stages.get("audit")
+            arbiter_stage = stages.get("arbiter")
+            if audit_stage or arbiter_stage:
+                report = read_report(claim.report)
+                chunks = retrieve(claim, report)
+                _, evidence_block, _ = build_prompt(claim, chunks, stages["local_b"].template, stages["local_b"].config)
+
+            # arbiter block, fired only if a disagreement occured and the claim is not numeric
+            if (arbiter_stage and reason == "disagreement" and not is_numeric_claim(claim.statement)):
+                verdict, detail = arbiter.decide(claim.statement, evidence_block, arbiter_stage.template,
+                lambda prompt: arbiter_stage.client(prompt, arbiter_stage.config)["response"])
+                record.arbiter_verdict = verdict
+                record.arbiter_detail = detail
+                if verdict is not None and verdict == local_b.extracted_label:
+                    escalate = False
+                    reason = None
+
+            # audit block, fired if both models said entailed
+            if (audit_stage and not escalate and local_a.extracted_label == local_b.extracted_label and local_b.extracted_label is True):
+                report_text = " ".join(e["context"] for e in report["context"])  # the entire filing text
+                fired, detail = audit_skill.should_escalate(claim.statement, evidence_block, report_text, audit_stage.template,
+                lambda prompt: audit_stage.client(prompt, audit_stage.config)["response"])
+                record.audit_fired = fired
+                record.audit_detail = detail
+                if fired:
+                    escalate = True
+                    reason = "audit_detector"
 
         # the arithmetics skill is tried before any cloud call is made, only on claims the numeric detector already routed to the cloud, so a decline escalates to cloud anyways
         if escalate and "skill" in stages and is_numeric_claim(claim.statement):
