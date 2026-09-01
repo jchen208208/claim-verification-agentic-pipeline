@@ -7222,9 +7222,17 @@ seed 0, on the GPU box at `10.0.0.26` running Ollama 0.32.9. Retriever BM25, k=1
 reused condition 2's cloud verdict for a newly escalated claim rather than issuing a real call.
 Condition 5 issues them.
 
-In flight at the time of writing, 19 of 1,700, status ok on every claim. **No rate of any kind is
-quotable from 19 claims** and none is recorded here. All four escalation reasons have been observed
-firing, including `audit_detector`, so the wiring works against the real data and not only stubs.
+**Stopped by hand at 55 of 1,700, 10:10 Pacific, because the GPU box was needed for something else.**
+Not a failure. Status ok on all 55, it stopped on a claim boundary, and resume works off
+`has_result`, so restarting the same config picks up at claim 56. **No rate of any kind is quotable
+from 55 claims** and none is recorded here. All four escalation reasons were observed firing,
+including `audit_detector`, so the wiring works against real data and not only against stubs.
+
+**The run is now chunked, which is exactly what made run 1's mean unusable.** Run 1 crossed 18, 19
+and 20 August with no boundary written down. This one has two boundaries so far and both are
+recorded: the game closed after claim 9, and the run stopped after claim 55. **Write down the claim
+number and the machine's state at the start and end of every future chunk.** Without that the
+timings of this run degrade to run 1's position, where only the median can be quoted.
 
 ### The first nine timings are contaminated, and this time the boundary is recorded
 

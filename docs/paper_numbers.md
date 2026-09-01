@@ -2508,6 +2508,8 @@ gains outside FDV-IE. So a detector is **necessary**, not merely cheaper, and au
 
 ### 2.26 **[NEW 29 Aug 2026] THE AUDIT TRIGGER WORKS. +1.3 points at p = 0.0009 on all 1,700 held-out claims, and FDV-IE closes from -4.8 to -1.8.**
 
+**Before writing this into the method section, read the RAG-only entry in §5.** The audit's free number check is the one place in the system that touches the whole filing rather than the retrieved chunks. It uses no model and produces no verdict, but the paper has to say so precisely.
+
 Reproduce: `python3 test_scripts/run_audit_full.py ie_audit_v3 qwen2.5-coder:7b`, then
 `python3 test_scripts/analyse_audit_full.py ie_audit_v3_qwen2.5-coder-7b union ie,numeric`.
 **Measured on the whole target population, 358 claims, not projected from a sample.**
@@ -3354,6 +3356,18 @@ Listed so they are not written by accident.
 - **[NEW 9 Aug] ANY n=102 ACCURACY FIGURE AS A HEADLINE NUMBER.** The 102 sample overstates `qwen2.5-coder:3b` by 5.3 points against the full split, and by 12.5 points on FDV-MATH. §2.3.1 diagnoses it as sampling rather than run variance. Every n=102 accuracy figure in this document is inflated by an unknown amount until re-measured at 700. This includes §2.5, §2.5.1 and §2.6. **The model-choice conclusions in §2.5 and §2.5.1 survive** — they rest on latency and format compliance, which are not sample-dependent in the same way — but their accuracy columns do not.
 - **[NEW 9 Aug] That any single run is a point estimate.** §2.3.2: identical reruns disagree on about one claim in ten. A difference smaller than that between two of our own runs is noise, not a result.
 - **[NEW 9 Aug] Any accuracy claim about `qwen3:4b`.** It ran 6 claims of 102 before being stopped. **The rejection is on cost and stands on the timing alone**, which needs no accuracy figure. Do not report its 3-of-6 label outcomes as a rate.
+
+- **[NEW 31 Aug 2026] "The pipeline is RAG-only." TRUE, and the paper must say so precisely, because one component touches the whole filing.** Verified 31 August by reading `src/routed_loop.py` lines 128 to 153, not from memory.
+
+  **What is true, and it is the sentence to write: no model ever reads the whole filing, and no verdict is ever produced from the whole filing.** Every prompt in the system, at all three tiers plus both new components, is built from the BM25 top-10 retrieved chunks.
+
+  - **The arbiter is RAG-only with no qualification.** It receives `evidence_block`, the same retrieved chunks the 7B itself read. It sees no more than the model whose verdict it is checking. Nothing to disclose.
+  - **The audit skill's model call is RAG-only.** `ie_audit_v3` is filled with `evidence_block`.
+  - **The audit skill's free number check reads the whole filing text.** `number_absent(statement, report_text)` asks whether a figure asserted by the claim appears anywhere in the document. It is a Python substring search. No model, no tokens, no context window, and **no verdict**. Its only output is a routing decision: send this claim to the cloud, which then does its own retrieval and answers from retrieved evidence.
+
+  **Why this is defensible.** BM25 already reads the entire filing; that is what a retriever is, and it scores every chunk in the document to select ten. A substring scan over the same text is the same class of operation, on the retrieval side, with no model. **Supportable: "the number check is a retrieval-side routing signal computed without a model; all verdicts are produced from retrieved evidence."** Not supportable: "no part of the system touches the full document," which is false, or any framing that implies the audit's escalation decision is itself a verdict.
+
+  **The honest caveat, which a reviewer may raise.** The number check has information the verdict path does not, because a figure can be present in the filing and absent from the retrieved chunks. That is not label leakage and it is not long-context inference, but it is asymmetric and should be stated rather than left for a reviewer to find. **If the asymmetry is objected to, the fix is to run the check against the retrieved chunks instead.** That weakens the check, since a figure missing from the chunks may only be a retrieval miss, and the change has not been measured.
 - **[NEW 9 Aug] "We selected the best local model."** Two 3B variants were compared, and `qwen3:4b` was rejected on speed without an accuracy measurement. **Supportable: "among the models that meet the latency budget of the target device, code tuning made no measurable difference."**
 - ~~**Any fusion gain for the local dense arm.**~~ **Resolved 5 August at n=700: there is none worth taking.** See §1.6. Untuned fusion is +0.00; the tuned gain is rejected on the same test-set-selection ground as the `k1`/`b` sweep.
 - **Any pipeline latency.** The 7.0 min figure is `baseline_v1` with the placeholder retriever, no code execution, no table parsing, no cloud round trip.

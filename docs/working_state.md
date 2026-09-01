@@ -5401,14 +5401,59 @@ break without any visible symptom.
 **The harness is now 131 checks, 35 new.** It stays a gate, not a suggestion. Check 8a is the
 backwards-compatibility test: a config with neither stage block must behave exactly like run 1.
 
+### The RAG-only claim needs one precise sentence in the paper
+
+Checked 31 August by reading the code, after realising the audit might be reading whole filings.
+
+**It is not. No model reads the whole filing and no verdict comes from the whole filing.** The
+arbiter gets the same retrieved chunks the 7B read. The audit's model call gets the same. The one
+place the full document appears is the audit's **free number check**, which is a Python substring
+search asking whether a figure in the claim exists anywhere in the filing. It makes no model call
+and produces no verdict, only a routing decision, and the cloud then answers from its own retrieval.
+
+Defensible because BM25 already reads the whole filing to pick its ten chunks. The honest caveat is
+that the check knows something the verdict path does not, since a figure can be in the filing but
+not in the retrieved chunks. **Say it rather than let a reviewer find it.** Full phrasing, and the
+fallback if he objects, in `paper_numbers.md` §5.
+
 ### Closing: the reused cloud verdicts
 
 `configs/pipeline_test1700_2.json`, experiment `condition5_audit_arbiter_test1700`, started 09:30
 Pacific. Both components on, all 1,700 claims of `test.json`, real cloud calls rather than condition
 2's verdicts reused. This is what §2.26 said was missing.
 
-In flight, 19 of 1,700, status ok on every claim, all four escalation reasons observed. **Nothing is
-quotable from 19 claims and no rate is recorded.**
+**Stopped by hand at 55 of 1,700 at 10:10 Pacific**, because the GPU box was needed elsewhere. All
+55 are ok, the stop is on a claim boundary, and resume picks up at 56 off `has_result`. Restart with
+`tee -a`, not `tee`, or the log so far is overwritten. **Nothing is quotable from 55 claims and no
+rate is recorded.** All four escalation reasons were seen firing, so the wiring works on real data.
+
+**Record the claim number and the machine's state at both ends of every chunk from here on.**
+Run 1 lost its mean permanently by chunking across three days without writing any of them down.
+This run's boundaries are all recorded:
+
+    chunk  claims        machine state           n     median   timing usable
+    1      1 - 9         a game was loaded         9     82.5 s   NO, exclude
+    2      10 - 55       clean                    46     26.6 s   yes
+    3      56 - 437      clean                   382     26.2 s   yes
+    4      438 - 444     box occupied              7     43.5 s   NO, exclude
+                         stopped by hand at 444
+
+**The median does not depend on where the boundaries are drawn, and that is the useful finding.**
+
+    chunk 3 as recorded, 56 - 437      median 26.1 s
+    chunk 3 ending at 432 instead      median 26.2 s
+    everything except chunk 1          median 26.7 s
+    the whole run including chunk 1    median 26.8 s
+
+All four are within 0.7 s of each other and of run 1's 26.0 s. **The mean is not stable that way**,
+33.8 to 35.7 across the same choices, which is the whole reason the rule says median.
+
+**One disagreement between the recollection and the data, recorded rather than resolved.** The
+chunk 4 start was given as claim 438. Claims 433 to 437 have a median of 91.8 s and contain the two
+largest timings in the run outside chunk 1, 166.2 s and 91.8 s, so contamination probably began at
+433. **The table keeps 438 because that is what was observed at the time**, and moving it to 433
+would be fitting the boundary to the timings, which is the error this whole table exists to prevent.
+It changes the chunk 3 median by 0.1 s, so nothing rests on it.
 
 ### The timing rule for this run: exclude claims 1 to 9, or report the median
 
@@ -5425,10 +5470,31 @@ boundary was recorded, which is why the standing rule there is median only.
 quote the mean over all 1,700.** The clean median, 23.9 s over ten claims, matches run 1's 26.0 s,
 so the system did not change. `paper_numbers.md` §3.6.
 
+### THE HARDWARE HAS AN END DATE, decided 31 August
+
+**Access to my brother's GPU box ends when condition 5 finishes.** A new laptop with an NVIDIA
+GeForce RTX 5070 Ti takes over after that, and everything after the workshop runs there.
+
+Three consequences, and the first is the one that binds.
+
+1. **Condition 5 is the last run that machine will ever do.** The results table is then frozen by
+   hardware rather than by choice. Anything the paper still needs measured has to be measured before
+   that run ends. Nothing outstanding is known, but check before the box goes.
+2. **The workshop paper is entirely one machine**, which is the property that makes run 1 and
+   condition 5 comparable. That was the reason for not switching mid-run: verdicts diverge across
+   machines at 5 of 6, so a spliced run would not be one experiment.
+3. **The archival long paper cannot extend these numbers.** New-laptop results are not comparable to
+   brother's-box results. Extending the table later means re-running every arm on the new machine,
+   about 32 hours for run 1 and condition 5 alone, plus the cloud calls again. Plan it as a full
+   re-run, not as an addition.
+
+Nothing is stranded on the box. Results are written over the LAN into `results/` on the MacBook, so
+the per-claim JSON files are already local.
+
 ### STILL OPEN
 
-1. **Condition 5 has to finish.** About 14 hours at the clean rate. Until it does, every number for
-   the two components rests on reused cloud verdicts.
+1. **Condition 5 has to finish.** About 9 hours left at the clean rate, 444 of 1,700 done. Until it
+   does, every number for the two components rests on reused cloud verdicts.
 2. **The paper.** 10 pages, needs 5, and has two new components to describe. This is now the
    binding item, not compute.
 3. ~~**Pre-extension dates.**~~ **Done 31 August.** `CLAUDE.md` and the architecture plan's §1.1 and

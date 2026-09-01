@@ -1,5 +1,5 @@
-"""a routing mechanism that breaks the tie when the two local models disagree.
-We asks the 7B a third question, asking it to search for a contradiction rather than a verdict,
+"""a tiebreaker verdict for when the two local models disagree.
+We ask the 7B a third question, asking it to search for a contradiction rather than a verdict,
 and when it confirms with 7B's verdict, the verdict is kept on device. If it confirms with 3B, it's escalated."""
 
 import re

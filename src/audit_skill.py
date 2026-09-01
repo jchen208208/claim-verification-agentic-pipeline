@@ -1,7 +1,7 @@
 
 """A skill that re-checks claims the two local models agreed were entailed.
-It runs two checks and either one escalates the claim to cloud
-1.) the claim asserts a figure that appears nowhere in the report filing
+It runs two checks and if any of the two triggers, the claim is escalated the claim to cloud
+1.) the claim states a figure that appears nowhere in the report filing
 2.) a call to a local model and asks it to confirm every detail or name the weakest one"""
 
 import re
