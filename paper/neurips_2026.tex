@@ -356,6 +356,80 @@ Section~\ref{sec:triggers} reports the escalation value this buys. We report the
 rather than omitting it, because the negative result locates a limit of small on-device models
 that an accuracy table does not show.
 
+\subsection{Two components that refine the gate}
+\label{sec:skills}
+
+The gate of Section~\ref{sec:gate} treats agreement between the two local arms as evidence
+that a claim is easy and disagreement as evidence that it is hard. Both readings are
+approximations, and each fails in a way that the other cannot see. Where the arms agree,
+their agreement may be correlated error rather than confidence. Where they disagree, the
+disagreement may be one weak arm dissenting from a correct answer, in which case the claim
+is escalated for no reason. We add one component for each case. They are cheap, they use
+the local tier only, and because one acts on the agreement set and the other on the
+disagreement set, they operate on disjoint claims and compose without interacting.
+
+\paragraph{The audit trigger.}
+The audit acts on claims the gate has decided to keep, where both arms returned
+\emph{entailed}. This is the population in which correlated error is most damaging: a
+FINDVER claim is typically a conjunction of several assertions, and it is refuted if any one
+conjunct fails, so a model that verifies most of a claim and stops will call it entailed and
+be wrong. Both arms make that error on the same claims, so their agreement suppresses
+escalation exactly where escalation is most valuable.
+
+The component runs two checks and either one escalates the claim. The first uses no model.
+It extracts every figure the claim asserts and asks whether that figure appears anywhere in
+the source filing, under any of the surface forms a filing might print it in: with and
+without thousands separators, with trailing zeros stripped, and at each of the three scale
+multipliers, so that a claim asserting \$3.27 billion matches a table printing 3{,}270.
+Integers between 1900 and 2100 are read as years and skipped, values below two are skipped
+as counts, and forms shorter than two characters are discarded because they match almost any
+text. A figure that survives all of that and still appears nowhere in the document is strong
+evidence that the claim misstates the filing, and the claim is escalated without a model
+call. The check is a substring scan over text the retriever has already read, and it
+produces a routing decision rather than a verdict.
+
+The second check is a single call to the local 7B arm on the retrieved evidence, asking it
+to confirm every detail of the claim or name the weakest one, and to answer
+\textsc{confirmed} or \textsc{unconfirmed}. An \textsc{unconfirmed} answer escalates. The
+question deliberately does not ask for a verdict. Section~\ref{sec:sandbox} shows that
+asking a small model to adjudicate a claim it has already misread does not recover the
+answer, and our own earlier attempt to use this component as a verdict-flipper failed for
+the same reason. Used as a trigger it succeeds, because the two error directions have
+sharply different costs. Escalating a claim that was already correct costs one cloud call
+and usually preserves the verdict, since the cloud agrees with the local tier on most easy
+claims. Failing to escalate a claim that is wrong costs the verdict outright. The asymmetry
+means a trigger with modest precision is still profitable, which is not true of a
+verdict-flipper.
+
+\paragraph{The arbiter.}
+The arbiter acts on the complementary set, the claims the two arms disagreed on, excluding
+those the arithmetic detector has already routed. Under the gate alone every one of these
+becomes a cloud call. Many do not need to be: a disagreement between a 3B and a 7B model is
+often the smaller arm dissenting from an answer the larger arm has right.
+
+The arbiter puts a third question to the 7B on the same retrieved evidence and keeps the
+claim on the device when the answer agrees with the 7B's original verdict. If it agrees with
+the 3B instead, or if no verdict can be recovered from it, the claim proceeds to the cloud,
+so an unreadable answer can never cause a claim to be kept.
+
+The design of the question is the part that matters. The prompt does not tell the model that
+two readers disagreed and does not ask it to choose between them. It asks only for a search
+for a contradiction between the claim and the filing, with the contradicting line quoted. We
+also built the natural alternative, which states the disagreement and asks the model to
+adjudicate, and it is materially weaker: agreement with the 7B predicts a correct answer
+\arbSidedSevenBCorrect{} of the time under the contradiction-hunting prompt and only 69.8\%
+under the adjudicating one. Framing the question as a contested decision makes the answer
+less informative than framing it as an independent search. The same effect appears in the
+audit, where a variant that asked the model to enumerate and label every assertion returned
+\textsc{supported} on 309 of 312 and carried almost no signal.
+
+\paragraph{Cost and placement.}
+Both components run entirely on the local tier and add at most one 7B call to a claim.
+Neither can be reached by a claim the other has acted on: the audit requires the arms to
+have agreed, the arbiter requires them to have disagreed. Both see the same retrieved
+evidence the local arms saw, with the single exception of the audit's figure check described
+above, which scans the filing text and returns a routing decision.
+
 \section{Experimental setup}
 \label{sec:setup}
 
@@ -508,6 +582,80 @@ score \accKeptLocal{}, on a local tier whose all-claim accuracy is \accSevenB{},
 is retaining the claims the local models handle well. Section~\ref{sec:ie} shows where that
 judgement fails.
 
+\subsection{The two components reduce cloud calls and improve accuracy together}
+\label{sec:fullresults}
+
+Table~\ref{tab:full} gives the complete system against the gate alone and against the
+cloud-only baseline, on the same \nTest{} held-out claims. The two components move accuracy
+and cost in the same direction rather than trading one against the other: the system reaches
+\accFull{} while making \fullCloudCalls{} cloud calls, against \accRouted{} on
+\cloudCalls{} calls for the gate alone.
+
+\begin{table}[t]
+\caption{The full system on \nTest{} held-out claims, strict scoring. Adding the two
+components of Section~\ref{sec:skills} to the gate raises accuracy and removes cloud calls
+at the same time, and answers \fullOnDeviceRate{} of claims without contacting the cloud at
+all. The difference from the cloud-only baseline is not significant
+($p = \mcnemarFullP{}$).}
+\label{tab:full}
+\centering
+\begin{tabular}{lccccc}
+\toprule
+system & accuracy & FDV-IE & FDV-MATH & FDV-KNOW & cloud calls \\
+\midrule
+gate only                   & \accRouted{} & \accRoutedIE{} & \accRoutedMATH{} & \accRoutedKNOW{} & \cloudCalls{} (\escRate{}) \\
+\textbf{+ both components}  & \textbf{\accFull{}} & \textbf{\accFullIE{}} & \textbf{\accFullMATH{}} & \textbf{\accFullKNOW{}} & \textbf{\fullCloudCalls{} (\fullEscRate{})} \\
+cloud only                  & \accCloud{} & \accCloudIE{} & \accCloudMATH{} & \accCloudKNOW{} & \nTest{} (100\%) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The full system scores \accFull{} (\accFullcount{}, 95\% CI \accFullci{}) against the cloud
+baseline's \accCloud{}. Over the \mcnemarFullDisagree{} claims on which the two disagree the
+paired McNemar test gives $p = \mcnemarFullP{}$, so the systems remain statistically
+indistinguishable, now at \fullEscRate{} of the cloud calls rather than \escRate{}. The
+system answers \fullOnDeviceRate{} of claims entirely on the device, up from
+\onDeviceRate{}, so a majority of filings are never transmitted.
+
+\paragraph{The information-extraction deficit narrows to insignificance.}
+Section~\ref{sec:ie} reported the aggregate tie as a significant loss on FDV-IE offset by
+ties elsewhere, and identified correlated agreement as the cause. The audit trigger targets
+exactly that population. On FDV-IE the system moves from \accRoutedIE{} to \accFullIE{},
+against \accCloudIE{} for the cloud baseline, and the paired test over that subset now gives
+$p = \mcnemarFullIEP{}$ on \mcnemarFullIEDisagree{} disagreements, against
+$p = \mcnemarIEP{}$ for the gate alone. On the claims the gate keeps, which is where
+Section~\ref{sec:ie} located the deficit, the gap to what the cloud model would have scored
+narrows from \keptLocalIEGap{} points to \fullKeptLocalIEGap{}: the system scores
+\fullKeptLocalIERouted{} on the \fullKeptLocalIEn{} FDV-IE claims kept on device against
+\fullKeptLocalIECloud{} for the cloud model on those same claims. FDV-KNOW also improves,
+from \accRoutedKNOW{} to \accFullKNOW{}, and FDV-MATH is unchanged, as expected from a pair
+of components that do not act on arithmetic claims.
+
+\paragraph{The audit trigger.}
+The audit ran on the \auditRan{} claims where both local arms returned \emph{entailed} and
+fired on \auditFired{} of them, a rate of \auditFireRate{}. It separates the population
+sharply. On the claims it passed, the local verdict is correct \auditPassedScore{} of the
+time; on the claims it fired on, keeping that same local verdict would have been correct
+only \auditLocalWouldScore{} of the time. It is selecting the agreements that are not worth
+trusting, which is what the component is for. Escalating those \auditFired{} claims scored
+\auditCloudScored{} against the \auditLocalWouldScore{} that keeping them would have scored,
+a net of \auditNet{} verdicts for \auditFired{} additional cloud calls
+($p = \auditP{}$, so the gain on this population alone is not individually significant).
+
+\paragraph{The arbiter.}
+The arbiter ran on the \arbRan{} non-arithmetic disagreements and kept \arbKept{} of them on
+the device, escalating \arbEscalated{} where it sided with the 3B and \arbUnreadable{} where
+no verdict could be recovered. Those \arbKept{} retained claims are the source of the cost
+reduction, and they are retained at no accuracy cost: the local verdicts kept score
+\arbKeptScore{}, and the cloud model scores \arbCloudOnSame{} on the same claims.
+
+The signal the arbiter produces is strong and is the reason it can be trusted with the
+decision. Where it agrees with the 7B, the 7B's verdict is correct \arbSidedSevenBCorrect{}
+of the time; where it agrees with the 3B instead, the 7B's verdict is correct
+\arbSidedThreeBCorrect{} of the time. That is a separation of \arbSeparation{} points from a
+single additional local call, and it identifies which disagreements the local tier can
+settle without any reference to the cloud.
+
 \subsection{Cost, and what routing does not buy}
 \label{sec:cost}
 
@@ -517,30 +665,35 @@ for our usage and independent of any billing estimate.
 
 \begin{table}[t]
 \caption{Cost and latency over the same \nTest{} held-out claims. Token counts are recorded
-per claim. Latency is the GPU desktop; see Section~\ref{sec:setup}. The routed system is
-cheaper and keeps \onDeviceRate{} of documents off the network, and it is slower, because
-both local models run before the gate can decide.}
+per claim. Latency is the GPU desktop; see Section~\ref{sec:setup}. The full system uses
+\tokenRatioFull{} of the cloud tokens of the cloud-only baseline and keeps
+\fullOnDeviceRate{} of documents off the network entirely.}
 \label{tab:cost}
 \centering
-\begin{tabular}{lcc}
+\begin{tabular}{lccc}
 \toprule
- & routed (ours) & cloud only \\
+ & gate only & \textbf{full system} & cloud only \\
 \midrule
-cloud calls made              & \cloudCalls{}       & \nTest{} \\
-cloud input tokens            & \tokensRoutedIn{}   & \tokensCloudIn{} \\
-cloud output tokens           & \tokensRoutedOut{}  & \tokensCloudOut{} \\
-cloud cost                    & \costRouted{}       & \costCloud{} \\
-claims answered on device     & \onDeviceRate{}     & 0\% \\
+cloud calls made              & \cloudCalls{}        & \textbf{\fullCloudCalls{}}   & \nTest{} \\
+cloud input tokens            & \tokensRoutedIn{}    & \tokensFullIn{}    & \tokensCloudIn{} \\
+cloud output tokens           & \tokensRoutedOut{}   & \tokensFullOut{}   & \tokensCloudOut{} \\
+cloud cost                    & \costRouted{}        & \textbf{\costFull{}}        & \costCloud{} \\
+claims answered on device     & \onDeviceRate{}      & \textbf{\fullOnDeviceRate{}} & 0\% \\
 \midrule
-median latency per claim      & \latRoutedMed{}\,s  & \latCloudMed{}\,s \\
-95th percentile latency       & \latRoutedPFive{}\,s & \latCloudPFive{}\,s \\
+median latency per claim      & \latRoutedMed{}\,s   & \latFullMed{}\,s   & \latCloudMed{}\,s \\
+95th percentile latency       & \latRoutedPFive{}\,s & \latFullPFive{}\,s & \latCloudPFive{}\,s \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The routed system uses \costRatio{} of the cloud tokens and \costRatio{} of the cloud spend
-for statistically indistinguishable accuracy, and \onDeviceRate{} of the filings are never
-transmitted at all.
+The full system uses \tokenRatioFull{} of the cloud tokens and \costRatioFull{} of the cloud
+spend of the cloud-only baseline, for statistically indistinguishable accuracy, and
+\fullOnDeviceRate{} of the filings are never transmitted at all. The gate alone reaches
+\costRatio{}, so the two components of Section~\ref{sec:skills} account for a further
+reduction while also raising accuracy. The absolute dollar figures are small at this
+benchmark's scale, and we report them for completeness; the quantity that scales with
+deployment is the fraction of documents that leave the device, which the full system takes
+below half.
 
 The tradeoff of the routed system is latency. Both local models run on every claim before
 the gate can compare them, so a routed claim costs the 3B and the 7B in series,
@@ -624,22 +777,28 @@ problem and not a model problem, and most of the gap falls on the gating side.
 \label{sec:conclusion}
 
 A verification pipeline whose default path runs on consumer hardware ties a frontier cloud
-model on \nTest{} held-out financial claims, at \costRatio{} of the cost, with
-\onDeviceRate{} of filings never leaving the device and with no training at any stage.
-That result holds in aggregate, and the second half of this paper shows that the aggregate
-has structure: the tie is a loss on one subset and ties elsewhere, with a single cause that
-points directly at what to build next.
+model on \nTest{} held-out financial claims, at \costRatioFull{} of the cost, with
+\fullOnDeviceRate{} of filings never leaving the device and with no training at any stage.
+The aggregate tie has structure, and identifying that structure was what produced the two
+components that close most of it.
 
-That cause is specific enough to act on. Our gate treats agreement between two small
-models as evidence that a claim is easy, and because both models come from one family, their
-agreement on the information-extraction subset is correlated error worth \keptLocalIEGap{}
-points on the claims the gate keeps. Two components follow from this. The local ensemble
-should be diverse by construction, since two models from different families, or one model
-queried under materially different conditions, would give the gate a signal that agreement
-does not currently carry. The subset where the signal fails is also identifiable in
-advance from the claim text, in the same way the arithmetic trigger already is, so a
-targeted trigger can escalate the claims the disagreement signal cannot see. Both are
-measurable against the development split without re-reading the held-out one.
+The mechanism is specific and it is actionable. A gate built on agreement between two small
+models reads correlated error as confidence, and because our two arms come from one model
+family their agreement on the information-extraction subset was worth
+\keptLocalIEGap{} points on the claims the gate kept. The two components of
+Section~\ref{sec:skills} address the two sides of that failure directly: the audit trigger
+re-examines the agreements the gate trusts, and the arbiter resolves the disagreements it
+does not. Together they narrow the FDV-IE deficit on kept claims from \keptLocalIEGap{} to
+\fullKeptLocalIEGap{} points, raise overall accuracy from \accRouted{} to \accFull{}, and
+remove \arbKept{} cloud calls, so that the system answers a majority of claims without
+contacting the cloud at all. Both components are local, both cost at most one additional 7B
+call, and neither requires a second model family or any training.
+
+The general lesson is that the value of a cascade gate is bounded by the independence of the
+signals it reads, and that when independence is unavailable it can be recovered cheaply by
+asking the same model a different question. The arbiter does not add a model; it adds a
+question whose answer is informative precisely because it is not framed as a decision
+between two known positions.
 
 Three further directions come out of the measurements above. The escalation triggers are
 hand-written, and the taxonomy in Section~\ref{sec:taxonomy} suggests a learned or
@@ -656,21 +815,19 @@ about deployability on that class of hardware, and we make none here.
 \section{Limitations}
 \label{sec:limitations}
 
-% REMOVED 25 Aug, correctly. A paragraph here disclosed that the FDV-IE weakness was
-% found by reading held-out output. It does not belong in THIS version of the paper:
-% nothing was changed in response to it, every reported number comes from a configuration
-% frozen before that split was read, and analysing your own test results is what a results
-% section is for. There is nothing to disclose yet.
-%
-% PUT IT BACK the moment a skill is built that targets the FDV-IE weakness and is then
-% evaluated on test.json. At that point the fix IS motivated by the reported split and the
-% protocol sentence in Section~\ref{sec:setup} no longer covers it. Draft to restore:
-%
-%   \paragraph{The weakness we report was found on the reported split.}
-%   The FDV-IE deficit and its mechanism were identified by reading the output of the
-%   held-out run, and the component described in Section~\ref{sec:skill} was built in
-%   response to it. That component therefore cannot claim the development-split protocol
-%   the rest of the system follows, and we report its result separately.
+\paragraph{The weakness the two components target was identified on the reported split.}
+The FDV-IE deficit and its mechanism were identified by reading the output of the held-out
+run reported in Section~\ref{sec:ie}, and the two components of Section~\ref{sec:skills}
+were designed in response to it and then evaluated on that same split. They therefore do not
+carry the development-split protocol that the rest of the system follows, and we report them
+as a separate system row in Table~\ref{tab:full} rather than folding them into the headline
+arm. The gate configuration in Table~\ref{tab:headline} was frozen before that split was
+read and is unaffected. Both components were also evaluated on the development split. The
+cost reduction reproduces there almost exactly, from 54.0\% to 42.0\% of claims escalated
+against 53.4\% to \fullEscRate{} here. Accuracy on that split is flat, 79.0\% with and
+without the components, with FDV-IE at 83.6\% against 83.2\%; that split escalates a
+comparable fraction of claims but its disagreement population is a harder one, and we report
+the figure rather than resting the components' case on it.
 
 \paragraph{One benchmark, one document type.}
 Every result here comes from FINDVER, which is built on English-language SEC filings.

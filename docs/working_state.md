@@ -5436,7 +5436,44 @@ This run's boundaries are all recorded:
     2      10 - 55       clean                    46     26.6 s   yes
     3      56 - 437      clean                   382     26.2 s   yes
     4      438 - 444     box occupied              7     43.5 s   NO, exclude
-                         stopped by hand at 444
+    5      445 - 553     clean                   109     25.4 s   yes
+    6      554 - 561     box occupied              8     52.5 s   NO, exclude
+    7      562 - 693     clean                   132     28.5 s   yes
+    8      694 - 1127    clean                   434     25.9 s   yes
+                         stopped by hand at 1127, 1 September
+
+Chunk 8 is the largest clean chunk so far and is continuous: largest idle gap inside it is 0.1 s.
+Rolling 40-claim medians run 23.4 to 29.0 with no slow stretch and no slow tail. Individual claims
+reach 211 s, but those are scattered throughout every chunk and are prompt size and cloud latency,
+not a busy machine.
+
+**Chunk 7 is one chunk, not two.** It was reported as ending at 693 after a chunk that would have
+made it the eighth. The result files say otherwise. Between claims 562 and 693 the largest idle gap
+between one claim finishing and the next is **0.1 seconds**, so the process never stopped. The two
+real restarts leave gaps of 197.8 and 1001.7 minutes, since a restart costs the harness run plus the
+time before someone types the command. **A restart is unmistakable in the file timestamps, so chunk
+numbering can always be checked rather than remembered.**
+
+Chunk 7 runs slightly slower than the other clean chunks, 28.5 s against 25.4 to 26.6. Rolling
+20-claim medians stay between 24.9 and 31.6 with no slow stretch and no slow tail, so it is recorded
+as clean.
+
+**How the chunk 6 boundary was established, because it is not the same as chunk 1's and the
+difference should be on the record.** The slow stretch was noticed in the timings first, then the
+cause was confirmed independently: the box was occupied. That ordering is the reverse of chunk 1,
+where the game was reported before any timing was read.
+
+**It is still a legitimate exclusion, and the reason is the mechanism, not the numbers.** The danger
+the median rule guards against is selecting on the outcome, dropping claims because they are slow
+and thereby pulling the median down. Here the cause is attested by someone who knows what was
+running on the machine, so the exclusion rests on a real event rather than on the shape of the data.
+**The start edge, claim 554, does come from the timings** and is the weakest part of the record.
+Claim 552 at 59.2 s sits just before it. The end edge is safe, since the run stopped at 561.
+
+**None of it moves the number.** Median over the clean chunks is 26.1 s. Add 554 to 561 back and it
+is 26.4 s. Take everything except chunk 1 and it is 26.6 s. All 561 claims gives 26.8 s. Every
+choice lands within 0.7 s of run 1's 26.0 s. **The mean moves more**, 33.1 to 35.4, which is again
+why the reported figure is the median.
 
 **The median does not depend on where the boundaries are drawn, and that is the useful finding.**
 
@@ -5500,3 +5537,56 @@ the per-claim JSON files are already local.
 3. ~~**Pre-extension dates.**~~ **Done 31 August.** `CLAUDE.md` and the architecture plan's §1.1 and
    §12 now carry 5 September. §12.1 to §12.4 keep their original phase dates as a record of what was
    planned, under a block that says so. Anything else dated before 29 August is pre-extension.
+
+---
+
+## 2 September: CONDITION 5 IS DONE. The simulation was right and the reused-verdict caveat is closed.
+
+1,700 ok, 0 failed. Full tables in `paper_numbers.md` §2.31, reproduce with
+`python3 test_scripts/analyse_condition5.py`.
+
+    system                  overall  FDV-IE   MATH   KNOW   calls   %esc   p vs cloud
+    run 1, measured            75.8    77.5   77.3   72.0     908   53.4     0.1194
+    condition 5, measured      76.8    78.8   77.3   73.6     764   44.9     0.5826
+    cloud alone, measured      77.4    82.3   77.2   71.6    1700  100.0        -
+
+**76.8% against a frontier cloud model's 77.4%, statistically indistinguishable, on 44.9% of the
+cloud calls.** That is the paper's result and it is now measured rather than simulated.
+
+### What the confirmation was for, and what it changed
+
+Everything in §2.26 to §2.30 reused condition 2's cloud verdict for a newly escalated claim instead
+of making a call. **The simulation predicted 76.9% and the measurement is 76.8%.** It predicted 719
+cloud calls and the measurement is 764.
+
+**One number to correct everywhere: the escalation rate is 44.9%, not 42.3%.** The accuracy figures
+survive unchanged. Anything already written as "42%" of the cloud calls has to move.
+
+### The two components, measured for real
+
+**The arbiter is the stronger of the two and it got better under measurement.** It kept 269 claims
+on the device. Those local verdicts scored 74.7%. The cloud scored 73.2% on the same claims. The
+simulation had predicted the cloud would be slightly ahead. **The honest phrasing is "no measurable
+accuracy cost for 269 cloud calls removed"**, not a gain, because +4 on 269 is noise.
+
+Its discrimination is much sharper than the simulation showed. Where it sides with the 7B, the 7B is
+right 74.7% of the time. Where it sides with the 3B, the 7B is right **33.7%**. A 41-point
+separation, against 19 to 28 predicted.
+
+**The audit trigger works as designed but its gain is not significant.** It fired on 102 of the 351
+claims where both locals agreed on entailed. Keeping the local verdict would have scored 57.8% on
+those; the cloud scored 66.7%. **+9 verdicts for 102 extra calls, p = 0.3356.** Report it as an
+operating point, not as a gain.
+
+### Do not claim condition 5 beats run 1
+
++16 net, p = 0.3289. 126 won, 110 lost. Run-to-run variance is about one claim in ten, which is 170
+claims, and 236 claims changed verdict here. **The +1.0 point is inside the noise.** The cost result
+is what replicates; the accuracy result is a tie held at lower cost.
+
+### STILL OPEN
+
+1. **The paper.** 10 pages, needs 5. This is now the only remaining task. Deadline 5 September AoE.
+2. **The 42.3% figure is in the draft** and has to become 44.9%. Check `paper/numbers.tex` and every
+   place the escalation rate is quoted.
+3. **Nothing else needs the GPU box.** Access to it can end whenever. All workshop results are in.

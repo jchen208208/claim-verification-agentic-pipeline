@@ -7252,3 +7252,87 @@ be excluded outright**. Reporting the median over the whole run remains correct 
 lower-effort option. Rule for whoever writes the latency paragraph: **exclude claims 1 to 9, or
 report the median over all 1,700. Never quote the mean over all 1,700.** Recorded as
 `paper_numbers.md` §3.6.
+
+---
+
+## 2 September 2026 - condition 5 finishes, the simulation is confirmed, and the result goes into the paper
+
+### The run
+
+`condition5_audit_arbiter_test1700` completed. **1,700 ok, 0 failed.** It ran in nine chunks across
+31 August to 2 September, every boundary recorded in the chunk table in `working_state.md`.
+
+**Three claims failed on their first attempt and all three were network errors on DeepSeek's side**,
+two `ConnectionResetError` and one `HTTP 504 Gateway Timeout`, all raised inside
+`deepseek_client.py` at the point where the HTTP response is read. In every case both local arms had
+already completed with status ok; only the cloud stage failed. `has_result` treats a failed record as
+absent, so `ie-test-21` was retried automatically inside the run and came back ok, and the remaining
+two were cleared by re-running the same command. **`deepseek_client.py` has no retry loop**, so a
+single dropped connection kills a claim. Three in 1,700 is 0.18%, so it cost nothing here, but it is
+worth a retry for the long paper.
+
+**A retried claim is a fresh roll of the local models, not a resumption.** `ie-test-21` returned
+different local verdicts on the retry, which changed its routing from kept-local to disagreement.
+Three claims of 1,700 carry a second roll. Immaterial, and recorded so nobody rediscovers it.
+
+### The result, and it confirms the simulation
+
+Full tables in `paper_numbers.md` §2.31. Reproduce with `test_scripts/analyse_condition5.py`.
+
+    system                  overall  FDV-IE   MATH   KNOW   calls   %esc   p vs cloud
+    run 1, measured            75.8    77.5   77.3   72.0     908   53.4     0.1194
+    condition 5, measured      76.8    78.8   77.3   73.6     764   44.9     0.5826
+    cloud alone, measured      77.4    82.3   77.2   71.6    1700  100.0        -
+
+Everything in §2.26 to §2.30 was a simulation that reused condition 2's cloud verdict for a newly
+escalated claim. **The simulation predicted 76.9% and the measurement is 76.8%.** It predicted 719
+cloud calls and the measurement is 764. The accuracy prediction was accurate to a tenth of a point;
+the cost prediction was 6% optimistic. **The escalation rate to quote everywhere is 44.9%.**
+
+**Both components moved the same way at once**, which was not guaranteed: accuracy up 1.0 point
+against run 1 and cloud calls down from 908 to 764. On-device share rises from 46.6% to 55.1%, so a
+majority of filings are now never transmitted.
+
+**The FDV-IE deficit narrows to insignificance.** The subset paired test goes from p = 0.007 for the
+gate alone to **p = 0.055** for the full system, and on kept-local FDV-IE claims the gap to what the
+cloud would have scored falls from 8.7 points to 4.1.
+
+**The arbiter is stronger than the simulation showed and the direction flipped.** §2.28 had the
+cloud slightly ahead on the claims the arbiter keeps, 74.9% against 73.3%, and called it a small
+cost. Measured, the kept local verdicts are ahead, 74.7% against 73.2%. Its discrimination is 41
+points, 74.7% against 33.7%, where the simulation predicted 19 to 28.
+
+**The audit fired on 102 of 351 and is not individually significant**, +9 verdicts at p = 0.336. It
+separates the population correctly, 83.5% local accuracy where it passes against 57.8% where it
+fires, so it is reported as an operating point rather than as a gain.
+
+**Condition 5 does not beat run 1.** +16 net, p = 0.3289, and 236 claims changed verdict against a
+run-to-run variance of roughly 170. The cost result is what carries.
+
+### Written into the paper
+
+`paper/numbers.tex` gained a condition 5 block, 40 macros, kept separate from the run 1 macros
+because the paper still reports run 1 as the gate-only ablation. One missing macro was found by
+diffing macro uses against definitions, `\escRate`, and added.
+
+New `\subsection{Two components that refine the gate}` in the method, describing both in full: the
+audit's two checks and why the free figure check comes first, the arbiter's third question, and the
+prompt-design finding that framing the question as a contested decision costs 7 points of signal.
+New `\subsection{The two components reduce cloud calls and improve accuracy together}` in results,
+with a three-row table. The cost table gained a full-system column. The conclusion's "two components
+follow from this" paragraph, which was future work, is now a result.
+
+**The limitations paragraph that was commented out on 25 August is restored**, as its own comment
+instructed. The condition for restoring it was "a skill is built that targets the FDV-IE weakness
+and is then evaluated on test.json", and that is exactly what happened. The FDV-IE mechanism was
+found by reading held-out output and the components were designed against it, so they do not carry
+the development-split protocol the rest of the system follows.
+
+**One error caught while writing that paragraph.** The first draft said the development-split
+replication moved accuracy "in the same direction, from 79.0% to 79.0%", which is self-contradictory.
+Accuracy on testmini is flat, 79.0% with and without the components, with FDV-IE at 83.6% against
+83.2%. The cost reduction is what reproduces there, 54.0% to 42.0%. The paragraph now says so.
+
+No LaTeX toolchain exists on this machine, so the paper was checked by other means: every macro use
+diffed against `numbers.tex` definitions, `\begin`/`\end` balance, brace balance, and column counts
+against every `tabular` preamble. All clean. **It has not been compiled.**

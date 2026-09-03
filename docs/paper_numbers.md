@@ -3021,6 +3021,99 @@ survives a reviewer checking the table.
 
 ---
 
+### 2.31 **[NEW 2 Sep 2026] CONDITION 5, THE CONFIRMATORY RUN. The simulation was right to 0.1 points, and the reused-verdict caveat is closed.**
+
+Reproduce with: `python3 test_scripts/analyse_condition5.py`. `configs/pipeline_test1700_2.json`,
+all 1,700 claims of `test.json`, both components on, **real cloud calls**. 1,700 ok, 0 failed.
+
+Every figure in §2.26 to §2.30 was a simulation: run 1's records plus the components' verdicts from
+separate test-script runs, with a newly escalated claim **reusing condition 2's cloud verdict**
+instead of making a call. This run makes the calls. **It was built to confirm or refute that
+simulation and it confirms it.**
+
+    system                  overall  FDV-IE   MATH   KNOW   calls   %esc   p vs cloud   win  loss
+    run 1, measured            75.8    77.5   77.3   72.0     908   53.4     0.1194     116   142
+    condition 5, measured      76.8    78.8   77.3   73.6     764   44.9     0.5826     129   139
+    cloud alone, measured      77.4    82.3   77.2   71.6    1700  100.0        -         -     -
+
+**Condition 5 ties cloud alone on 44.9% of the cloud calls.** p = 0.5826, 129 claims won and 139
+lost against it.
+
+#### The simulation against the measurement
+
+    quantity            predicted (2.30)   measured   delta
+    overall accuracy          76.9           76.8      -0.1
+    FDV-IE                    79.3           78.8      -0.5
+    MATH                      78.0           77.3      -0.7
+    KNOW                      72.6           73.6      +1.0
+    cloud calls                719            764       +45
+    escalation rate           42.3%          44.9%     +2.6
+
+**The headline is accurate to 0.1 points.** The cost figure is the one that moved: 45 more cloud
+calls than predicted, 6% more. Quote 44.9%, not 42.3%. Every number in §2.26 to §2.30 that carried
+the reused-verdict caveat may now drop it, but **the caveat text stays in this document** so the
+provenance of the earlier tables is not lost.
+
+#### Against run 1, the accuracy gain is still not established
+
+    condition 5 vs run 1     net +16    won 126   lost 110    p = 0.3289
+
+Same conclusion the simulation reached at +12, p = 0.3933. **The churn is the point**: 236 claims
+changed verdict in a system whose components touch 584 claims, and §2.3.2 puts run-to-run variance
+at about one claim in ten, which is 170 claims. **The +1.0 point difference from run 1 is inside
+that. Do not claim condition 5 beats run 1.**
+
+#### How the two components actually fired
+
+    kept local, no reason        936   55.1%
+    numeric_detector             449   26.4%
+    disagreement                 213   12.5%
+    audit_detector               102    6.0%
+
+**The audit trigger.** Ran on 351 claims where both locals said entailed. Fired on **102 of them,
+29.1%**, each one an added cloud call.
+
+    keeping the local verdict would have scored    59 / 102 = 57.8%
+    sending them to the cloud actually scored      68 / 102 = 66.7%
+    net                                            +9 verdicts, 102 extra calls, p = 0.3356
+
+**It selects genuinely hard claims.** Where it fired, the eventual verdict is right 66.7% of the
+time; where it passed, the local verdict is right 83.5%. That 26-point separation is the trigger
+working. **The +9 is not significant at this n and must not be reported as a gain**, only as the
+cost side of an operating point.
+
+**The arbiter.** Ran on 482 disagreements that were not numeric. Sided with the 7B on **269**, which
+removes 269 cloud calls; with the 3B on 199; unreadable on 14, which escalate.
+
+    the local verdict it kept scored              201 / 269 = 74.7%
+    run 1 sent these to the cloud and scored      190 / 269 = 70.6%
+    cloud alone on the same claims scored         197 / 269 = 73.2%
+    net against cloud alone                        +4 verdicts, 269 cloud calls removed
+
+**This is stronger than the simulation predicted and the direction has flipped.** §2.28 and §2.30
+found the cloud slightly better on the claims the arbiter keeps, 74.9% against 73.3%, and called it
+a small cost. Measured for real, **the kept local verdicts are slightly better than the cloud on the
+same claims**, 74.7% against 73.2%. +4 on 269 claims is not significant and the honest phrasing is
+**"no measurable accuracy cost"**, not a gain.
+
+**The discrimination is much sharper than the simulation showed.** Where the arbiter sides with the
+7B, the 7B is right 74.7% of the time. Where it sides with the 3B, the 7B is right **33.7%**. A
+**41-point separation**, against the 19 to 28 points the simulation predicted. This is the sentence
+the arbiter earns: it knows when the local tier can be trusted.
+
+#### Housekeeping figures
+
+- **Unparseable, strict:** condition 5 **1.29%**, run 1 0.94%, cloud alone 1.35%.
+- **Latency, GPU box:** median **26.7 s** per claim over the clean chunks (n=1,676), **26.9 s** over
+  all 1,700. The 24 excluded claims move the median by 0.2 s. See §3.6 and the chunk table in
+  `working_state.md`. Run 1 was 26.0 s, so the two components cost about 0.7 s per claim.
+- **Three claims failed on the first attempt and were retried**, all three from network errors on
+  DeepSeek's side, two `ConnectionResetError` and one `HTTP 504`. `deepseek_client.py` has no retry
+  loop, so one dropped connection kills a claim. 3 in 1,700 is 0.18%. **A retried claim is a fresh
+  roll of the local models, not a resumption**, so those three carry the second roll.
+
+---
+
 ## 3. Deployment cost
 
 **The MacBook is the device of record.** Never print a GPU-derived number under a MacBook label; never mix machines in one table (§9.2).
@@ -3273,12 +3366,12 @@ examined. That is the whole difference, and it is what makes one an exclusion an
 **This does not license re-opening run 1.** Run 1's boundary is still unrecorded and its rule is
 unchanged.
 
-### 3.7 **[RESERVED 31 Aug 2026] CONDITION 5, the confirmatory run. In flight.**
+### 3.7 **[DONE 2 Sep 2026] CONDITION 5, the confirmatory run. Finished, 1,700 ok, 0 failed.**
 
-`configs/pipeline_test1700_2.json`, both components on, all 1,700 claims of `test.json`, started
-09:30 Pacific 31 August. **Every number in §2.26 through §2.30 was produced with condition 2's cloud
-verdict reused for a newly escalated claim rather than a fresh call.** Condition 5 issues the real
-calls and is what replaces that caveat. Nothing goes in this section until the run finishes.
+`configs/pipeline_test1700_2.json`, both components on, all 1,700 claims of `test.json`. Ran in nine
+chunks across 31 August to 2 September. **Results are in §2.31**, and the reused-verdict caveat that
+travelled with §2.26 to §2.30 is closed: the simulation matched the measurement to 0.1 points on
+overall accuracy, and undercounted cloud calls by 45.
 
 ---
 

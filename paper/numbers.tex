@@ -107,6 +107,7 @@
 % ---------------------------------------------------------------------------
 
 \newcommand{\cloudCalls}{908}
+\newcommand{\escRate}{53.4\%}      % run 1, the gate alone
 \newcommand{\escWouldThreeB}{45.7\%}
 \newcommand{\escWouldSevenB}{60.8\%}
 \newcommand{\escCloudGave}{75.8\%}
@@ -294,3 +295,75 @@
 \newcommand{\arithSevenBAcc}{66.3\%}
 \newcommand{\arithSevenBCloudAcc}{82.2\%}
 \newcommand{\arithSevenBDisagree}{50}
+
+
+% ---------------------------------------------------------------------------
+% CONDITION 5. The audit trigger and the arbiter, both live, real cloud calls.
+% docs/paper_numbers.md 2.31. Reproduce: test_scripts/analyse_condition5.py
+%
+% This is the FULL SYSTEM row and it supersedes the run-1 routed row wherever
+% the paper describes the system we are proposing. Run 1 macros are kept because
+% the paper still reports run 1 as the gate-only ablation.
+% ---------------------------------------------------------------------------
+
+\newcommand{\accFull}{76.8\%}
+\newcommand{\accFullcount}{1305/1700}
+\newcommand{\accFullci}{74.7--78.7}
+\newcommand{\accFullIE}{78.8\%}
+\newcommand{\accFullMATH}{77.3\%}
+\newcommand{\accFullKNOW}{73.6\%}
+\newcommand{\unparseFull}{1.29\%}
+
+\newcommand{\fullCloudCalls}{764}
+\newcommand{\fullEscRate}{44.9\%}
+\newcommand{\fullOnDeviceRate}{55.1\%}    % 936 of 1,700 answered without a cloud call
+\newcommand{\fullEscRateIE}{23.2\%}
+\newcommand{\fullEscRateMATH}{80.5\%}
+\newcommand{\fullEscRateKNOW}{28.4\%}
+
+% Paired McNemar against the cloud-only baseline.
+\newcommand{\mcnemarFullP}{0.583}
+\newcommand{\mcnemarFullDisagree}{268}
+\newcommand{\mcnemarFullWins}{129}
+\newcommand{\mcnemarFullLosses}{139}
+\newcommand{\mcnemarFullIEP}{0.055}        % was 0.007 for the gate alone
+\newcommand{\mcnemarFullIEDisagree}{109}
+\newcommand{\mcnemarFullMATHP}{1.000}
+\newcommand{\mcnemarFullKNOWP}{0.391}
+
+% Cost. Tokens recorded per claim. Dollar figures use the per-token input and
+% output rates implied by the two measured cost points (run 1 and cloud only).
+\newcommand{\tokensFullIn}{2{,}890{,}886}
+\newcommand{\tokensFullOut}{2{,}041{,}975}
+\newcommand{\costFull}{\$0.977}
+\newcommand{\costRatioFull}{51.9\%}
+\newcommand{\tokenRatioFull}{49.9\%}
+\newcommand{\latFullMed}{26.7}             % seconds per claim, GPU box, median
+\newcommand{\latFullPFive}{87.1}
+
+% The audit trigger, as it fired on the held-out split.
+\newcommand{\auditRan}{351}                % claims where both local arms said entailed
+\newcommand{\auditFired}{102}
+\newcommand{\auditFireRate}{29.1\%}
+\newcommand{\auditLocalWouldScore}{57.8\%} % keeping the local verdict on the 102
+\newcommand{\auditCloudScored}{66.7\%}     % what escalating them actually scored
+\newcommand{\auditNet}{+9}
+\newcommand{\auditP}{0.336}
+\newcommand{\auditPassedScore}{83.5\%}     % local correct where the audit passed
+
+% The arbiter, as it fired on the held-out split.
+\newcommand{\arbRan}{482}                  % non-arithmetic disagreements
+\newcommand{\arbKept}{269}
+\newcommand{\arbEscalated}{199}
+\newcommand{\arbUnreadable}{14}
+\newcommand{\arbKeptScore}{74.7\%}
+\newcommand{\arbCloudOnSame}{73.2\%}
+\newcommand{\arbSidedSevenBCorrect}{74.7\%}
+\newcommand{\arbSidedThreeBCorrect}{33.7\%}
+\newcommand{\arbSeparation}{41}            % points
+
+% FDV-IE, the subset the audit targets. Kept-local claims only.
+\newcommand{\fullKeptLocalIEn}{461}
+\newcommand{\fullKeptLocalIERouted}{80.7\%}
+\newcommand{\fullKeptLocalIECloud}{84.8\%}
+\newcommand{\fullKeptLocalIEGap}{4.1}      % was 8.7 for the gate alone
