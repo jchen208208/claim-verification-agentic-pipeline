@@ -198,3 +198,32 @@
   year      = {2020},
   note      = {arXiv:2005.11401}
 }
+
+% --- Financial QA over whole filings. Added 4 Sep 2026 for the opening sentence. ---
+
+% VERIFIED 4 Sep 2026 against arxiv.org/abs/2311.11944. GPT-4-Turbo with a retrieval
+%   system incorrectly answered or refused 81% of 150 reviewed cases. The abstract also
+%   states that long-context augmentation is "unrealistic for enterprise settings due to
+%   increased latency and cannot support larger financial documents", which supports our
+%   second sentence as well as the first. Not evaluated on FINDVER.
+@article{islam2023financebench,
+  title   = {{FinanceBench}: A New Benchmark for Financial Question Answering},
+  author  = {Islam, Pranab and Kannappan, Anand and Kiela, Douwe and Qian, Rebecca
+             and Scherrer, Nino and Vidgen, Bertie},
+  journal = {arXiv preprint arXiv:2311.11944},
+  year    = {2023},
+  note    = {arXiv:2311.11944}
+}
+
+% VERIFIED 4 Sep 2026 against arxiv.org/abs/2401.06915 and aclanthology.org/2024.acl-short.42.
+%   Augments 7,437 FinQA questions with full-document context, taking the average from
+%   under 700 words to 123k words. Supports "long" in the opening sentence directly.
+@inproceedings{reddy2024docfinqa,
+  title     = {{DocFinQA}: A Long-Context Financial Reasoning Dataset},
+  author    = {Reddy, Varshini and Koncel-Kedziorski, Rik and Lai, Viet Dac
+               and Krumdick, Michael and Lovering, Charles and Tanner, Chris},
+  booktitle = {Proceedings of the 62nd Annual Meeting of the Association for
+               Computational Linguistics (Volume 2: Short Papers)},
+  year      = {2024},
+  note      = {arXiv:2401.06915}
+}
