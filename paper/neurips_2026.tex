@@ -204,10 +204,16 @@ device that cannot hold a frontier model, which is the constraint that shapes ou
 % 26 Aug: the hand-drawn TikZ version was replaced by model_diagram.png. The TikZ
 % source is in git history at commit 50c68bb if it is ever needed again.
 %
-% model_diagram.png is now a FLAT ASSET with no regenerator in this repo. It was
-% built from a model_diagram.jpeg that is no longer on disk, and the build script
-% and its cropped icons were deleted on 26 Aug once the diagram was final. To
-% change the diagram, supply the artwork again and redraw it.
+% 3 Sep: the diagram IS regenerable again. It had been a flat asset with no
+% regenerator, built from artwork no longer on disk. The ten original icons were
+% recovered by cropping them out of the old PNG and now live in paper/diagram_icons/;
+% test_scripts/build_model_diagram.py redraws the whole figure from them. The
+% pre-3-Sep PNG is in git at commit 00bb76f.
+%
+% The audit and arbiter were added in that redraw, and colour is now semantic:
+% green means the claim is answered on the device, red means it goes to the cloud.
+% The old figure used green for the numeric escalation, which sent a claim to the
+% cloud; that was the one inconsistent edge and it is corrected.
 %
 % The old caption named routing percentages that were TikZ node labels; the new
 % figure does not carry them, so that sentence was removed rather than left wrong.
@@ -216,9 +222,12 @@ device that cannot hold a frontier model, which is the constraint that shapes ou
 \centering
 \includegraphics[width=\textwidth]{model_diagram.png}
 \caption{The pipeline. Retrieval runs in plain Python with no model. Two small models on
-the device read the same retrieved evidence and answer independently. A frontier cloud
-model is consulted only when the gate fires, either because the two local arms disagree or
-because the claim asserts a computed quantity. Nothing in the pipeline is trained or
+the device read the same retrieved evidence and answer independently. Green paths are
+answered on the device and red paths are sent to the cloud. The gate routes a disagreement
+to the \emph{arbiter} and an agreement to the \emph{audit}
+(Section~\ref{sec:skills}); each of those either escalates the claim or answers it locally,
+so the cloud model is reached on \fullEscRate{} of claims. A claim that asserts a computed
+quantity is escalated before the local tier runs. Nothing in the pipeline is trained or
 fine-tuned.}
 \label{fig:pipeline}
 \end{figure}
