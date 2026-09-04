@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 31 August 2026.
+Last updated: 4 September 2026.
 
 ---
 
@@ -5586,7 +5586,90 @@ is what replicates; the accuracy result is a tie held at lower cost.
 
 ### STILL OPEN
 
-1. **The paper.** 10 pages, needs 5. This is now the only remaining task. Deadline 5 September AoE.
-2. **The 42.3% figure is in the draft** and has to become 44.9%. Check `paper/numbers.tex` and every
-   place the escalation rate is quoted.
+1. ~~**The paper.** 10 pages, needs 5. This is now the only remaining task.~~ **[DONE 4 Sep 2026.
+   The body is five pages.** See the 4 September section at the end of this file. Deadline
+   5 September AoE.]
+2. ~~**The 42.3% figure is in the draft** and has to become 44.9%.~~ **[DONE. Verified 4 Sep: the
+   string 42.3 appears nowhere in `paper/workshop.tex` or `paper/numbers.tex`.]**
 3. **Nothing else needs the GPU box.** Access to it can end whenever. All workshop results are in.
+
+## 4 September: THE BODY IS FIVE PAGES. The professor's rewrite is repaired, merged and filled in.
+
+No experiments. This was a paper day. Full detail in `build_log.md` under 4 September.
+
+### The file to work on is now `paper/workshop.tex`, not `neurips_2026.tex`
+
+The professor rewrote the paper as a new 514-line file on Overleaf. `neurips_2026.tex` is untouched
+and still matches commit `ab1ae99`. **Anything edited in `neurips_2026.tex` from here does not reach
+the submission.** He kept `numbers.tex`, so every figure is still a macro, and he kept our old prose
+as commented blocks under each section.
+
+`CLAUDE.md` still says `neurips_2026.tex` is the 5-page submission. That line is now wrong.
+
+### Where the paper stands
+
+**Five pages of body, nine pages total.** References start on page 6, appendix on page 7. Compiles
+with 0 errors and 1 warning, and both the warning and the info line come from the style file.
+
+Structure, which is the professor's and is not to be changed: page 1 abstract and introduction,
+page 2 the diagram then related work then method, pages 3 to 5 setup, results and conclusion.
+Appendix A.1 Limitations, A.2 Detailed Experimental Settings, A.3 Retrieval, A.4 Future Work.
+
+**The appendix and the references are outside the five pages.** Confirmed against the 29 August
+reading of the workshop site, which says five pages excluding references and appendix, an appendix
+is allowed in the same PDF, and no separate supplementary file is accepted.
+
+### What was wrong with his draft and is now fixed
+
+- **Ten `??` in the compiled PDF.** Not citations, which all resolved. Six subsections carried the
+  identical `\label{sec}` and three table references were `\ref{tab}`. The same accident ate three
+  thin spaces, printing "16,GB RAM" and "26.0,s".
+- **One reference resolved to the wrong section instead of failing.** `\ref{sec}` took the last of
+  the six duplicates, so the correlated-error sentence pointed at 5.5 rather than 5.2. It looked
+  correct in the PDF.
+- **Our own bookkeeping was printing in the reference list.** Twelve entries ended with "VERIFIED
+  27 Aug 2026", and the BM25 entry printed "added from general knowledge". `plainnat` prints `note`.
+  The record now lives above each entry, where BibTeX ignores it.
+- **A.1 Limitations contained the literal text `xxxxx`**, and the four limitations paragraphs were
+  sitting inside A.2. Moved.
+- **The Overleaf project had the pre-3-September diagram.** Replaced with the 4 September figure,
+  which shows the audit and arbiter his own Section 3.2 describes.
+
+### The five pages came from the tables, not from cutting results
+
+Five tables became three in the body. His Tables 1, 2 and 3 share rows and merged into one accuracy
+table with escalation rates below a midrule. Cost and latency kept, and now actually referenced. A
+new Table 3 in 5.3 gives what each routing decision is worth. Retrieval recall and the whole
+retrieval results subsection moved to the appendix.
+
+**Nothing was cut from the results.** The merge and the retrieval move together closed the gap. They
+were not tested separately so it is unknown which alone would have sufficed. The professor's request
+to trim results is not needed unless something is added back.
+
+### The opening sentence has citations
+
+Two verified today against arXiv: **DocFinQA** (Reddy et al., Findings of ACL 2024, arXiv 2401.06915)
+for the length claim, and **FinanceBench** (Islam et al., arXiv 2311.11944) for the failure figure,
+GPT-4-Turbo with retrieval answering or refusing 81% of a reviewed sample incorrectly.
+
+**DocFinQA's 123k-word average was not quoted on purpose.** Our filings average about 41,000 words
+and the two figures side by side invite a question we do not want.
+
+### All twenty-one references now carry full author lists
+
+The five that still printed "et al." were verified today: FINDVER 10 authors, chain-of-thought 9,
+PAL 8, TART 5, Program of Thoughts 4. The reference list absorbed 36 names without gaining a page.
+
+### STILL OPEN, as of 4 September
+
+1. **Submit on OpenReview.** This is the student's to do. Deadline **6 September 04:59 Pacific**,
+   which is 5 September 23:59 AoE.
+2. **Two reference decisions, deliberately left alone.** The arXiv page for Program of Thoughts gives
+   TMLR 2023 as its venue, and correcting it changes the in-text year to 2023. The benchmark's own
+   title is **FinDVer**, while our body writes FINDVER everywhere including FDV-IE.
+3. **Author order on OpenReview.** First author is whoever is listed first in the submission's author
+   field, not whoever clicks submit. When the professor edits the submission to add the two industry
+   co-authors, confirm the order has not changed, and check whether the venue still allows edits
+   after the deadline.
+4. **`CLAUDE.md` names the wrong submission file** in its "Where things live" section.
+5. **Nothing needs the GPU box.** Unchanged from 2 September. All workshop results are in.

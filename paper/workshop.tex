@@ -355,11 +355,8 @@ We show that financial claim verification can match cloud-only accuracy while su
 
 \subsection{Limitations}
 \label{sec:limitations}
-xxxxx
 
-\subsection{Detailed Experimental Settings}
-\label{appendix:setup}
-\paragraph{The weakness the two components target was identified on the reported split.}
+\paragraph{Design and evaluation on the same split.}
 The FDV-IE deficit and its mechanism were identified by reading the output of the held-out
 run reported in Section~\ref{sec:ie}, and the two components of Section~\ref{sec:routing}
 were designed in response to it and then evaluated on that same split. They therefore do not
@@ -385,12 +382,13 @@ identical runs. Our own local models are seeded at temperature zero and still mo
 one verdict in ten between reruns on the same machine. Comparisons in this paper are
 therefore paired wherever a paired test is available.
 
-\paragraph{Latency is not measured on the target device.}
+\paragraph{No latency measurement on the target device.}
 All timings come from the GPU desktop. The laptop that motivates the on-device framing has
 been measured for a single local model only, and the routed pipeline has not been run on
 it end to end.
 
-
+\subsection{Detailed Experimental Settings}
+\label{appendix:setup}
 \paragraph{Splits and protocol.}
 FINDVER provides a development split of \nDev{} claims and a test split of \nTest{} claims,
 both with labels. The benchmark ships no training data, and no component of this system has

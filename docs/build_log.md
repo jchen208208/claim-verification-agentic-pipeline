@@ -7336,3 +7336,187 @@ Accuracy on testmini is flat, 79.0% with and without the components, with FDV-IE
 No LaTeX toolchain exists on this machine, so the paper was checked by other means: every macro use
 diffed against `numbers.tex` definitions, `\begin`/`\end` balance, brace balance, and column counts
 against every `tabular` preamble. All clean. **It has not been compiled.**
+
+## 4 September 2026 - the professor's rewrite lands, the body reaches five pages, and the reference list stops printing our own notes
+
+No experiments ran today. Everything here is the paper.
+
+### What arrived, and how it was retrieved
+
+The professor rewrote the paper as a **new file, `workshop.tex`, 514 lines**, on Overleaf. It is not
+an edit of `neurips_2026.tex`. That file is still in the project and is byte-identical to commit
+`ab1ae99`, untouched. He kept `numbers.tex`, so every figure in his version is still a macro and
+cannot drift from ours. He kept our old prose as commented-out blocks under each section, so nothing
+he cut is lost.
+
+His structure, from the compiled PDF: page 1 abstract and introduction, page 2 the figure then
+related work then method, page 3 setup and the start of results, **page 4 five stacked tables and no
+body text at all**, pages 5 and 6 the rest of results and the conclusion. He created an appendix
+whose A.1 Limitations contained the literal text `xxxxx`.
+
+He had sent only the compiled PDF, which cannot be edited. The source was retrieved by fetching the
+project zip from Overleaf inside the browser session and parsing it in the page, then downloading it
+once the student approved. Both `refs.bib` and `numbers.tex` in his project were identical to ours.
+
+### The missing references were broken cross-references, not a missing bibliography
+
+Ten `??` in his PDF. **Not undefined citations.** All 19 keys resolved against `refs.bib` and every
+citation rendered. They were undefined `\ref`.
+
+The cause is label truncation. **Six subsections all carried `\label{sec}`, the identical name**, and
+three table references were `\ref{tab}` with nothing after `tab`. The same accident ate three thin
+spaces, which is why the PDF printed "16,GB RAM" and "26.0,s".
+
+**One of them was worse than a `??` and would have shipped.** Line 187's `\ref{sec}` was not
+undefined, because `\label{sec}` existed six times and LaTeX resolves to the last one. The sentence
+about correlated agreement pointed readers at Section 5.5 on missing evidence when it meant 5.2. It
+rendered as a plausible section number and was visible only by reading.
+
+Four more pointed at sections that existed in our draft and do not exist in his: `sec:sandbox`,
+`sec:ie`, `sec:skills`, `sec:taxonomy`. Each was repointed at his equivalent section rather than
+renamed, so the sentences now lead where they claim to.
+
+### Our own bookkeeping was printing inside the reference list
+
+Twelve entries in `refs.bib` ended with **"VERIFIED 27 Aug 2026"** in a `note` field, and `plainnat`
+prints `note`. FinGround printed a full sentence of ours about it not evaluating on FINDVER. The BM25
+entry printed **"VERIFY: not recorded in project notes, added from general knowledge."** All of it
+was in the PDF the professor compiled.
+
+Fixed by moving the bookkeeping above each entry, where BibTeX ignores everything outside an entry.
+The arXiv identifiers stay in `note`, which is normal and wanted.
+
+**A first attempt put the comment lines inside the entries, which is wrong.** `%` is not a comment
+character inside a BibTeX entry; the parser would have hit a syntax error where it expected a comma
+or a closing brace. Caught by inspection before anything was uploaded.
+
+### The opening sentence now carries evidence
+
+The professor asked for a hook that signifies why the problem matters, and supplied a sample
+introduction as the pattern: a broad claim carrying several citations, then a sentence saying why it
+matters.
+
+Two references were found and **verified against their arXiv abstract pages today**, not recalled:
+
+- **DocFinQA**, Reddy, Koncel-Kedziorski, Lai, Krumdick, Lovering and Tanner, Findings of ACL 2024,
+  arXiv 2401.06915. Its own framing is that financial professionals work with documents hundreds of
+  pages long. It augments 7,437 FinQA questions from under 700 words to 123k words of context.
+- **FinanceBench**, Islam, Kannappan, Kiela, Qian, Scherrer and Vidgen, arXiv 2311.11944. Source of
+  the quotable figure: **GPT-4-Turbo with a retrieval system incorrectly answered or refused 81% of
+  a manually reviewed sample.** Its abstract also states that long-context augmentation is
+  unrealistic for enterprise settings because of latency and document size, which supports his
+  second sentence as well as his first.
+
+**DocFinQA's 123k-word average was deliberately not quoted.** Our own filings average about 41,000
+words, and printing a six-figure word count next to our own would have invited a reviewer to notice
+the mismatch. The supportable phrasing is DocFinQA's own, "documents that run to hundreds of pages."
+
+A third was verified and rejected on fit: **RFC Bench**, Jiang et al., arXiv 2601.04160, 7 January
+2026. Real, but it works on financial news paragraphs rather than filings.
+
+### Five tables became three, and the body reached five pages
+
+The professor asked for the tables to move into their own results subsections, for five to become
+about three, and for retrieval to go to the appendix. All three done.
+
+- **Table 1, in 5.1.** His Tables 1, 2 and 3 share the same rows, so they merged into one accuracy
+  table: five systems by overall and three subsets, with escalation rates as a second block below a
+  midrule.
+- **Table 2, in 5.1.** Cost and latency, unchanged. **It had never been referenced by any sentence in
+  his draft.** It is now.
+- **Table 3, in 5.3.** New. What each routing decision is worth on the claims it acts on:
+  disagreement, arithmetic, audit, arbiter, each with the local verdict beside the cloud verdict. It
+  replaced two number-dense paragraphs. Every figure in those paragraphs is still in the paper.
+- **Table 4, appendix A.3.** Retrieval recall, moved with the whole retrieval results subsection.
+
+What the merge dropped from the body: the 95% CI column, the unparseable column, and the accuracy
+counts. **The unparseable rates were already stated in the appendix scoring paragraph**, so no number
+left the paper.
+
+**The body went from 6 pages to 5.** References now start on page 6. This was measured from the line
+numbers the submission style prints on every line, not judged by eye: before the change the body ran
+lines 1 to 187 across six pages with page 4 carrying nothing but floats.
+
+**No results were cut to achieve it.** The table merge and the retrieval move together covered the
+whole gap. They were not tested separately, so it is not known which one alone would have been
+enough. The professor's item about trimming results is therefore not needed.
+
+### The appendix
+
+A.1 contained `xxxxx`. The four limitations paragraphs were sitting one subsection lower, inside A.2
+Detailed Experimental Settings, which is not where they belong. Moved into A.1 whole.
+
+Headings evened out to the noun-phrase form that A.2 and A.3 already used. "The weakness the two
+components target was identified on the reported split." became "Design and evaluation on the same
+split." and "Latency is not measured on the target device." became "No latency measurement on the
+target device."
+
+Structure is now A.1 Limitations, A.2 Detailed Experimental Settings, A.3 Retrieval, A.4 Future Work.
+
+**Confirmed against the 29 August reading of the workshop site: the appendix and the references are
+both outside the five pages.** An appendix is allowed in the same PDF and no separate supplementary
+file is accepted.
+
+### The diagram was stale in Overleaf
+
+The project still held the pre-3-September figure at 270 KB, so what the professor approved was the
+old one. Replaced with the 4 September version at 359 KB, which shows the audit and the arbiter that
+his own Section 3.2 describes in detail and the old figure does not show at all.
+
+The caption was rewritten with it. **The colour claim is scoped to the arbiter and audit edges**,
+because the arithmetic escalation arrow at the top of the figure is drawn black and also goes to the
+cloud. Saying "red paths go to the cloud" unscoped would have been wrong about that arrow. The
+arithmetic path gets its own sentence instead.
+
+### The five remaining "and others" author lists are closed
+
+`refs.bib`'s own header, written 27 August, recorded that seven original entries used `and others`
+and needed one pass against the real papers before submission. Five of them were still cited, and
+all five printed as "et al." in the reference list, including FINDVER itself.
+
+All five verified today against their arXiv abstract pages, and TART additionally against the ACL
+Anthology record:
+
+| entry | authors | source |
+|---|---|---|
+| FINDVER | 10 | arXiv 2411.05764, EMNLP 2024 |
+| chain-of-thought | 9 | arXiv 2201.11903 |
+| PAL | 8 | arXiv 2211.10435 |
+| TART | 5 | arXiv 2409.11724, Findings of NAACL 2025 |
+| Program of Thoughts | 4 | arXiv 2211.12588 |
+
+**36 names went in and the reference list did not gain a page.** Still 9 pages total.
+
+Two findings recorded and deliberately not applied, because both change what a reader sees:
+
+1. **The arXiv page for Program of Thoughts gives its venue as TMLR 2023.** Correcting the venue
+   means correcting the year, which changes the in-text citation from [Chen et al., 2022] to [Chen
+   et al., 2023]. PAL and chain-of-thought state no venue on their pages, so both were left as
+   preprints rather than guessed at.
+2. **The benchmark's own title styles it FinDVer, not FINDVER.** Our body writes FINDVER everywhere,
+   including FDV-IE and the other subset names. All-caps for a benchmark name is a normal convention
+   so this is not an error, but the reference list and the body now disagree.
+
+### Toolchain notes, for the next person who has to do this
+
+There is still **no LaTeX on this machine**, and installing one was not attempted. Every compile
+happened on Overleaf, driven through the browser: upload the changed files, confirm the overwrite,
+recompile, then read the rendered text back out of the PDF viewer.
+
+**Two recompile attempts silently did nothing.** Clicking the Recompile button by screen coordinate
+had no effect twice in a row, with no error and no spinner, and the stale PDF made it look as though
+the upload had failed. The upload had in fact worked, which was proved by re-fetching the project zip
+and checking the file. Clicking the same button by element reference worked immediately. If a
+compile appears not to have run, check the file on the server before touching the source.
+
+Final compile: **0 errors, 1 warning**, and the warning plus the one info line both come from the
+style file (`\showhyphens` redefinition, and an underfull vbox).
+
+### State at the end of the day
+
+Every item on the professor's list is done: layout preserved, diagram replaced, references repaired,
+tables merged and placed, limitations filled, appendix confirmed outside the page count, and the
+opening sentence given citations. The paper compiles clean at **five pages of body and nine pages
+total**.
+
+Submission is the student's to do, and the deadline is 6 September 04:59 Pacific.

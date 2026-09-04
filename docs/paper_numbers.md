@@ -3476,4 +3476,69 @@ Listed so they are not written by accident.
 - **[NEW 28 Aug] That the arithmetic skill works, nearly works, or needs one more prompt.** §2.23: 58.9% against the cloud's 81.1%, p = 0.00001, on all 250 arithmetic claims. A prompt revision targeting the main defect halved that defect and made accuracy **worse**. **Supportable: "we built it, measured it on the full subset, and it loses."**
 - ~~**[NEW 28 Aug] "A small model cannot identify the operands." Only the 3B was tested.**~~ **Resolved 28 Aug, evening.** The 7B ran the same test and also loses, 66.3% against the cloud's 82.2%, p = 0.00001. **Supportable: "the local tier".** Still not supportable: that a larger local model would close the gap. Two points are not a trend.
 - **[NEW 28 Aug] Any figure from the 9-claim or 30-claim skill samples.** Both were single-label through data trap 2. §2.23.
-- **[NEW 27 Aug] That our design was not shaped by FINDVER.** It was, and from 27 August this is deliberate and approved. The two sentences claiming otherwise come out of `neurips_2026.tex` (line 100, lines 326 to 333). Nothing replaces them; the obligation is to stop claiming the opposite, not to advertise it.
+- **[NEW 27 Aug] That our design was not shaped by FINDVER.** It was, and from 27 August this is deliberate and approved. The two sentences claiming otherwise come out of `neurips_2026.tex` (line 100, lines 326 to 333). Nothing replaces them; the obligation is to stop claiming the opposite, not to advertise it. **[RESOLVED 4 Sep 2026. The submission file is now `paper/workshop.tex`, the professor's rewrite, and neither sentence survives it. Checked by grep, not assumed. `neurips_2026.tex` still carries them but is no longer the submission.]**
+
+---
+
+## 6. Figures quoted from other papers
+
+**[NEW 4 Sep 2026.]** Numbers that appear in our paper but were not measured by us. Section 2 is our
+own measurements; this section exists so an external figure is never re-derived from memory or
+quoted past what its source actually says.
+
+Both entries below were read off the arXiv abstract page on 4 September 2026, in the same way the
+27 August citation sweep was done. Neither is from recall.
+
+### 6.1 FinanceBench, the 81% figure in the introduction
+
+**Source.** Islam, Kannappan, Kiela, Qian, Scherrer and Vidgen, *FinanceBench: A New Benchmark for
+Financial Question Answering*, arXiv 2311.11944, 2023. Entry `islam2023financebench` in `refs.bib`.
+
+**What the abstract says, verbatim in the part that matters:** "GPT-4-Turbo used with a retrieval
+system incorrectly answered or refused to answer 81% of questions." The denominator is a sample of
+150 cases drawn from 10,231 questions, manually reviewed, n=2,400 answers across 16 model
+configurations.
+
+**How it is written in our introduction.** "given a retrieval system over such filings, GPT-4-Turbo
+answered 81% of a manually reviewed sample of questions incorrectly or refused to answer."
+
+**Constraints on quoting it.**
+
+- **It is not 81% of FinanceBench.** It is 81% of the reviewed 150-case sample. The phrase "a
+  manually reviewed sample" is doing necessary work and must not be dropped for brevity.
+- **It is not comparable to any number of ours.** Different benchmark, different task format,
+  different model. It motivates the problem and must never sit in a table or a sentence beside our
+  own 77.4% cloud baseline, which would read as though the two measure the same thing.
+- **"Incorrectly answered or refused" is one bucket in their scoring.** Do not restate it as an
+  accuracy of 19%.
+
+**A second usable claim from the same abstract**, not yet in the paper: long-context augmentation is
+"unrealistic for enterprise settings due to increased latency and cannot support larger financial
+documents". That is external support for our second sentence about cloud-only inference being a poor
+deployment fit, and it is theirs rather than ours.
+
+### 6.2 DocFinQA, the document-length claim in the introduction
+
+**Source.** Reddy, Koncel-Kedziorski, Lai, Krumdick, Lovering and Tanner, *DocFinQA: A Long-Context
+Financial Reasoning Dataset*, Findings of ACL 2024 (short papers), arXiv 2401.06915. Entry
+`reddy2024docfinqa`.
+
+**What the abstract says.** Financial professionals often interact with documents that are hundreds
+of pages long. The dataset augments 7,437 FinQA questions with full-document context, taking the
+average from **under 700 words in FinQA to 123k words in DocFinQA**.
+
+**How it is written in our introduction.** "long, heterogeneous regulatory filings, documents that
+run to hundreds of pages."
+
+**The 123k figure is deliberately not quoted, and this is the reason.** Our own filings average
+roughly **41,000 words** (§4). Printing 123k next to our own corpus invites a reviewer to notice
+that the number we cite for document length is three times the length of the documents we actually
+run on. "Hundreds of pages" is DocFinQA's own framing, is true of both corpora, and carries no such
+mismatch. **Do not upgrade this sentence to the word count.**
+
+### 6.3 Verified and not used
+
+**RFC Bench**, Jiang et al., *All That Glisters Is Not Gold: A Benchmark for Reference-Free
+Counterfactual Financial Misinformation Detection*, arXiv 2601.04160, 7 January 2026. Verified real
+on 4 September. Rejected on fit: it operates on financial news paragraphs, not filings. Recorded here
+so it is not re-searched, and so it is available if a misinformation framing is ever wanted.

@@ -35,7 +35,7 @@ A **5-page workshop paper**, submitted to *On-Device Intelligence: Foundation Mo
 | ~~Deadline, original~~ | ~~29 August 2026, 23:59 AoE~~ extended 29 Aug |
 | Review period | 6 to 19 September 2026 |
 | Attendance | **In person expected**, at least one author in Sydney |
-| Length | **5 pages excluding references** |
+| Length | **5 pages excluding references and appendix.** An appendix is allowed in the same PDF; no separate supplementary file is accepted. [Corrected 4 Sep 2026; the row previously said only "excluding references".] |
 | Template | **NeurIPS 2026 LaTeX template** |
 | Review | **Double-blind** |
 | Archival | **Non-archival** |
@@ -51,6 +51,12 @@ Four consequences, in order of how much they change:
 4. **It is a NeurIPS workshop**, which the plan had recorded only as "a workshop in Australia". The organisers are from ETH Zurich, MPI for Intelligent Systems, and MIT.
 
 **Topic fit, from the call for papers.** Topic 05, "Benchmarks and Evaluation for Interactive Real-World Deployment", asks for *metrics that jointly assess performance, latency, energy, memory, safety, and reliability under realistic deployment conditions*. The extraction and imputation analysis (§11.8) is squarely that: a benchmark's official scoring silently imputing a large share of a small model's reported accuracy. Topic 02, "Efficient Adaptation, Inference and Reasoning under Real-World Constraints", covers the edge-cloud pipeline itself. Both should be named in the submission.
+
+**[NEW 4 Sep 2026] The submission file is `paper/workshop.tex`, not `paper/neurips_2026.tex`.** The
+professor rewrote the paper as a new 514-line file on Overleaf rather than editing ours. He kept
+`numbers.tex`, so every figure is still a macro, and he kept the old prose as commented blocks.
+`neurips_2026.tex` remains in the project at commit `ab1ae99` and is no longer the submission.
+Editing it does not reach the PDF.
 
 **Authorship:** student is first author. The professor is a co-author, and he will recruit roughly two industry co-authors to strengthen the author list.
 
@@ -1920,3 +1926,6 @@ Table parsing overruns, cut Tier 1's retry loop before cutting Tier 1. Cloud key
 - Wu & Feng, 2024. *ProTrix*; Kong et al., 2024. *OpenTab*; Li et al., 2024. *GraphOTTER*
 - **[ADDED 3 Aug 2026, from MACE's related work] Chen et al., 2024. *TableRAG* — retrieval-augmented generation for large-table context limits.** Not previously in this list, and retrieval-plus-tables is our core, so it should be read and probably cited (§6.5). Also named there: Su et al., 2024, *TableGPT2*, trained on 593.8K tables; Zhu et al., 2024, *TAT*, which decomposes reasoning into extraction, reasoning and execution steps. Both are training-based and therefore out of our lane (§4.2), but TAT's decomposition mirrors our Tier 1 split and is worth a positioning sentence.
 - Wei et al., 2022. *Chain-of-Thought Prompting*
+- **[ADDED 4 Sep 2026, for the introduction's opening claim, verified against the arXiv abstract page that day]** Reddy, Koncel-Kedziorski, Lai, Krumdick, Lovering, Tanner, 2024. *DocFinQA: A Long-Context Financial Reasoning Dataset.* Findings of ACL 2024, arXiv:2401.06915. Financial documents run to hundreds of pages; 7,437 FinQA questions taken from under 700 words to 123k words of context. **The 123k figure is not quoted in our paper**, see `paper_numbers.md` §6.2.
+- **[ADDED 4 Sep 2026, verified against the arXiv abstract page]** Islam, Kannappan, Kiela, Qian, Scherrer, Vidgen, 2023. *FinanceBench: A New Benchmark for Financial Question Answering.* arXiv:2311.11944. GPT-4-Turbo with retrieval incorrectly answered or refused 81% of a manually reviewed sample. Caveats on quoting it in `paper_numbers.md` §6.1.
+- **[VERIFIED 4 Sep 2026, not used]** Jiang et al., 2026. *All That Glisters Is Not Gold*, arXiv:2601.04160. Financial misinformation over news paragraphs rather than filings, so the fit is weak.
