@@ -152,22 +152,27 @@ Small-to-large routing is commonly formulated as a cascade \citep{moslem2026rout
 % 26 Aug: the hand-drawn TikZ version was replaced by model_diagram.png. The TikZ
 % source is in git history at commit 50c68bb if it is ever needed again.
 %
-% model_diagram.png is now a FLAT ASSET with no regenerator in this repo. It was
-% built from a model_diagram.jpeg that is no longer on disk, and the build script
-% and its cropped icons were deleted on 26 Aug once the diagram was final. To
-% change the diagram, supply the artwork again and redraw it.
+% 3 Sep: the diagram is regenerable again. The ten original icons were recovered by
+% cropping them out of the old PNG and now live in paper/diagram_icons/, and
+% test_scripts/build_model_diagram.py redraws the whole figure from them. The
+% pre-3-Sep PNG is in git at commit 00bb76f.
 %
-% The old caption named routing percentages that were TikZ node labels; the new
-% figure does not carry them, so that sentence was removed rather than left wrong.
+% 4 Sep: the redrawn figure replaces the one that was in the Overleaf project. It adds
+% the audit and the arbiter, which Section 3.2 describes and the old figure did not
+% show, and colour is now consistent: on the arbiter and audit edges, green keeps the
+% claim on the device and red sends it to the cloud. The old figure used green for the
+% arithmetic escalation, which sends a claim to the cloud. The caption was rewritten
+% with the figure, since the old one described neither component.
 % ---------------------------------------------------------------------------
 \begin{figure}[t]
 \centering
 \includegraphics[width=\textwidth]{model_diagram.png}
 \caption{The pipeline. Retrieval runs in plain Python with no model. Two small models on
-the device read the same retrieved evidence and answer independently. A frontier cloud
-model is consulted only when the gate fires, either because the two local arms disagree or
-because the claim asserts a computed quantity. Nothing in the pipeline is trained or
-fine-tuned.}
+the device read the same retrieved evidence and answer independently. The gate sends a
+disagreement to the arbiter and an agreement to the audit (Section~\ref{sec:routing}).
+Green edges from those two components keep the claim on the device and red edges send it
+to the cloud, which is reached on \fullEscRate{} of claims. A claim asserting a computed
+quantity is escalated before the local tier runs. Nothing is trained or fine-tuned.}
 \label{fig:pipeline}
 \end{figure}
 
@@ -216,66 +221,43 @@ Appendix~\ref{appendix:setup} provides the full scoring procedure,
 configuration details, hardware specifications, and additional latency
 measurements.
 
-\begin{table}[htbp]
-\caption{Accuracy on \nTest{} held-out claims, strict scoring. Routing adds
-\gainOverSevenB{} points over the stronger local model alone and \gainOverThreeB{} over the
-weaker one. Against the cloud-only baseline the difference is not significant.}
-\label{tab:headline}
+\section{Results}
+\label{sec:results}
+
+\subsection{Routing matches cloud accuracy with fewer cloud calls}
+\label{sec:headline}
+
+\begin{table}[t]
+\caption{Accuracy on \nTest{} held-out claims, strict scoring. The lower block is the
+fraction of each subset that reached the cloud. Subsets are \nIE{}, \nMATH{} and \nKNOW{}
+claims. Routing adds \gainOverSevenB{} points over the stronger local model alone. Neither
+routed system differs significantly from the cloud-only baseline, at $p = \mcnemarAllP{}$
+for the gate alone and $p = \mcnemarFullP{}$ with both components added.}
+\label{tab:accuracy}
 \centering
-\begin{tabular}{lccc}
+\begin{tabular}{lcccc}
 \toprule
-arm & accuracy & 95\% CI & unparseable \\
+system & overall & FDV-IE & FDV-MATH & FDV-KNOW \\
 \midrule
-3B alone                       & \accThreeB{} (\accThreeBcount{})   & \accThreeBci{} & \unparseThreeB{} \\
-7B alone                       & \accSevenB{} (\accSevenBcount{})   & \accSevenBci{} & \unparseSevenB{} \\
-\textbf{routed (ours)}         & \textbf{\accRouted{}} (\accRoutedcount{}) & \accRoutedci{} & \unparseRouted{} \\
-cloud only                     & \accCloud{} (\accCloudcount{})     & \accCloudci{} & \unparseCloud{} \\
+3B alone                     & \accThreeB{}        & \accThreeBIE{}        & \accThreeBMATH{}        & \accThreeBKNOW{} \\
+7B alone                     & \accSevenB{}        & \accSevenBIE{}        & \accSevenBMATH{}        & \accSevenBKNOW{} \\
+routed, gate only            & \accRouted{}        & \accRoutedIE{}        & \accRoutedMATH{}        & \accRoutedKNOW{} \\
+\textbf{+ audit and arbiter} & \textbf{\accFull{}} & \textbf{\accFullIE{}} & \textbf{\accFullMATH{}} & \textbf{\accFullKNOW{}} \\
+cloud only                   & \accCloud{}         & \accCloudIE{}         & \accCloudMATH{}         & \accCloudKNOW{} \\
+\midrule
+escalated, gate only         & \escRate{}          & \escRateIE{}          & \escRateMATH{}          & \escRateKNOW{} \\
+escalated, + both components & \fullEscRate{}      & \fullEscRateIE{}      & \fullEscRateMATH{}      & \fullEscRateKNOW{} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+Table~\ref{tab:accuracy} compares the complete routed system with the gate-only variant and the cloud-only baseline. The full system reaches \accFull{} accuracy against \accCloud{} for cloud-only inference. Their difference is not significant under paired McNemar testing ($p = \mcnemarFullP{}$).
 
-\begin{table}[htbp]
-\caption{Accuracy by subset, \nTest{} held-out claims. The routed system's overall tie with
-the cloud baseline is a significant loss on FDV-IE ($p = \mcnemarIEP{}$) offset by ties on
-the other two. The last row is the fraction of each subset that reached the cloud.}
-\label{tab:subset}
-\centering
-\begin{tabular}{lccc}
-\toprule
-arm & FDV-IE ($n{=}\nIE{}$) & FDV-MATH ($n{=}\nMATH{}$) & FDV-KNOW ($n{=}\nKNOW{}$) \\
-\midrule
-3B alone               & \accThreeBIE{}   & \accThreeBMATH{}   & \accThreeBKNOW{} \\
-7B alone               & \accSevenBIE{}   & \accSevenBMATH{}   & \accSevenBKNOW{} \\
-\textbf{routed (ours)} & \textbf{\accRoutedIE{}} & \textbf{\accRoutedMATH{}} & \textbf{\accRoutedKNOW{}} \\
-cloud only             & \accCloudIE{}    & \accCloudMATH{}    & \accCloudKNOW{} \\
-\midrule
-escalation rate        & \escRateIE{}     & \escRateMATH{}     & \escRateKNOW{} \\
-\bottomrule
-\end{tabular}
-\end{table}
+This accuracy is obtained with only \fullCloudCalls{} cloud calls (\fullEscRate{} of claims), leaving \fullOnDeviceRate{} of claims entirely on device. The system uses \tokenRatioFull{} of the cloud input tokens and \costRatioFull{} of the cloud spend of the cloud-only baseline (Table~\ref{tab:cost}). The simpler gate-only system already reaches \accRouted{}, but adding the audit and arbiter simultaneously raises accuracy and reduces escalation from \escRate{} to \fullEscRate{}.
 
+The cost reduction does not extend to latency. Both local models must run before most routing decisions can be made, so median end-to-end latency is \latRoutedMed{}\,s for the routed pipeline versus \latCloudMed{}\,s for cloud-only inference. The system therefore trades local computation for reduced cloud usage and document exposure rather than for lower median latency.
 
-\begin{table}[htbp]
-\caption{The full system on \nTest{} held-out claims, strict scoring. Adding the two
-components of Section~\ref{sec:routing} to the gate raises accuracy and removes cloud calls
-at the same time, and answers \fullOnDeviceRate{} of claims without contacting the cloud at
-all. The difference from the cloud-only baseline is not significant
-($p = \mcnemarFullP{}$).}
-\label{tab:full}
-\centering
-\begin{tabular}{lccccc}
-\toprule
-system & accuracy & FDV-IE & FDV-MATH & FDV-KNOW & cloud calls \\
-\midrule
-gate only                   & \accRouted{} & \accRoutedIE{} & \accRoutedMATH{} & \accRoutedKNOW{} & \cloudCalls{} (\escRate{}) \\
-\textbf{+ both components}  & \textbf{\accFull{}} & \textbf{\accFullIE{}} & \textbf{\accFullMATH{}} & \textbf{\accFullKNOW{}} & \textbf{\fullCloudCalls{} (\fullEscRate{})} \\
-cloud only                  & \accCloud{} & \accCloudIE{} & \accCloudMATH{} & \accCloudKNOW{} & \nTest{} (100\%) \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[htbp]
+\begin{table}[t]
 \caption{Cost and latency over the same \nTest{} held-out claims. Token counts are recorded
 per claim. Latency is the GPU desktop; see Section~\ref{sec:setup}. The full system uses
 \tokenRatioFull{} of the cloud tokens of the cloud-only baseline and keeps
@@ -298,44 +280,10 @@ median latency per claim      & \latRoutedMed{}\,s   & \latFullMed{}\,s   & \lat
 \end{tabular}
 \end{table}
 
-\begin{table}[htbp]
-\caption{Macro recall at $k{=}10$, the metric the benchmark's own evaluation script computes.
-Our BM25 replicates to within 0.6 points on the held-out split it was never tuned on, and
-beats the strongest published retriever there by \recallGainTest{} points with no neural
-model and no API cost.}
-\label{tab:recall}
-\centering
-\begin{tabular}{lcc}
-\toprule
-retriever & dev ($n{=}\nDev{}$) & held-out ($n{=}\nTest{}$) \\
-\midrule
-\textbf{ours, BM25}                & \textbf{\recallOursDev{}} & \textbf{\recallOursTest{}} \\
-\texttt{text-embedding-3-large}    & \recallEmbedDev{}         & \recallEmbedTest{} \\
-benchmark's BM25                   & \recallUpstreamBMDev{}    & \recallUpstreamBMTest{} \\
-\texttt{contriever-msmarco}        & \recallContrieverDev{}    & \recallContrieverTest{} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-
-
-
-\section{Results}
-\label{sec:results}
-
-\subsection{Routing matches cloud accuracy with fewer cloud calls}
-\label{sec:headline}
-
-Table~\ref{tab:full} compares the complete routed system with the gate-only variant and the cloud-only baseline. The full system reaches \accFull{} accuracy against \accCloud{} for cloud-only inference. Their difference is not significant under paired McNemar testing ($p = \mcnemarFullP{}$).
-
-This accuracy is obtained with only \fullCloudCalls{} cloud calls (\fullEscRate{} of claims), leaving \fullOnDeviceRate{} of claims entirely on device. The system uses \tokenRatioFull{} of the cloud input tokens and \costRatioFull{} of the cloud spend of the cloud-only baseline. The simpler gate-only system already reaches \accRouted{}, but adding the audit and arbiter simultaneously raises accuracy and reduces escalation from \escRate{} to \fullEscRate{}.
-
-The cost reduction does not extend to latency. Both local models must run before most routing decisions can be made, so median end-to-end latency is \latRoutedMed{}\,s for the routed pipeline versus \latCloudMed{}\,s for cloud-only inference. The system therefore trades local computation for reduced cloud usage and document exposure rather than for lower median latency.
-
 \subsection{Agreement can hide correlated error}
 \label{sec:ie}
 
-The aggregate result masks a failure of the basic disagreement gate. Table~\ref{tab:subset} shows that the gate-only system is significantly worse than the cloud baseline on FDV-IE, while the two systems are statistically tied on FDV-MATH and FDV-KNOW.
+The aggregate result masks a failure of the basic disagreement gate. Table~\ref{tab:accuracy} shows that the gate-only system is significantly worse than the cloud baseline on FDV-IE, while the two systems are statistically tied on FDV-MATH and FDV-KNOW.
 
 The deficit comes from claims the gate keeps locally. On the \keptLocalIEn{} FDV-IE claims retained on device, the routed system scores \keptLocalIERouted{}, whereas the cloud model would score \keptLocalIECloud{} on the same claims, a gap of \keptLocalIEGap{} points. By contrast, performance on escalated FDV-IE claims is comparable to the cloud baseline. The problem is therefore not insufficient escalation overall, but incorrect confidence in a particular set of agreements.
 
@@ -346,24 +294,31 @@ The agreement audit targets this failure mode. With the complete system, FDV-IE 
 \subsection{The routing signals are complementary}
 \label{sec:triggers}
 
-The cloud is most useful on the claims selected for escalation. On the \cloudCalls{} claims escalated by the basic gate, the cloud model scores \escCloudGave{}, compared with \escWouldSevenB{} for the 7B model had those claims been kept locally.
+\begin{table}[t]
+\caption{The local and cloud verdicts on the claims each routing decision acts on.
+\emph{Local} is the verdict the device would have returned and \emph{cloud} is the verdict
+the cloud model returned or would have returned, scored on the same claims. The first three
+rows are escalations. The fourth is a retention, where the arbiter keeps the claim on the
+device.}
+\label{tab:routing}
+\centering
+\begin{tabular}{lccc}
+\toprule
+routing decision & claims & local & cloud \\
+\midrule
+escalate, the two arms disagree  & \trigDisagreeN{} & \trigDisagreeSevenB{}   & \trigDisagreeCloud{} \\
+escalate, arithmetic claim       & \trigNumericN{}  & \trigNumericSevenB{}    & \trigNumericCloud{} \\
+escalate, audit fires            & \auditFired{}    & \auditLocalWouldScore{} & \auditCloudScored{} \\
+keep, arbiter agrees with the 7B & \arbKept{}       & \arbKeptScore{}         & \arbCloudOnSame{} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-The two original escalation signals capture different errors. Disagreement moves accuracy from \trigDisagreeSevenB{} under the 7B model to \trigDisagreeCloud{} under the cloud model, while the arithmetic trigger moves it from \trigNumericSevenB{} to \trigNumericCloud{}. The latter operates on claims where the local models may agree and therefore detects failures that disagreement cannot observe.
+Table~\ref{tab:routing} compares the local and cloud verdicts on the claims each routing decision acts on. Over all \cloudCalls{} claims the gate escalated, the cloud model scores \escCloudGave{} against \escWouldSevenB{} for the 7B model had those claims been kept locally. The two original signals capture different errors: the arithmetic trigger operates on claims where the local models may agree, and therefore detects failures that disagreement cannot observe.
 
 We also tested executing arithmetic locally rather than escalating it, following the Program-of-Thoughts pattern \citep{chen2022pot}. The approach failed primarily at operand selection rather than execution: when supplied with the correct operands, the same deterministic interpreter reaches \arithOracle{}, but small local models often select the wrong figures from evidence containing many numerical candidates. Increasing the extractor from 3B to 7B improves performance but does not close the gap to the cloud model. We therefore use arithmetic detection as a routing signal rather than a local solver.
 
-The two refinement components address the remaining routing errors. The audit fires on \auditFired{} of the \auditRan{} locally agreed \emph{entailed} claims. Claims that pass the audit are correct \auditPassedScore{} of the time, whereas the retained verdict would be correct only \auditLocalWouldScore{} of the time on claims that the audit flags. The audit therefore identifies agreements for which local confidence is least reliable.
-
-The arbiter acts on non-arithmetic disagreements and keeps \arbKept{} of \arbRan{} such claims on device. These retained local verdicts score \arbKeptScore{}, compared with \arbCloudOnSame{} for the cloud model on the same claims. Its signal is strongly asymmetric: when the arbiter sides with the 7B model, that verdict is correct \arbSidedSevenBCorrect{} of the time, compared with \arbSidedThreeBCorrect{} when it sides with the 3B model. This separation allows a subset of disagreements to be resolved locally without sacrificing accuracy.
-
-\subsection{Retrieval improves independently of verification}
-\label{sec:retrievalresults}
-
-Our BM25 retriever reaches \recallOursTest{} macro recall at $k{=}10$ on the held-out split, \recallGainTest{} points above the strongest retriever previously reported on FINDVER (Table~\ref{tab:recall}). The result uses no neural model and no API call.
-
-The gain is largely an implementation effect rather than a new retrieval method. Development-set ablations attribute it mainly to the IDF formulation and punctuation handling; additional claim decomposition, dense fusion, and parameter sweeps do not improve the final retriever.
-
-More importantly, retrieval recall is only weakly coupled to downstream verification in our pipeline. Supplying perfect evidence does not significantly improve accuracy ($p = 0.116$), while increasing $k$ from 10 to 20 substantially raises recall but produces no measurable accuracy gain despite increasing prompt length. We therefore report the BM25 result as a retrieval result, not as an explanation for the verification gains above.
+The two refinement components address the remaining routing errors. The audit fires on \auditFired{} of the \auditRan{} claims where both arms returned \emph{entailed}, and it separates that population: the claims it passes are correct \auditPassedScore{} of the time, while the retained verdict on the claims it flags would have been correct \auditLocalWouldScore{} of the time. The arbiter keeps \arbKept{} of \arbRan{} non-arithmetic disagreements on the device at no cost in accuracy. Its signal is asymmetric: when it agrees with the 7B model, that model's verdict is correct \arbSidedSevenBCorrect{} of the time, against \arbSidedThreeBCorrect{} when it agrees with the 3B model.
 
 \subsection{Missing evidence dominates the remaining errors}
 \label{sec:taxonomy}
@@ -409,9 +364,9 @@ The FDV-IE deficit and its mechanism were identified by reading the output of th
 run reported in Section~\ref{sec:ie}, and the two components of Section~\ref{sec:routing}
 were designed in response to it and then evaluated on that same split. They therefore do not
 carry the development-split protocol that the rest of the system follows, and we report them
-as a separate system row in Table~\ref{tab:full} rather than folding them into the headline
-arm. The gate configuration in Table~\ref{tab:headline} was frozen before that split was
-read and is unaffected. Both components were also evaluated on the development split. The
+as a separate system row in Table~\ref{tab:accuracy} rather than folding them into the
+gate-only arm. The gate configuration reported there was frozen before that split was read
+and is unaffected. Both components were also evaluated on the development split. The
 cost reduction reproduces there almost exactly, from 54.0\% to 42.0\% of claims escalated
 against 53.4\% to \fullEscRate{} here. Accuracy on that split is flat, 79.0\% with and
 without the components, with FDV-IE at 83.6\% against 83.2\%; that split escalates a
@@ -470,6 +425,34 @@ them. On the desktop the local 3B arm is the fastest of the three models at
 arm takes roughly 420 seconds. Every latency figure in this paper comes from the desktop.
 We have not measured the routed pipeline end to end on the laptop, and we do not report a
 target-device latency we did not measure.
+
+\subsection{Retrieval}
+\label{sec:retrievalresults}
+
+Our BM25 retriever reaches \recallOursTest{} macro recall at $k{=}10$ on the held-out split, \recallGainTest{} points above the strongest retriever previously reported on FINDVER (Table~\ref{tab:recall}). The result uses no neural model and no API call.
+
+The gain is largely an implementation effect rather than a new retrieval method. Development-set ablations attribute it mainly to the IDF formulation and punctuation handling; additional claim decomposition, dense fusion, and parameter sweeps do not improve the final retriever.
+
+More importantly, retrieval recall is only weakly coupled to downstream verification in our pipeline. Supplying perfect evidence does not significantly improve accuracy ($p = 0.116$), while increasing $k$ from 10 to 20 substantially raises recall but produces no measurable accuracy gain despite increasing prompt length. We therefore report the BM25 result as a retrieval result, not as an explanation for the verification gains above.
+
+\begin{table}[t]
+\caption{Macro recall at $k{=}10$, the metric the benchmark's own evaluation script computes.
+Our BM25 replicates to within 0.6 points on the held-out split it was never tuned on, and
+beats the strongest published retriever there by \recallGainTest{} points with no neural
+model and no API cost.}
+\label{tab:recall}
+\centering
+\begin{tabular}{lcc}
+\toprule
+retriever & dev ($n{=}\nDev{}$) & held-out ($n{=}\nTest{}$) \\
+\midrule
+\textbf{ours, BM25}                & \textbf{\recallOursDev{}} & \textbf{\recallOursTest{}} \\
+\texttt{text-embedding-3-large}    & \recallEmbedDev{}         & \recallEmbedTest{} \\
+benchmark's BM25                   & \recallUpstreamBMDev{}    & \recallUpstreamBMTest{} \\
+\texttt{contriever-msmarco}        & \recallContrieverDev{}    & \recallContrieverTest{} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Future Work}
 
