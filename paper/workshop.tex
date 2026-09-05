@@ -37,7 +37,7 @@
 \input{numbers}
 
 % TITLE IS A PLACEHOLDER AND NEEDS YOUR APPROVAL.
-\title{Routing Financial Claim Verification Between On-Device and Cloud Models}
+\title{On-Device Financial Claim Verification at Cloud-Level Accuracy}
 
 % Fills the first-page footnote: "... (NeurIPS 2026). Workshop: <this>."
 % Was unset since 10 August.
@@ -138,7 +138,7 @@ This paper makes three contributions. We measure what a routed pipeline gives up
 \section{Related Work}
 \label{sec:related}
 
-FINDVER \citep{zhao2024findver} verifies claims against long SEC filings and separates them into information extraction (FDV-IE), numerical reasoning (FDV-MATH), and domain-knowledge (FDV-KNOW) subsets; because these documents exceed consumer-model context limits, evaluation typically uses fixed retrieval augmentation \citep{lewis2020rag}. The only other method we found evaluated on FINDVER is MACE \citep{saha2026mace}, which decomposes verification into three roles but uses the same large model for all of them; its smallest reported configuration holds roughly 27B of parameters resident, where our two local models hold 10B between them. We instead study how different models should be assigned to different roles under consumer-device constraints. For numerical reasoning, Program of Thoughts \citep{chen2022pot}, PAL \citep{gao2022pal} and TART \citep{lu2025tart} delegate the arithmetic to code instead of performing it in-model \citep{wei2022cot}; Section~\ref{sec:triggers} shows why that fails at our model scale.
+FINDVER \citep{zhao2024findver} verifies claims against long SEC filings and separates them into information extraction (FDV-IE), numerical reasoning (FDV-MATH), and domain-knowledge (FDV-KNOW) subsets; because these documents exceed consumer-model context limits, evaluation typically uses fixed retrieval augmentation \citep{lewis2020rag}. The only other method we found evaluated on FINDVER is MACE \citep{saha2026mace}, which decomposes verification into three roles but uses the same large model for all of them; its smallest reported configuration holds roughly 27B of parameters resident, where our two local models hold 10B between them; we instead ask which model should perform each role under consumer-device constraints. For numerical reasoning, Program of Thoughts \citep{chen2022pot}, PAL \citep{gao2022pal} and TART \citep{lu2025tart} delegate the arithmetic to code instead of performing it in-model \citep{wei2022cot}; Section~\ref{sec:triggers} shows why that fails at our model scale.
 
 Small-to-large routing is commonly formulated as a cascade \citep{moslem2026routing}, including in edge-cloud systems \citep{li2025collaborative}, with deferral based on uncertainty \citep{kotte2026ucci} or model agreement \citep{kolawole2025agreement,soiffer2025semantic}. However, model errors are correlated \citep{kim2025correlated}, and even multiple frontier judges may provide few independent signals \citep{kohli2026judges}; Section~\ref{sec:ie} examines this issue in our two-model gate.
 
@@ -207,7 +207,7 @@ When both local models predict \emph{entailed}, we apply two checks for missed c
 \paragraph{Disagreement Recheck.}
 For non-arithmetic claims on which the local models disagree, the 7B model receives one additional query over the same evidence. Rather than asking it to choose between the previous verdicts, the prompt asks independently for evidence contradicting the claim. If the resulting verdict agrees with the 7B model's original answer, that answer is retained locally; otherwise the claim is escalated.
 
-The two rechecks act on disjoint populations and each adds at most one additional local 7B call.
+The two rechecks act on disjoint populations and each adds at most one additional local 7B call. Together with the arithmetic trigger, they separate three cases that a single disagreement gate conflates: shared systematic errors, informative disagreements, and disagreements that the stronger local model can resolve.
 
 
 \section{Experimental Setup}
@@ -222,7 +222,8 @@ FINDVER provides no training data and our system has no trainable parameters, so
 \begin{table}[t]
 \caption{Accuracy on \nTest{} held-out claims, strict scoring. The lower block is the
 fraction of each subset that reached the cloud. Subsets are \nIE{}, \nMATH{} and \nKNOW{}
-claims. Neither routed system differs significantly from the cloud-only baseline, at
+claims. Routing adds \gainOverSevenB{} points over the stronger local model alone. Neither
+routed system differs significantly from the cloud-only baseline, at
 $p = \mcnemarAllP{}$ for the gate alone and $p = \mcnemarFullP{}$ with both rechecks.}
 \label{tab:accuracy}
 \centering
@@ -244,7 +245,7 @@ escalated, + both components & \fullEscRate{}      & \fullEscRateIE{}      & \fu
 
 Table~\ref{tab:accuracy} compares the routed system, with and without the two rechecks, against the cloud-only baseline. With the gate alone it reaches \accRouted{} accuracy against \accCloud{} for cloud-only inference. Their difference is not significant under paired McNemar testing ($p = \mcnemarAllP{}$), and that configuration was fixed before the test split was read.
 
-Adding the two rechecks raises accuracy to \accFull{} ($p = \mcnemarFullP{}$) and reduces escalation from \escRate{} to \fullEscRate{}, leaving \fullOnDeviceRate{} of claims entirely on device and using \tokenRatioFull{} of the cloud input tokens of the cloud-only baseline (Table~\ref{tab:cost}). Both were designed after output from this split had been read, so we report them as a separate row (Appendix~\ref{sec:limitations}).
+Adding the two rechecks raises accuracy to \accFull{} ($p = \mcnemarFullP{}$) and reduces escalation from \escRate{} to \fullEscRate{}, leaving \fullOnDeviceRate{} of claims entirely on device (Table~\ref{tab:cost}). Both were designed after output from this split had been read, so we report them as a separate row (Appendix~\ref{sec:limitations}).
 
 The cost reduction does not extend to latency. Both local models must run before most routing decisions can be made, so median end-to-end latency is \latRoutedMed{}\,s for the routed pipeline versus \latCloudMed{}\,s for cloud-only inference.
 
@@ -312,7 +313,7 @@ Both rechecks separate the populations they examine. Of the \auditRan{} claims w
 \subsection{Missing evidence dominates the remaining errors}
 \label{sec:taxonomy}
 
-A single failure mode accounts for \missingInfoKnowTest{} of knowledge-subset errors and \missingInfoAllTest{} of all system errors, at a similar rate on the development split: the model states that the required evidence is absent and refutes the claim on that basis. The same pattern produces a broader label bias. Although \saysEntailedGold{} of gold labels are \emph{entailed}, the cloud model predicts that label on only \saysEntailedCloud{} of claims and the 3B model on only \saysEntailedThreeB{}, so failure to locate or interpret evidence is often converted into a refutation instead of an explicit abstention.
+A single failure mode accounts for \missingInfoKnowTest{} of knowledge-subset errors and \missingInfoAllTest{} of all system errors, at a similar rate on the development split: the model states that the required evidence is absent and refutes the claim on that basis. On the held-out knowledge subset, \missingInfoCiteRateTest{} of responses invoke missing information, 98.4\% of those then predict \emph{refuted}, and \missingInfoWrongTest{} of those predictions are incorrect. The same pattern produces a broader label bias. Although \saysEntailedGold{} of gold labels are \emph{entailed}, the cloud model predicts that label on only \saysEntailedCloud{} of claims and the 3B model on only \saysEntailedThreeB{}, and the routed system partially reduces the imbalance: evidence the model fails to locate becomes a refutation instead of an abstention.
 
 Finally, an oracle that selects the correct verdict whenever either local model produces it would reach \oracleLocalOnly{} without any cloud calls; allowing selection among both local models and the cloud model raises the bound to \oracleThreeWay{}. Neither is implementable, since each needs the gold label in order to select, but they show that a substantial fraction of the remaining error is attributable to routing and not to the absence of a correct candidate verdict.
 
@@ -324,7 +325,7 @@ Finally, an oracle that selects the correct verdict whenever either local model 
 
 % Our results show that disagreement is useful only for errors it can expose. Models from the same family can agree on the same mistake, turning correlated error into false confidence, while arithmetic failures can remain invisible when both local models fail in the same direction. Targeted routing signals recover some of these cases, but they also point to a broader design problem: an effective cascade must be built around the structure of its local errors, not agreement alone. More diverse local models and routing signals that detect shared failure modes are therefore promising directions for reducing cloud dependence further without hiding regressions behind aggregate accuracy.
 
-We show that selective edge--cloud routing can match cloud-only accuracy on financial claim verification while substantially reducing cloud use. The main challenge is not local model accuracy alone, but whether the routing signal can detect shared failures: agreement between related models can become false confidence, and some errors remain invisible to disagreement. Effective cascades therefore need routing signals designed around the structure of local errors, not agreement alone.
+We show that selective edge--cloud routing can match cloud-only accuracy on financial claim verification while substantially reducing cloud use. The limit is not local model accuracy but the routing signal: agreement between related models can become false confidence, and some errors never produce disagreement at all. A cascade needs a signal built around the structure of its local errors, not agreement alone.
 
 
 
