@@ -367,3 +367,12 @@
 \newcommand{\fullKeptLocalIERouted}{80.7\%}
 \newcommand{\fullKeptLocalIECloud}{84.8\%}
 \newcommand{\fullKeptLocalIEGap}{4.1}      % was 8.7 for the gate alone
+
+% Published FINDVER baselines, for context in the introduction. Read from
+% docs/findver_baseline_accuracy.png, which is FINDVER Table 4. Its caption says
+% "on the testmini set", so these are DEVELOPMENT-split figures and must never be
+% placed beside one of ours as a head-to-head result. The RAG column is the one we
+% may cite, because this pipeline is RAG-only; the long-context 77.2% is not ours
+% to quote. Added 4 Sep 2026.
+\newcommand{\pubBestRAG}{75.0\%}           % Claude-3.5-Sonnet, RAG, testmini
+\newcommand{\pubHumanExpert}{93.3\%}       % human expert, same table

@@ -131,13 +131,18 @@ def half(name, axis="w"):
     return (w if axis == "w" else h) / 2
 
 
-def node_label(name, text, dy=None):
-    """A caption under an icon. Same size as every other piece of text."""
+def node_label(name, text, dy=None, dx=0.0):
+    """A caption under an icon. Same size as every other piece of text.
+
+    dx exists for one caption only. A caption is centred under its icon unless the
+    text is wide enough to reach into something on one side, which is a property of
+    the words, not of the layout.
+    """
     x, y = P[name]
     h = _extent[name][1] if name in _extent else 5.0
     if dy is None:
         dy = -(h / 2 + 1.2)
-    ax.text(x, y + dy, text, ha="center", va="top", fontsize=SIZE,
+    ax.text(x + dx, y + dy, text, ha="center", va="top", fontsize=SIZE,
             color=INK, linespacing=1.2)
 
 
@@ -337,6 +342,12 @@ def draw_checklist(cx, cy, s=1.0):
                 solid_capstyle="round", zorder=5)
 
 
+# 4 Sep 2026: labels renamed to match the paper. "Numeric Detector" is now the
+# "Arithmetic Trigger", "Verification Gate" is the "Routing Rule", and the two
+# components are the "Agreement Recheck" and the "Disagreement Recheck". The last two
+# were single-line labels and are now two lines; dy is unchanged because the text is
+# drawn with va="top", but check the lower one still clears the figure edge.
+#
 # --- draw ------------------------------------------------------------------
 for n in ("filing", "chunks", "numeric", "qwen3b", "qwen7b",
           "gate", "whale", "verdict"):
@@ -350,12 +361,17 @@ node_label("claim", "Claim")
 node_label("filing", "10K Filing\n(~41k words)")
 node_label("bm25", "BM25\nRetriever")
 node_label("chunks", "Retrieved\nChunks")
-node_label("numeric", "Numeric\nDetector")
+node_label("numeric", "Arithmetic\nTrigger")
 node_label("qwen3b", "Qwen 2.5\nCoder 3B")
 node_label("qwen7b", "Qwen 2.5\nCoder 7B")
-node_label("gate", "Verification\nGate")
-node_label("arbiter", "Arbiter", dy=-4.3)
-node_label("audit", "Audit", dy=-4.0)
+node_label("gate", "Routing\nRule")
+# Level with the "Qwen 2.5 / Coder 3B" caption opposite it, which puts its first
+# line back in the band the incoming arrow crosses. "Disagreement" is wide enough to
+# reach the arrow on its left and the "Agrees with 3B" label on its right, leaving a
+# corridor of about 10.5 units for 8.8 units of word, so dx centres it in the corridor
+# rather than under the icon.
+node_label("arbiter", "Disagreement\nRecheck", dy=-4.1, dx=0.74)
+node_label("audit", "Agreement\nRecheck", dy=-4.0)
 node_label("whale", "DeepSeek\nV4 Flash")
 
 GAP = 1.2        # breathing room between an icon edge and an arrow end
