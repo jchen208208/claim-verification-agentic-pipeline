@@ -37,7 +37,7 @@
 \input{numbers}
 
 % TITLE IS A PLACEHOLDER AND NEEDS YOUR APPROVAL.
-\title{On-Device Financial Claim Verification at Cloud-Level Accuracy}
+\title{Verifying Financial Claims with On-Device Models}
 
 % Fills the first-page footnote: "... (NeurIPS 2026). Workshop: <this>."
 % Was unset since 10 August.
@@ -57,17 +57,16 @@
 \maketitle
 
 \begin{abstract}
-Financial claim verification often requires grounding short claims in long regulatory filings, making cloud-only inference costly and potentially unsuitable for sensitive documents. We build a routed edge--cloud pipeline that runs two small models on device and escalates only when a disagreement gate or an arithmetic trigger fires, with no training or fine-tuning. On \nTest{} held-out claims from FINDVER, the routed system reaches \accRouted{} accuracy versus \accCloud{} for a cloud-only baseline, with no significant overall difference, while using \costRatio{} of the cloud tokens and settling \onDeviceRate{} of claims entirely on device. The aggregate tie, however, hides a significant loss on one subset: agreement between two models of the same family becomes false confidence because their errors are correlated, costing \keptLocalIEGap{} points on information-extraction claims. Arithmetic claims show the complementary failure mode, where both local models fail in the same direction and an unconditional trigger succeeds where disagreement cannot. These results show that effective edge--cloud verification depends not only on local model accuracy, but on whether the routing signal can observe the failures that matter.
-
+Financial claim verification requires validating short claims against long regulatory filings, making cloud-only inference costly and often unsuitable for sensitive documents. We build a routed edge--cloud pipeline that runs two small models on device and escalates only when a disagreement gate or an arithmetic trigger fires, with no training or fine-tuning. On \nTest{} held-out claims from FINDVER, the routed system reaches \accRouted{} accuracy versus \accCloud{} for cloud-only inference, with no significant overall difference, while using \costRatio{} of the cloud tokens and settling \onDeviceRate{} of claims entirely on device. That aggregate tie hides a substantial loss on one subset: agreement between two models of the same family becomes false confidence because their errors are correlated, costing \keptLocalIEGap{} points on the information-extraction claims the gate keeps local. Arithmetic claims share this failure mode, since both local models fail in the same direction, and an unconditional trigger succeeds where a plain disagreement gate cannot. Two local rechecks that address both cases raise accuracy to \accFull{} and cut escalation to \fullEscRate{}. Effective edge--cloud verification depends not only on local model accuracy, but on whether the routing signal can observe the failures that matter.
 \end{abstract}
 
 \section{Introduction}
 \label{sec:intro}
-Financial claim verification often requires grounding short claims in long, heterogeneous regulatory filings, documents that run to hundreds of pages \citep{reddy2024docfinqa}. Accuracy remains low even for frontier systems: given a retrieval system over such filings, GPT-4-Turbo answered 81\% of a manually reviewed sample of questions incorrectly or refused to answer \citep{islam2023financebench}. Sending every filing to a frontier cloud model is a poor deployment fit: filings may be commercially sensitive, while most input tokens come from the document rather than the claim, making repeated verification costly. Local models reduce both exposure and cost, but deciding when to trust them is difficult. The usual test is agreement: two local models read the same claim, and only a disagreement between them sends it to the cloud. That test assumes the two models fail independently, and some systematic failures produce no disagreement at all.
+Financial claim verification often requires grounding short claims in long, heterogeneous regulatory filings, documents that run to hundreds of pages \citep{reddy2024docfinqa}. Accuracy remains low even for frontier systems: given a retrieval system over such filings, GPT-4-Turbo answered 81\% of a manually reviewed sample of questions incorrectly or refused to answer \citep{islam2023financebench}. Sending every filing to a frontier cloud model is a poor deployment fit for two reasons: filings may be commercially sensitive, and most input tokens come from the document rather than the claim, so repeated verification is expensive. Local models reduce both exposure and cost, but deciding when to trust them is difficult. The usual test is agreement: two local models read the same claim, and only a disagreement between them sends it to the cloud. That test assumes the two models fail independently, and some systematic failures produce no disagreement at all.
 
 We address this problem with a routed edge--cloud verification pipeline that requires no training or fine-tuning. Retrieval and local inference remain on device, while a gate escalates only selected claims to a frontier model. We evaluate this design on FINDVER \citep{zhao2024findver}, where each claim must be judged \emph{entailed} or \emph{refuted} against the SEC filing it refers to. The strongest published system on that benchmark reaches \pubBestRAG{} under retrieval augmentation, and human experts reach \pubHumanExpert{}.
 
-This paper makes three contributions. We measure what a routed pipeline gives up against a frontier cloud model, and find no significant difference at \escRate{} of the cloud calls. We show that the aggregate result is misleading, because a gate built on agreement between two models of one family reads correlated error \citep{kim2025correlated} as confidence, and we quantify what that costs on the subset where it happens. We then address the two failures the gate cannot see, agreement on a wrong verdict and arithmetic error the two models share, on the device.
+This paper makes three contributions. We measure the accuracy cost of a routed pipeline against a frontier cloud model, and find no significant difference at \escRate{} of the cloud calls. We show that the aggregate result is misleading, because a gate built on agreement between two models of one family reads correlated error \citep{kim2025correlated} as confidence, and we quantify what that costs on the subset where it happens. We then address the two failures the gate cannot see, agreement on a wrong verdict and arithmetic error the two models share, on the device.
 
 
 
@@ -169,10 +168,11 @@ Financial claim verification has itself moved quickly since FINDVER appeared, in
 \begin{figure}[t]
 \centering
 \includegraphics[width=\textwidth]{model_diagram.png}
-\caption{The pipeline. Retrieval runs in plain Python with no model. Two small models on
+\caption{The pipeline. Retrieval is executed in Python with no model calls. Two small models on
 the device read the same retrieved evidence and answer independently. The gate sends a
-disagreement to the disagreement recheck and an agreement to the agreement recheck (Section~\ref{sec:routing}).
-Green edges from those two components keep the claim on the device and red edges send it
+disagreement to the disagreement recheck and an agreement on \emph{entailed} to the agreement
+recheck (Section~\ref{sec:routing}).
+Green arrows from those two components keep the claim on the device and red arrows send it
 to the cloud, which is reached on \fullEscRate{} of claims. A claim asserting a computed
 quantity is escalated by the arithmetic trigger before either local model runs.}
 \label{fig:pipeline}
@@ -196,7 +196,7 @@ The two models belong to the same family and were selected for deployment effici
 
 \subsection{Routing Policy}
 \label{sec:routing}
-Routing uses three signals. An arithmetic trigger, written in plain Python with no model behind it, handles arithmetic claims before local inference, and the gate escalates any claim on which the two local models disagree. We report those two together, without the rechecks, as \emph{gate only}. An agreement recheck then examines selected agreements and a disagreement recheck revisits disagreements, both on the device and each at the cost of at most one further 7B call. None of the three produces a verdict of its own; each only decides where the claim is answered. Whenever a claim is escalated, the cloud verdict replaces the local verdict.
+Routing uses three signals. An arithmetic trigger, written in plain Python with no model behind it, identifies arithmetic claims before local inference and escalates them. The gate escalates any claim on which the two local models disagree. We report those two together, without the rechecks, as \emph{gate only}. An agreement recheck then examines selected agreements, and a disagreement recheck revisits disagreements; both run on the device and each costs at most one further 7B call. None of the three produces a verdict of its own; each only decides whether the claim is kept locally or escalated to the cloud. Whenever a claim is escalated, the cloud verdict replaces the local verdict.
 
 \paragraph{Arithmetic Trigger.}
 A fixed rule-based detector identifies claims that assert a computed quantity from the claim text alone. It uses three regular-expression patterns covering sentence-final numeric predicates, percentage claims, and approximate or exact numeric assertions. Detected claims are sent directly to the cloud. This trigger targets failures that disagreement cannot expose when both local models make the same arithmetic error.
@@ -207,12 +207,12 @@ When both local models predict \emph{entailed}, we apply two checks for missed c
 \paragraph{Disagreement Recheck.}
 For non-arithmetic claims on which the local models disagree, the 7B model receives one additional query over the same evidence. Rather than asking it to choose between the previous verdicts, the prompt asks independently for evidence contradicting the claim. If the resulting verdict agrees with the 7B model's original answer, that answer is retained locally; otherwise the claim is escalated.
 
-The two rechecks act on disjoint populations and each adds at most one additional local 7B call. Together with the arithmetic trigger, they separate three cases that a single disagreement gate conflates: shared systematic errors, informative disagreements, and disagreements that the stronger local model can resolve.
+The two rechecks act on disjoint populations. Together with the arithmetic trigger, they separate three cases that a single disagreement gate conflates: shared systematic errors, informative disagreements, and disagreements that the stronger local model can resolve.
 
 
 \section{Experimental Setup}
 \label{sec:setup}
-FINDVER provides no training data and our system has no trainable parameters, so its \nDev{}-claim development split is used only to select the retriever, $k$, local models, prompts and routing signals, and every figure is measured on the \nTest{}-claim test split. We report verdict accuracy under strict scoring, where a response with no recoverable verdict counts as incorrect, with the unparseable rate beside it. All latency measurements come from a consumer-GPU desktop; we do not report end-to-end latency on a CPU-only device, where the ordering of the local and cloud stages reverses. Appendix~\ref{appendix:setup} gives the scoring procedure, the configuration and the hardware in full.
+FINDVER provides no training data and our system has no trainable parameters, so its \nDev{}-claim development split is used only to select the retriever, $k$, local models, prompts and routing signals, and every figure is measured on the \nTest{}-claim test split. We report verdict accuracy under strict scoring, where a response with no recoverable verdict counts as incorrect, with the unparseable rate beside it. All latency measurements come from a consumer-GPU desktop. Appendix~\ref{appendix:setup} gives the scoring procedure, the configuration and the hardware in full.
 \section{Results}
 \label{sec:results}
 
@@ -229,7 +229,7 @@ $p = \mcnemarAllP{}$ for the gate alone and $p = \mcnemarFullP{}$ with both rech
 \centering
 \begin{tabular}{lcccc}
 \toprule
-system & overall & FDV-IE & FDV-MATH & FDV-KNOW \\
+\textsc{System} & \textsc{Overall} & \textsc{FDV-IE} & \textsc{FDV-MATH} & \textsc{FDV-KNOW} \\
 \midrule
 3B alone                     & \accThreeB{}        & \accThreeBIE{}        & \accThreeBMATH{}        & \accThreeBKNOW{} \\
 7B alone                     & \accSevenB{}        & \accSevenBIE{}        & \accSevenBMATH{}        & \accSevenBKNOW{} \\
@@ -243,7 +243,7 @@ escalated, + both components & \fullEscRate{}      & \fullEscRateIE{}      & \fu
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:accuracy} compares the routed system, with and without the two rechecks, against the cloud-only baseline. With the gate alone it reaches \accRouted{} accuracy against \accCloud{} for cloud-only inference. Their difference is not significant under paired McNemar testing ($p = \mcnemarAllP{}$), and that configuration was fixed before the test split was read.
+With the gate alone the routed system reaches \accRouted{} accuracy against \accCloud{} for cloud-only inference (Table~\ref{tab:accuracy}). The difference is not significant under paired McNemar testing ($p = \mcnemarAllP{}$), and that configuration was fixed before the test split was read.
 
 Adding the two rechecks raises accuracy to \accFull{} ($p = \mcnemarFullP{}$) and reduces escalation from \escRate{} to \fullEscRate{}, leaving \fullOnDeviceRate{} of claims entirely on device (Table~\ref{tab:cost}). Both were designed after output from this split had been read, so we report them as a separate row (Appendix~\ref{sec:limitations}).
 
@@ -256,7 +256,7 @@ per claim. Latency is the GPU desktop; see Section~\ref{sec:setup}.}
 \centering
 \begin{tabular}{lccc}
 \toprule
- & gate only & \textbf{full system} & cloud only \\
+ & \textsc{Gate Only} & \textsc{\textbf{Full System}} & \textsc{Cloud Only} \\
 \midrule
 cloud calls made              & \cloudCalls{}        & \textbf{\fullCloudCalls{}}   & \nTest{} \\
 cloud input tokens            & \tokensRoutedIn{}    & \tokensFullIn{}    & \tokensCloudIn{} \\
@@ -275,9 +275,9 @@ median latency per claim      & \latRoutedMed{}\,s   & \latFullMed{}\,s   & \lat
 
 The aggregate result masks a failure of the basic disagreement gate. Table~\ref{tab:accuracy} shows that the gate-only system is significantly worse than the cloud baseline on FDV-IE, while the two systems are statistically tied on FDV-MATH and FDV-KNOW.
 
-The deficit comes from claims the gate keeps locally. On the \keptLocalIEn{} FDV-IE claims retained on device, the routed system scores \keptLocalIERouted{}, whereas the cloud model would score \keptLocalIECloud{} on the same claims, a gap of \keptLocalIEGap{} points. By contrast, performance on escalated FDV-IE claims is comparable to the cloud baseline. The problem is therefore not insufficient escalation overall, but incorrect confidence in a particular set of agreements.
+The deficit comes from claims the gate keeps locally. On the \keptLocalIEn{} FDV-IE claims retained on device, the routed system scores \keptLocalIERouted{}, whereas the cloud model would score \keptLocalIECloud{} on the same claims, a gap of \keptLocalIEGap{} points. Performance on escalated FDV-IE claims is comparable to the cloud baseline, so the problem is not insufficient escalation overall but misplaced confidence in a particular set of agreements.
 
-Because the two models share an architecture, a tokenizer and much of their training distribution, their errors are correlated: when both make the same mistake, agreement suppresses escalation exactly as if both were correct. Disagreement is therefore useful only to the extent that the models producing it fail differently.
+Because the two models share an architecture, a tokenizer and much of their training distribution, their errors are correlated: when both make the same mistake, agreement suppresses escalation exactly as if both were correct. Disagreement is useful only to the extent that the models fail differently.
 
 The agreement recheck targets this failure mode. With the complete system, FDV-IE accuracy rises from \accRoutedIE{} to \accFullIE{}, and the difference from the cloud baseline is no longer significant ($p = \mcnemarFullIEP{}$). On locally retained FDV-IE claims, the gap to cloud performance narrows from \keptLocalIEGap{} to \fullKeptLocalIEGap{} points.
 
@@ -286,7 +286,7 @@ The agreement recheck targets this failure mode. With the complete system, FDV-I
 
 \begin{table}[t]
 \caption{The local and cloud verdicts on the claims each routing decision acts on.
-\emph{Local} is the verdict the device would have returned and \emph{cloud} is the verdict
+\emph{Local} is the verdict accuracy the device would have returned and \emph{cloud} is the verdict accuracy
 the cloud model returned or would have returned, scored on the same claims. The first three
 rows are escalations. The fourth is a retention, where the disagreement recheck keeps the claim
 on the device.}
@@ -294,7 +294,8 @@ on the device.}
 \centering
 \begin{tabular}{lccc}
 \toprule
-routing decision & claims & local & cloud \\
+\textsc{Routing Decision}
+ & \textsc{Claims} & \textsc{Local} & \textsc{Cloud} \\
 \midrule
 escalate, the two models disagree& \trigDisagreeN{} & \trigDisagreeSevenB{}   & \trigDisagreeCloud{} \\
 escalate, arithmetic claim       & \trigNumericN{}  & \trigNumericSevenB{}    & \trigNumericCloud{} \\
@@ -304,11 +305,11 @@ keep, disagreement recheck sides with the 7B & \arbKept{}       & \arbKeptScore{
 \end{tabular}
 \end{table}
 
-Over all \cloudCalls{} claims the gate escalated (Table~\ref{tab:routing}), the cloud model scores \escCloudGave{} against \escWouldSevenB{} for the 7B model had those claims been kept locally. The two original signals capture different errors: the arithmetic trigger operates on claims where the local models may agree, and therefore detects failures that disagreement cannot observe.
+Over all \cloudCalls{} claims the gate escalated (Table~\ref{tab:routing}), the cloud model scores \escCloudGave{} against \escWouldSevenB{} for the 7B model had those claims been kept locally. The two original signals capture different errors: the arithmetic trigger operates on claims where the local models may agree, and so detects failures disagreement cannot observe.
 
 We also tested executing arithmetic locally rather than escalating it, following the Program-of-Thoughts pattern \citep{chen2022pot}. The approach failed at operand selection, not at execution: supplied with the correct operands the same deterministic interpreter reaches \arithOracle{}, but small local models often select the wrong figures from evidence containing many numerical candidates. Increasing the extractor from 3B to 7B narrows the gap to the cloud model without closing it, so we use arithmetic detection as a routing signal and not as a local solver.
 
-Both rechecks separate the populations they examine. Of the \auditRan{} claims where the two local models agreed on \emph{entailed}, the agreement recheck passes claims that are correct \auditPassedScore{} of the time and flags the rest. The disagreement recheck keeps \arbKept{} of \arbRan{} non-arithmetic disagreements on the device at no cost in accuracy, and its signal is asymmetric: the 7B verdict is correct \arbSidedSevenBCorrect{} of the time when the recheck agrees with it, against \arbSidedThreeBCorrect{} when it does not.
+Of the \auditRan{} claims where the two local models agreed on \emph{entailed}, the agreement recheck passes claims that are correct \auditPassedScore{} of the time and flags the rest. The disagreement recheck keeps \arbKept{} of \arbRan{} non-arithmetic disagreements on the device at no cost in accuracy, and its signal is asymmetric: the 7B verdict is correct \arbSidedSevenBCorrect{} of the time when the recheck agrees with it, against \arbSidedThreeBCorrect{} when it does not.
 
 \subsection{Missing evidence dominates the remaining errors}
 \label{sec:taxonomy}
@@ -370,11 +371,6 @@ identical runs. Our own local models are seeded at temperature zero and still mo
 one verdict in ten between reruns on the same machine. Comparisons in this paper are
 therefore paired wherever a paired test is available.
 
-\paragraph{No latency measurement on a CPU-only device.}
-All timings come from the GPU desktop. The laptop that motivates the on-device framing has
-been measured for a single local model only, and the routed pipeline has not been run on
-it end to end.
-
 \subsection{Detailed Experimental Settings}
 \label{appendix:setup}
 \paragraph{Splits and protocol.}
@@ -409,7 +405,6 @@ GPU, and every latency figure must name its machine because the ordering reverse
 them. On the desktop the local 3B model is the fastest of the three at
 \latThreeBMed{} seconds per claim, faster than either cloud model; on the laptop the same
 model takes roughly 420 seconds. Every latency figure in this paper comes from the desktop.
-We have not measured the routed pipeline end to end on the laptop.
 
 \subsection{Retrieval}
 \label{sec:retrievalresults}
@@ -429,7 +424,8 @@ model and no API cost.}
 \centering
 \begin{tabular}{lcc}
 \toprule
-retriever & dev ($n{=}\nDev{}$) & held-out ($n{=}\nTest{}$) \\
+\textsc{Retriever}
+ & \textsc{Dev($n{=}\nDev{}$)} & \textsc{Held-out($n{=}\nTest{}$)}  \\
 \midrule
 \textbf{ours, BM25}                & \textbf{\recallOursDev{}} & \textbf{\recallOursTest{}} \\
 \texttt{text-embedding-3-large}    & \recallEmbedDev{}         & \recallEmbedTest{} \\
