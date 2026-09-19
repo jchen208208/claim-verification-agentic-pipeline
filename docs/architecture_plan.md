@@ -39,6 +39,7 @@ A **5-page workshop paper**, submitted to *On-Device Intelligence: Foundation Mo
 | Template | **NeurIPS 2026 LaTeX template** |
 | Review | **Double-blind** |
 | Archival | **Non-archival** |
+| Preprint / arXiv | **No rule stated anywhere by the workshop.** Checked 19 Sep 2026; see the block below |
 | Submission | OpenReview |
 | Notification | 29 September 2026 |
 | Contact | odi.neurips2026@gmail.com |
@@ -57,6 +58,34 @@ professor rewrote the paper as a new 514-line file on Overleaf rather than editi
 `numbers.tex`, so every figure is still a macro, and he kept the old prose as commented blocks.
 `neurips_2026.tex` remains in the project at commit `ab1ae99` and is no longer the submission.
 Editing it does not reach the PDF.
+
+**[NEW 19 Sep 2026] The workshop states no preprint rule, so an arXiv version under our real names
+is not prohibited.** The professor raised this after submission and asked for the rules to be
+checked. Three sources were read on 19 September and the evidence is in `build_log.md` under that
+date.
+
+- **The call for papers says nothing about preprints, arXiv, or dual submission.** It covers
+  template, page limit, appendix, supplementary files and anonymity only. The one relevant sentence
+  is *"This workshop is non-archival and follows a double-blind review process."*
+- **The OpenReview venue says nothing either.** Its `instructions` field is empty and submissions are
+  configured as not public. The submission form has expired and can no longer be read.
+- **The NeurIPS 2026 Main Track Handbook explicitly allows non-anonymous preprints**, and permits
+  dual submission to non-archival workshops. That is the parent body's rule, not this workshop's,
+  which set none.
+
+**This is the absence of a rule, not a permission**, and the distinction should be kept in any
+sentence written about it. The organisers at `odi.neurips2026@gmail.com` are the only people who can
+give the second thing.
+
+**Timing is the only live risk and it expires with the review period.** A named preprint can
+deanonymise a paper to a reviewer who searches for it. Review ran 6 to 19 September. Posting after
+the 29 September notification carries no double-blind risk, and it posts the version that reflects
+the reviews. **The same reasoning governs making the GitHub repository public**, because a public
+repo under a named account containing the submitted PDF is the same disclosure by another route. The
+two should happen on the same day, after notification.
+
+**Non-archival still means the archival route is open.** Nothing about an arXiv posting closes the
+fuller version's path to an archival venue.
 
 **Authorship:** student is first author. The professor is a co-author, and he will recruit roughly two industry co-authors to strengthen the author list.
 
@@ -1857,6 +1886,21 @@ Table parsing overruns, cut Tier 1's retry loop before cutting Tier 1. Cloud key
 
     Full session detail, including the live DeepSeek smoke test and the reasoning-model finding, in the build log entry for 7 August.
 
+14. **Meeting held, 19 September 2026, after submission.** Items 13 through this one are a gap in
+    this log; the meetings of 25 and 27 August are recorded in `build_log.md` under their dates, not
+    here. Four things from him.
+
+    - **Publishing to an archive such as arXiv, with our real names, is fine by him**, and he asked
+      for the workshop's own rules to be checked first. Done the same day; see §1.1.
+    - **Three candidate next directions**: a second benchmark, more complexity in the routing system,
+      or a couple more skills. Assessed in §17.
+    - **Run everything on the new GPU laptop.** He judges that results from more than one device make
+      the paper much stronger and close to complete. This is the full re-run that §17 prices, and it
+      reverses nothing in the 31 August hardware rule except our willingness to pay for it.
+    - **Make the GitHub repository public.** Pre-flight checks done the same day and recorded in
+      `build_log.md`: no key material in any commit, `.env` never tracked, no upstream benchmark data
+      redistributed, and the tracked PDF is the anonymous version.
+
 **Immediate next actions (sprint, deadline 29 Aug AoE):**
 - [x] Install Ollama; pull models; benchmark; note throughput
 - [x] Clone the repo; confirm the real data and table formats
@@ -1929,3 +1973,74 @@ Table parsing overruns, cut Tier 1's retry loop before cutting Tier 1. Cloud key
 - **[ADDED 4 Sep 2026, for the introduction's opening claim, verified against the arXiv abstract page that day]** Reddy, Koncel-Kedziorski, Lai, Krumdick, Lovering, Tanner, 2024. *DocFinQA: A Long-Context Financial Reasoning Dataset.* Findings of ACL 2024, arXiv:2401.06915. Financial documents run to hundreds of pages; 7,437 FinQA questions taken from under 700 words to 123k words of context. **The 123k figure is not quoted in our paper**, see `paper_numbers.md` §6.2.
 - **[ADDED 4 Sep 2026, verified against the arXiv abstract page]** Islam, Kannappan, Kiela, Qian, Scherrer, Vidgen, 2023. *FinanceBench: A New Benchmark for Financial Question Answering.* arXiv:2311.11944. GPT-4-Turbo with retrieval incorrectly answered or refused 81% of a manually reviewed sample. Caveats on quoting it in `paper_numbers.md` §6.1.
 - **[VERIFIED 4 Sep 2026, not used]** Jiang et al., 2026. *All That Glisters Is Not Gold*, arXiv:2601.04160. Financial misinformation over news paragraphs rather than filings, so the fit is weak.
+
+---
+
+## 17. **[NEW 19 Sep 2026]** After the workshop: the four directions, and what each one costs
+
+Opened by the 19 September meeting (§14 item 14). **None of these can touch the workshop table.** The
+RX 7600 XT is gone, every number in the submitted paper came from it, and nothing measured anywhere
+else is comparable to it.
+
+### 17.1 The two-device re-run
+
+**What he asked for.** Run everything on the new laptop, so the results come from more than one
+device.
+
+**What it costs.** Run 1 and condition 5 alone were about 32 hours of summed wall clock on the RX
+7600 XT, plus every cloud call again. Conditions 1 at 3B, 1 at 7B, and 2 at both n=700 and n=1,700
+sit on top of that. The RTX 5070 Ti is a different and newer GPU, so its own timings cannot be
+projected from ours and the first thing it should do is a smoke run that produces them.
+
+**The requirement that makes it a device comparison at all.** Everything except the device has to be
+held fixed, and we already have a measurement of what happens when it is not: the 7 August
+cross-machine divergence of 5 of 6 verdicts is confounded with an Ollama version difference, and its
+attribution to CPU-versus-ROCm arithmetic was never safe.
+
+1. **Pin Ollama before the first run and record the version.** Auto-update off first. If 0.32.9 can
+   still be installed, install it, and the device becomes the only thing that changed. If it cannot,
+   the comparison is device-plus-version and the paper has to say so in those words. The plumbing
+   exists: `Record` carries `ollama_version`, and `run.py` aborts when the live server does not match
+   `expect_ollama_version` in the config.
+2. **The cloud model string has to be identical**, and we cannot control whether the provider changes
+   what that string points at. A drifting cloud arm is not a device effect.
+3. **Comparisons are against the frozen per-claim JSON in `results/`**, which is already on the
+   MacBook. Nothing is stranded on the old box, and nothing on it can be re-measured.
+
+**What a two-device result can honestly claim.** Not identical numbers. §2.3.2 of `paper_numbers.md`
+shows the model is byte-identical across runs only when the machine and the Ollama version are both
+fixed, so changing the machine will move verdicts. **The claim that survives is that the conclusions
+replicate**: the tie with cloud alone, the reduction in cloud calls, and the FDV-IE deficit all
+reappear. Write it as replication of a finding, never as an extension of a table.
+
+### 17.2 A second benchmark
+
+The strongest of the three research directions for a reviewer, because every number in the paper
+comes from one dataset and the first question about a routing rule is whether it transfers.
+
+The cost is mostly engineering rather than compute: a loader, a retrieval path and a sampler for a
+new data format. **That is the part of week 1 that cost the most time here**, and the data traps in
+`CLAUDE.md` were all format traps, so budget for finding new ones rather than for reusing ours.
+
+### 17.3 More complexity in the routing system
+
+**The weakest of the three as stated, and the evidence is ours.** §2.6.4 measured that the routing
+oracle is large but that every implementable rule tested is a tie. The two components that did work,
+the audit trigger and the arbiter, were each found by looking at one error pool and asking what would
+close it, not by adding machinery to the gate.
+
+**Worth doing only against a named error category**, with the ceiling measured before anything is
+built.
+
+### 17.4 More skills
+
+Same gate, and the project has one result in each direction already: the arithmetic skill was built,
+measured on all 250 numeric claims, and lost by 22 points (§2.23 of `paper_numbers.md`), while the
+audit skill works (§2.26). **Measure the ceiling before building**, which is the procedure that
+killed the arithmetic skill cheaply and is the reason the audit skill survived.
+
+### 17.5 What is not in this list
+
+Fine-tuning, distillation and any other use of training compute stay out of scope. The laptop latency
+run stays cancelled, and the reason is unchanged and is not a compute reason: a 2017 target device
+invites a question about the target device.

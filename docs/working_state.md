@@ -2,7 +2,7 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 4 September 2026.
+Last updated: 19 September 2026.
 
 ---
 
@@ -5673,3 +5673,142 @@ PAL 8, TART 5, Program of Thoughts 4. The reference list absorbed 36 names witho
    after the deadline.
 4. **`CLAUDE.md` names the wrong submission file** in its "Where things live" section.
 5. **Nothing needs the GPU box.** Unchanged from 2 September. All workshop results are in.
+
+---
+
+## 19 September: THE POST-SUBMISSION MEETING. arXiv is open, the repo goes public, and the next paper is a two-device re-run.
+
+No experiments. A meeting with the professor, a rules check, and four next steps.
+
+### Where the project stands today
+
+**Submitted.** Commit `1f41064`, 7 September, holds the submitted PDF,
+`paper/Verifying_Financial_Claims_with_On-Device_Models__ODI_NeurIPS_2026.pdf`. Its first page reads
+"Anonymous Author(s)", so the anonymous version is what went in.
+
+**The review period ran 6 to 19 September and ends today.** Notification is 29 September 2026 AoE.
+Nothing is due to the workshop before then.
+
+### 1. The arXiv question: nothing forbids it, and nobody has said yes either
+
+He said it is fine to put the paper on an archive such as arXiv with our real names on it, and asked
+me to check the workshop's own rules. I checked three sources today. Full detail and quotes in
+`build_log.md` under 19 September.
+
+**The workshop has no preprint rule at all.** The call for papers on `odi2026.github.io` covers
+template, page limit, appendix, supplementary files and anonymity. It says nothing about arXiv,
+preprints, or dual submission. The only line that touches this is:
+
+> "This workshop is *non-archival* and follows a double-blind review process."
+
+**The OpenReview venue has no rule either.** The venue's `instructions` field is empty, and
+submissions are configured as not public. The submission form itself has expired, so its text can no
+longer be read back from the API.
+
+**NeurIPS's own handbook allows non-anonymous preprints.** This is the main conference's rule, not
+this workshop's, but it is the parent body and it is explicit:
+
+> "The existence of non-anonymous preprints (on arXiv or other online repositories, personal
+> websites, social media) will not result in rejection."
+
+and
+
+> "While having a nonanonymized preprint alone is not a violation of the double-blind reviewing
+> policy, aggressive advertising of papers under submission may be deemed a violation."
+
+**What this supports, and what it does not.** It supports: no rule we can find prohibits an arXiv
+posting under our own names, and non-archival means the workshop makes no claim on the work, so an
+arXiv preprint now and an archival venue later are both still open. It does not support a statement
+that the organisers have approved it. **Nothing found is not the same as permission granted.**
+
+**The one real risk is timing, and it is nearly gone.** A named preprint of a paper under
+double-blind review can deanonymise it to a reviewer who searches. Review ends today. Posting after
+the 29 September notification carries no double-blind risk at all, and it also means we post the
+version that reflects the reviews.
+
+**Recommendation: wait until 29 September, and send one email to `odi.neurips2026@gmail.com`
+first.** The organisers are the only people who can actually answer this, one email settles it
+permanently, and the answer costs nothing to get. If the answer is no, we have lost nothing by
+waiting.
+
+### 2. Making the GitHub repo public
+
+The repo is `jchen208208/Financial-Claim-Verifier-Agent`, currently **private**, no description.
+Three checks done today before recommending anything.
+
+- **No key material in the history.** Every commit was scanned for `sk-`-style tokens and inline
+  `api_key = "..."` assignments. Nothing found. `.env` and `.env.*` have been ignored from the
+  start and appear in no commit.
+- **The benchmark data is not in the repo.** `FinDVer/` is gitignored, so we are not redistributing
+  1.3 GB of someone else's dataset. 144 files are tracked.
+- **The submitted PDF is tracked**, and it is the anonymous version. A public repo under a named
+  GitHub account that contains the submitted paper is exactly the deanonymisation path described
+  above, so **this is the same timing question as arXiv, not a separate one.**
+
+**Recommendation: do it on the same day as the arXiv posting, not before.** Nothing technical is in
+the way. Add a description and a licence when it goes, and update `README.md`, which currently says
+`docs/` holds the "benchmark paper" and does not mention `paper/` at all.
+
+### 3. The three research directions he named
+
+All three are for the next paper, not this one. None of them can touch the workshop table.
+
+1. **A second benchmark.** The strongest of the three for a reviewer, because every number we have is
+   on one dataset and the obvious question about a routing rule is whether it transfers. Cost is
+   mostly engineering: a loader, a retrieval path and a sampler for a new data format, which is the
+   part of week 1 that cost the most time here.
+2. **More complexity in the routing system.** The weakest of the three as stated, because we already
+   measured that most implementable gate rules tie (§2.6.4), and the two components that did work,
+   the audit trigger and the arbiter, were each found by looking at a specific error pool rather than
+   by adding machinery. Worth doing only against a named error category.
+3. **More skills.** One skill was built and measured and lost by 22 points (§2.23). One audit skill
+   works (§2.26). The honest framing for the next one is the same gate: measure the ceiling before
+   building it.
+
+### 4. "Run everything on the new device", and what it actually costs
+
+This is the one that changes planning, and it reverses a standing constraint.
+
+**The old rule, from 31 August:** the archival long paper cannot extend the workshop table, because
+new-laptop results are not comparable to brother's-box results, so extending the table means
+re-running every arm and should be priced as a full re-run rather than an addition.
+
+**He is now asking for exactly that full re-run, and he is right that it is worth it.** Two devices
+is a stronger paper than one. The cost has not changed, only our willingness to pay it:
+
+- Run 1 and condition 5 alone were about **32 hours** of summed wall clock on the RX 7600 XT, plus
+  every cloud call again. The 5070 Ti is a different and newer GPU, so its own timings are unknown
+  and cannot be projected from ours.
+- Conditions 1 (3B and 7B) and 2 at n=700 and n=1,700 are on top of that.
+
+**The methodological requirement, and it is not optional.** A second device is a clean device
+comparison only if everything else is held fixed. We already know what happens when it is not:
+the 7 August cross-machine divergence of 5 of 6 verdicts is confounded with an Ollama version
+difference and the attribution was never safe.
+
+- **Pin Ollama on the new laptop and record the version before the first run.** If 0.32.9 can still
+  be installed, install that, and the device is then the only thing that changed. If it cannot, the
+  comparison is device-plus-version again and the paper has to say so. Turn auto-update off first.
+  The infrastructure for this already exists: `Record` carries `ollama_version` and `run.py` aborts
+  when it does not match `expect_ollama_version` in the config.
+- **The cloud model has to be the same string**, and we cannot control whether DeepSeek changes what
+  that string points at. If the cloud arm drifts, the cloud comparison is not a device comparison.
+- **The reference numbers can never be re-taken.** The GPU box is gone. Every comparison is against
+  the frozen per-claim JSON in `results/`, which is already on the MacBook.
+
+**What a two-device result can honestly claim.** Not identical numbers. Verdicts move across
+machines, and a 3B model at temperature 0 with a fixed seed is deterministic only when the Ollama
+version and the machine are both fixed (§2.3.2). The claim that survives is that the conclusions
+replicate, meaning the tie with cloud alone, the cloud-call reduction and the FDV-IE deficit all
+reappear. Expect the accuracy points themselves to move.
+
+### STILL OPEN
+
+1. **Notification, 29 September AoE.** Nothing to do until then.
+2. **Email the organisers about the arXiv posting.** One email, to `odi.neurips2026@gmail.com`.
+3. **arXiv posting and repo publication**, both after 29 September, both on the same day.
+4. **Decide which of the three directions is next**, and whether the two-device re-run comes first.
+   The re-run is the only one that needs the new laptop set up, so it is the one that gates hardware
+   work.
+5. **`CLAUDE.md` carries three lines that this meeting made stale.** Listed in `build_log.md` under
+   19 September. It is gitignored and is edited by hand.

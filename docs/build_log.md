@@ -7520,3 +7520,127 @@ opening sentence given citations. The paper compiles clean at **five pages of bo
 total**.
 
 Submission is the student's to do, and the deadline is 6 September 04:59 Pacific.
+
+---
+
+## 19 September 2026 - the post-submission meeting, the preprint rules check, and the pre-flight check on making the repo public
+
+No code, no runs. A meeting, a rules check against three sources, and three concrete checks on the
+repository. Status summary in `working_state.md` under 19 September.
+
+### The meeting
+
+Four things from the professor, after submission and during the review period.
+
+1. **Publishing to an archive such as arXiv, with our real names on it, is fine by him.** He asked
+   me to check the workshop's own rules rather than assume.
+2. **Next research steps**, three of them: evaluate on a second benchmark, add more complexity to the
+   routing system, or explore a couple more skills.
+3. **The new GPU laptop.** If we can run everything on it, the paper is much stronger and close to
+   complete, because the results would then come from more than one device.
+4. **Make the GitHub repository public.**
+
+### The rules check: three sources, and the workshop itself has no preprint rule
+
+**Source 1, the workshop site, `https://odi2026.github.io`.** The page is a shell that loads its
+content from markdown files, so the real text is at `https://odi2026.github.io/content/<name>.md`.
+The files are `hero`, `dates`, `about`, `topics`, `contact`, `schedule`, `organizers`, `speakers`,
+`sponsors`. The call for papers is `topics.md`, and the site's cache-busting tag was
+`v=20260916-event-details`, so the version read today was current as of 16 September.
+
+`topics.md` specifies the template, the 5-page limit, that references and appendix do not count, that
+an appendix may be included in the same PDF, that no separate supplementary files are accepted, that
+reviewers are not required to read the appendix, and that the whole submission including the appendix
+must comply with double-blind. **It says nothing about preprints, arXiv, or dual submission.** The
+only relevant sentence is:
+
+> "This workshop is *non-archival* and follows a double-blind review process. Outstanding submissions
+> will be invited for a 15-minute oral presentation. All accepted papers will be presented during the
+> poster session."
+
+`dates.md` confirms the review period as 6 to 19 September 2026 and notification as 29 September
+2026, 23:59 AoE, with the submission deadline marked closed.
+
+**Source 2, the OpenReview venue.** Read from the API rather than the web page, since the page is
+JavaScript-rendered:
+
+    https://api2.openreview.net/groups?id=NeurIPS.cc/2026/Workshop/ODI
+
+The venue's `instructions` field is an empty string. `public_submissions` is `false`, so submissions
+are not published by OpenReview. There is no preprint, dual-submission or anonymity-period field
+anywhere in the venue configuration. The submission invitation itself now returns
+`InvitationExpiredError`, so the text of the submission form cannot be read back. The venue request
+form, `Hu6RAiaB7R`, is behind a challenge and could not be read either.
+
+**Source 3, the NeurIPS 2026 Main Track Handbook**, `https://neurips.cc/Conferences/2026/MainTrackHandbook`.
+This governs the main conference, not this workshop, but it is the parent body and it is explicit:
+
+> "The existence of non-anonymous preprints (on arXiv or other online repositories, personal
+> websites, social media) will not result in rejection."
+
+> "The reviewing process will treat any other archival submission by an overlapping set of authors as
+> prior work (dual submissions to nonarchival workshops are permitted)."
+
+> "While having a nonanonymized preprint alone is not a violation of the double-blind reviewing
+> policy, aggressive advertising of papers under submission may be deemed a violation."
+
+**The supportable conclusion.** No rule we can find prohibits posting the paper to arXiv under our
+own names, and the workshop being non-archival means it makes no claim on the work, so arXiv now and
+an archival venue later both stay open. **This is an absence of a rule, not a permission.** The
+organisers at `odi.neurips2026@gmail.com` are the only people who can give the second thing, and one
+email gets it.
+
+**The timing point.** The risk a named preprint creates is deanonymisation to a reviewer who
+searches, and it only exists while review is running. Review ends today, 19 September. Posting after
+notification on 29 September carries no double-blind risk and also posts the version that reflects
+the reviews.
+
+### The pre-flight check on making the repository public
+
+Repository: `jchen208208/Financial-Claim-Verifier-Agent`, confirmed **private** today through
+`gh repo view`, with an empty description.
+
+| check | method | result |
+|---|---|---|
+| key material in history | `git grep` for `sk-[A-Za-z0-9]{16,}` and `api_key = "..."` across every commit reachable from all refs | nothing found |
+| `.env` ever committed | `git log --all -- .env`, and `git ls-files` filtered for env/key/secret | never tracked, ignored since the first commit |
+| benchmark data redistributed | `.gitignore` and `git ls-files` | `FinDVer/` ignored, 144 files tracked, no upstream data |
+| what the submitted PDF contains | text extracted from page 1 of the tracked PDF | "Anonymous Author(s)", so the anonymous version is the one committed |
+
+**The finding that matters.** A public repository under a named account containing the submitted
+paper is the same deanonymisation path as the arXiv posting. It is not a separate decision and
+should happen on the same day, after notification.
+
+Two housekeeping items for the day the repo goes public: it has no description and no licence file,
+and `README.md`'s layout block says `docs/` holds the "benchmark paper" while not mentioning `paper/`
+at all.
+
+### The two-device re-run, priced
+
+Recorded in full in `working_state.md`. The short version, because it reverses a standing constraint:
+the 31 August rule said the archival paper cannot extend the workshop table and a second machine
+means re-running every arm. That is precisely what the professor is now asking for, so the rule is
+not wrong, it is being paid. Run 1 and condition 5 alone were about 32 hours of summed wall clock on
+the RX 7600 XT plus the cloud calls again, and conditions 1 and 2 are on top of that. The 5070 Ti's
+own timings cannot be projected from ours.
+
+**The requirement that makes it a device comparison rather than a device-and-version comparison:**
+pin Ollama on the new laptop and record the version before the first run, ideally at 0.32.9 so the
+device is the only thing that changed. The 7 August cross-machine divergence of 5 of 6 verdicts is
+confounded with a version difference and its attribution was never safe; §2.3.2 of `paper_numbers.md`
+shows the same model is byte-identical across runs when the version and machine are both fixed. The
+plumbing already exists: `Record` carries `ollama_version`, and `run.py` aborts when the live server
+does not match `expect_ollama_version`.
+
+### `CLAUDE.md` lines this meeting made stale
+
+`CLAUDE.md` is gitignored and hand-edited, so these are listed rather than changed:
+
+1. **"Its numbers will not be comparable to the workshop paper's ... Price that as a full re-run, not
+   as an addition."** Still factually true, but it reads as a reason not to, and the full re-run is
+   now the plan.
+2. **"Review is double-blind, so no author names and no identifying repository link in the submitted
+   PDF."** True of the submitted PDF forever. It does not govern an arXiv version or a public repo,
+   and the file does not currently say so.
+3. **"`paper/neurips_2026.tex` is the 5-page submission."** Wrong since 4 September; the submission
+   was `paper/workshop.tex`, which lives on Overleaf and is not tracked here. Open since 4 September.
