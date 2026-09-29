@@ -7644,3 +7644,128 @@ does not match `expect_ollama_version`.
    and the file does not currently say so.
 3. **"`paper/neurips_2026.tex` is the 5-page submission."** Wrong since 4 September; the submission
    was `paper/workshop.tex`, which lives on Overleaf and is not tracked here. Open since 4 September.
+
+---
+
+## 29 September 2026 - the decision, and the site re-read
+
+No experiments, no code. Two things happened: the workshop decision arrived, and the workshop site
+was re-read to get the attendance and schedule wording verbatim rather than paraphrased.
+
+### The decision, as posted on OpenReview
+
+**Decision: Accept (Poster).** Program Chairs, 29 September 2026, 03:07, modified 09:02.
+Submission 94, titled *On-Device Financial Claim Verification at Cloud-Level Accuracy*.
+
+| | Reviewer NsvQ | Reviewer EWds | AC PhPm |
+|---|---|---|---|
+| Posted | 16 Sep, 11:51 | 12 Sep, 17:58 | 19 Sep, 09:46 |
+| Rating | **5: Accept** | **4: Borderline** | - |
+| Oral recommendation | **Yes** | No | - |
+| Confidence | 3 | 3 | 4 |
+| Recommendation | - | - | **Accept (Poster)** |
+
+The meta-review's two-sentence summary of the negative side: "the system's clear cost-performance
+trade-offs, the limited algorithmic novelty, noting the pipeline relies heavily on established
+techniques. Furthermore, the absence of a cross-family model comparison (e.g., Qwen vs. Llama) to
+natively resolve the correlated error issue leaves a noticeable gap in the experiments."
+
+**Why there is no oral.** `topics.md` says "Outstanding submissions will be invited for a 15-minute
+oral presentation. All accepted papers will be presented during the poster session." NsvQ
+recommended an oral; the area chair did not carry it.
+
+### The one experiment all three reviews ask for
+
+Both reviewers and the meta-review raise the same point independently. Quoted rather than summarised,
+because the wording matters for what the experiment has to be.
+
+NsvQ:
+
+> "The two models used on-device are both the same Qwen models, the only difference being that they
+> have been trained on different number of parameters. This may produce correlation errors and the
+> disagreement check may not cover all meaningful and possible disagreements. (To their credit, they
+> do acknowledge this issue.)"
+
+EWds:
+
+> "Since the paper attributes failure to same-family error correlation, it should compare Qwen 3B/7B
+> against a similarly sized cross-family pair such as Qwen plus Gemma or Llama. It would make this
+> comparison clearer."
+
+The meta-review calls the absence "a noticeable gap in the experiments."
+
+**What this costs, and it is not small.** A cross-family pair means re-running the local arms with a
+different 3B-class and 7B-class model, then re-running the gate on top. It needs a GPU. The RX 7600
+XT is gone, so it needs the new 5070 Ti laptop, which is also what the two-device re-run needs. Run 1
+and condition 5 alone were about 32 hours of summed wall clock on the old box, and the new GPU's
+timings cannot be projected from those.
+
+**One note on how it composes with the two-device re-run.** They are not additive in the obvious way.
+The re-run holds the models fixed and changes the device. The cross-family experiment holds the
+device fixed and changes the models. Doing both on the new laptop is coherent, but the cross-family
+arms have **no** old-box counterpart, so they are new numbers rather than a replication, and the paper
+has to keep the two claims separate.
+
+### The other review asks
+
+- **Fine-tuning**, raised by NsvQ ("The models have not been trained or fine-tuned. It would be good
+  to see if that step would produce better (or worse) results"). Out of scope. No training compute.
+  This has been a standing constraint since week 1 and nothing about the acceptance changes it.
+- **"I suggest the author adding more practical deployment experiments"**, EWds. This is the laptop
+  latency run. It was cancelled on 25 August on the professor's objection, which was a prediction
+  about reviewers: they will ask why we are using a 2017 laptop. **The prediction did not hold.** A
+  reviewer asked for more deployment evidence instead. That is worth putting back to him, and it is
+  the only review item that reverses an earlier decision of ours rather than adding work.
+- **Quantization detail**, NsvQ, explicitly marked minor: "more information on the quantization
+  method used could be added, and if that method influences the performance in any way." Cheap. We
+  run Ollama defaults and the tag is already logged per call.
+- **Metrics beyond accuracy, and fairness metrics**, NsvQ, explicitly filed as future work.
+- **"The paper should clarify what generalizable contribution it provides beyond applying these ideas
+  to FINDVER"**, EWds. A writing item. EWds frames the whole submission as "a domain-specific case
+  study rather than a new routing method."
+
+### The site re-read: attendance and schedule
+
+Read `https://odi2026.github.io/content/topics.md`, `dates.md`, `hero.md` and `schedule.md` on
+29 September, by the same route as 19 September: the page is a shell and the real text is in
+`content/<name>.md`.
+
+**The attendance section, verbatim.** Our records carried this as the one-line paraphrase
+"in-person attendance is expected, at least one author in Sydney", first recorded 29 August. The
+actual text is longer and is a named section, "In-Person Attendance":
+
+> "ODI 2026 is an in-person workshop. We expect at least one author of each accepted paper to attend
+> the workshop in Sydney and present the work in person, barring unexpected circumstances. Authors
+> facing unexpected circumstances should contact the organizing team as soon as possible. Any
+> exception, including a remote presentation, is subject to NeurIPS 2026 rules and the workshop's
+> technical capacity and cannot be guaranteed."
+
+Three things the paraphrase lost: the phrase "barring unexpected circumstances", the instruction to
+contact the organising team as soon as possible, and the explicit statement that a remote
+presentation "cannot be guaranteed".
+
+**The workshop is one day.** Every document of ours said "11/12 December", recorded 1 August. The
+site gives a single date in three places, `dates.md` ("Workshop day: December 12, 2026"), `hero.md`
+and `schedule.md`:
+
+- **Saturday 12 December 2026, 08:00 to 17:00 AEDT**
+- International Convention Centre Sydney, **Room MR C3.6**
+
+Corrected today in `working_state.md`, in `architecture_plan.md` §1.1, and inline at the two places
+in this file that carried it. Historical entries were marked rather than rewritten.
+
+**The poster session length is not published.** `schedule.md` has exactly one row, "08:00 - 17:00,
+ODI 2026 Workshop", with the description "The detailed program will be announced soon." So there is
+no answer yet to how long a poster has to be staffed. `about.md` confirms the day includes "keynote
+talks, panel discussions, contributed oral presentations, and poster sessions".
+
+`dates.md` also now marks the submission deadline "Closed" and carries the review period and the
+29 September notification, all as previously recorded.
+
+### What this unblocks
+
+The three items that were waiting on notification are now open: the email to
+`odi.neurips2026@gmail.com` about arXiv, the arXiv posting, and making
+`jchen208208/Financial-Claim-Verifier-Agent` public. The double-blind timing risk that justified
+waiting is gone. One new item ahead of all of them: **ask the professor who travels to Sydney**,
+because that decides whether the exception email is needed, and December books early.

@@ -5814,3 +5814,94 @@ reappear. Expect the accuracy points themselves to move.
    work.
 5. **`CLAUDE.md` carries three lines that this meeting made stale.** Listed in `build_log.md` under
    19 September. It is gitignored and is edited by hand.
+
+---
+
+## 29 September: ACCEPTED, POSTER. The reviews name one experiment, and the workshop is one day.
+
+No experiments. The decision arrived, and the workshop site was re-read for the attendance and
+schedule wording. Full quotes in `build_log.md` under 29 September.
+
+### The decision
+
+**Accept (Poster).** Program Chairs, 29 September 2026, 03:07. Submission 94.
+
+- Reviewer NsvQ: rating **5, Accept**. Oral recommendation **yes**. Confidence 3.
+- Reviewer EWds: rating **4, Borderline**. Oral recommendation **no**. Confidence 3.
+- Area Chair PhPm: **Accept (Poster)**, confidence 4.
+
+No oral. The call for papers reserves the 15-minute oral slots for "outstanding submissions" and says
+"All accepted papers will be presented during the poster session." One reviewer did recommend an
+oral and the area chair did not take it.
+
+### What all three reviews agree on, and it is one experiment
+
+Both reviewers and the meta-review independently raise the **same** weakness: the two on-device
+models are both Qwen, so their agreement can hide correlated errors, and the paper should compare
+against a **cross-family pair**, named as Qwen plus Llama or Qwen plus Gemma. EWds calls it the gap
+that leaves the attribution unsupported. The meta-review calls its absence "a noticeable gap in the
+experiments." NsvQ credits us for acknowledging the issue but still asks for the comparison.
+
+**This is a fourth research direction, and it did not come from us or the professor.** It now sits
+beside the three he named on 19 September. Two observations about where it lands:
+
+1. **It needs a GPU, so it needs the new laptop.** The RX 7600 XT is gone. That makes it the same
+   hardware task as the two-device re-run, and between them they decide what the new machine does
+   first.
+2. **It is a direct test of a claim already in the paper.** The correlated-error finding is the part
+   both reviewers called the most interesting thing in the submission, and the cross-family pair is
+   the experiment that would confirm or kill the attribution. That is a stronger reason to do it than
+   any of directions 2 or 3 from the 19 September meeting.
+
+### The other review asks, and which are out of scope
+
+- **Fine-tuning** (NsvQ, EWds implicitly). Out of scope and has been throughout. There is no
+  training compute. Nothing changed.
+- **"More practical deployment experiments"** (EWds). This is the laptop latency run, killed by the
+  professor on 25 August for a reviewer-facing reason: a 2017 laptop invites a question about the
+  target device. A reviewer has now asked for it anyway. Worth putting back to him, since his
+  objection was a prediction about reviewers and the prediction did not hold.
+- **Quantization method detail** (NsvQ, marked minor). Cheap. We run Ollama defaults and the exact
+  quantization string is recoverable from the model tags we already log.
+- **Metrics beyond accuracy, and fairness metrics** (NsvQ, marked as future work). Not costed.
+- **"Clarify the generalizable contribution"** (EWds). A writing item for the archival version, not
+  a measurement.
+
+### The workshop is one day, not two
+
+Re-read `https://odi2026.github.io/content/*.md` on 29 September. Every document of ours said
+"11/12 December". Corrected in this file, in `architecture_plan.md` §1.1 and in `build_log.md`.
+
+- **Saturday 12 December 2026, 08:00 to 17:00 AEDT.**
+- International Convention Centre Sydney, **Room MR C3.6**.
+
+**The poster session length is not published.** The schedule page has one row, 08:00 to 17:00,
+labelled "ODI 2026 Workshop", with the note "The detailed program will be announced soon."
+
+### In-person attendance, verbatim
+
+The call for papers has a dedicated section, which our earlier one-line paraphrase understated. Full
+text quoted in `build_log.md`. The operative points:
+
+- It is an in-person workshop, and they expect **at least one author** of each accepted paper in
+  Sydney, presenting in person.
+- **"At least one author" is the whole of the requirement.** The professor or an industry co-author
+  satisfies it.
+- A remote presentation is possible, subject to NeurIPS rules and workshop capacity, and
+  **"cannot be guaranteed."**
+- Anyone facing unexpected circumstances is told to contact the organising team **as soon as
+  possible**, which is the sentence to act on if nobody can travel.
+
+### STILL OPEN, replacing the 19 September list
+
+1. ~~Notification, 29 September.~~ **Done. Accept, poster.**
+2. **Who travels to Sydney on 12 December.** Ask the professor. December in Sydney is expensive and
+   books early, and the answer decides whether the exception email is needed at all.
+3. **Email the organisers about the arXiv posting**, `odi.neurips2026@gmail.com`. Unblocked now that
+   the decision is out.
+4. **arXiv posting and repo publication**, both on the same day, after the email comes back. The
+   double-blind timing risk that justified waiting is gone.
+5. **Decide the next direction, now a choice of four.** The cross-family pair is new and is the one
+   the reviewers asked for. The two-device re-run is the one the professor asked for. Both need the
+   new laptop.
+6. **`CLAUDE.md` stale lines**, still three, listed under 19 September. Unchanged by today.
