@@ -30,11 +30,11 @@ A **5-page workshop paper**, submitted to *On-Device Intelligence: Foundation Mo
 
 | | |
 |---|---|
-| Venue | **NeurIPS 2026 workshop**, Sydney, Australia, 11/12 December 2026 |
+| Venue | **NeurIPS 2026 workshop**. **Saturday 12 December 2026, 08:00 to 17:00 AEDT.** International Convention Centre Sydney, Room MR C3.6. [Corrected 29 Sep 2026 from odi2026.github.io; the row previously said "11/12 December 2026". The site now gives a single day.] |
 | **Deadline** | **5 September 2026, 23:59 AoE** = **04:59 PDT on 6 September** = 19:59 Beijing, 6 Sept |
 | ~~Deadline, original~~ | ~~29 August 2026, 23:59 AoE~~ extended 29 Aug |
 | Review period | 6 to 19 September 2026 |
-| Attendance | **In person expected**, at least one author in Sydney |
+| Attendance | **In person expected**, at least one author in Sydney. Verbatim wording read 29 Sep 2026, quoted in full in `build_log.md` under 29 September. A remote presentation is possible but "cannot be guaranteed". |
 | Length | **5 pages excluding references and appendix.** An appendix is allowed in the same PDF; no separate supplementary file is accepted. [Corrected 4 Sep 2026; the row previously said only "excluding references".] |
 | Template | **NeurIPS 2026 LaTeX template** |
 | Review | **Double-blind** |
@@ -42,6 +42,7 @@ A **5-page workshop paper**, submitted to *On-Device Intelligence: Foundation Mo
 | Preprint / arXiv | **No rule stated anywhere by the workshop.** Checked 19 Sep 2026; see the block below |
 | Submission | OpenReview |
 | Notification | 29 September 2026 |
+| **Decision** | **Accept (Poster).** Received 29 Sep 2026. No oral. |
 | Contact | odi.neurips2026@gmail.com |
 
 Four consequences, in order of how much they change:

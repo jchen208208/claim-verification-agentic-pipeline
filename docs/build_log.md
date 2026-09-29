@@ -110,7 +110,7 @@ Review is **double blind**. That changes how the paper is written and not only h
 
 The venue is **non archival**. A fuller version can go to an archival venue afterwards, so this paper does not have to be the last word on the project. That lowers the cost of Band B not landing in time.
 
-It is a **NeurIPS 2026 workshop** in Sydney on 11 or 12 December, which the plan had recorded only as a workshop in Australia. Organisers are from ETH Zurich, MPI for Intelligent Systems, and MIT. Five pages excluding references, NeurIPS 2026 LaTeX template, submitted through OpenReview, notification 29 September.
+It is a **NeurIPS 2026 workshop** in Sydney on 11 or 12 December [corrected 29 Sep 2026: one day, 12 December], which the plan had recorded only as a workshop in Australia. Organisers are from ETH Zurich, MPI for Intelligent Systems, and MIT. Five pages excluding references, NeurIPS 2026 LaTeX template, submitted through OpenReview, notification 29 September.
 
 Two of the five listed topics fit directly. Topic 05, benchmarks and evaluation for real world deployment, asks for metrics that jointly assess performance and reliability under realistic deployment conditions, which is exactly what the extraction and imputation analysis is. Topic 02 covers the edge and cloud pipeline itself. Both should be named on the submission.
 
@@ -7056,7 +7056,7 @@ that day while this file was not. Full tables in `paper_numbers.md` §2.26 to §
 04:59 Pacific, 6 September 19:59 Beijing. Verified at 14:30 Pacific on two authorities, not one:
 OpenReview's `NeurIPS.cc/2026/Workshop/ODI` page and the workshop site `odi2026.github.io`, which
 shows the old date struck through with the word EXTENDED. Review runs 6 to 19 September,
-notification 29 September, workshop 11/12 December in Sydney. One thing on the site had never been
+notification 29 September, workshop 11/12 December in Sydney [corrected 29 Sep 2026: one day, 12 December]. One thing on the site had never been
 recorded here: **in-person attendance is expected**, at least one author in Sydney.
 
 ### What was built and measured

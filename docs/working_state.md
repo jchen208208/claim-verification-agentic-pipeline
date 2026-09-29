@@ -2,15 +2,17 @@
 
 Fast changing information only. For anything stable, including the architecture, the build order, the schedule, the data schema, and the related work, see the architecture plan. For a dated record of what was built in each session, see `build_log.md`.
 
-Last updated: 19 September 2026.
+Last updated: 29 September 2026.
 
 ---
 
 ## The deadline
 
+**Closed. The paper was submitted 7 September and accepted 29 September as a poster. See the 29 September section at the end of this file.** The rest of this section is kept for the record.
+
 The paper is due **5 September 2026, 23:59 anywhere on earth**. That is 04:59 Pacific on 6 September, and 19:59 Beijing on 6 September.
 
-**Extended 29 August, verified on OpenReview and on the workshop site.** It was 29 August AoE. The old date is struck through on `odi2026.github.io` with the word EXTENDED. Review runs 6 to 19 September, notification 29 September, workshop 11/12 December in Sydney. In-person attendance is expected, at least one author there. See the 29 August section below.
+**Extended 29 August, verified on OpenReview and on the workshop site.** It was 29 August AoE. The old date is struck through on `odi2026.github.io` with the word EXTENDED. Review runs 6 to 19 September, notification 29 September, workshop in Sydney. In-person attendance is expected, at least one author there. See the 29 August section below. [Corrected 29 Sep 2026: this line said "11/12 December". The workshop is one day, **Saturday 12 December 2026**.]
 
 **Corrected 1 August, superseded but kept for the record.** Every document said 30 August, taken from the professor at the 30 July meeting. The workshop site said 29 August. `CLAUDE.md` and section 12 of the architecture plan still carry pre-extension dates in places.
 
@@ -4305,7 +4307,7 @@ phrasing is **"we found no other method evaluated on FINDVER"**, never "nobody h
 
 All three are covered by the one MacBook night budgeted at the end, after the pipeline freezes.
 
-~~Confirm the workshop mechanics.~~ **Done 1 August, from the workshop site rather than the professor.** It is a NeurIPS 2026 workshop in Sydney, 11 or 12 December. Five pages excluding references, NeurIPS 2026 LaTeX template, submitted through OpenReview. Review is **double blind**, so no author names and no identifying repository link in the PDF. The venue is **non archival**, so a fuller version can go elsewhere later and this paper does not have to be the final word. Deadline 29 August AoE. Full table in section 1.1 of the plan.
+~~Confirm the workshop mechanics.~~ **Done 1 August, from the workshop site rather than the professor.** It is a NeurIPS 2026 workshop in Sydney, 11 or 12 December. [Corrected 29 Sep 2026: one day, 12 December.] Five pages excluding references, NeurIPS 2026 LaTeX template, submitted through OpenReview. Review is **double blind**, so no author names and no identifying repository link in the PDF. The venue is **non archival**, so a fuller version can go elsewhere later and this paper does not have to be the final word. Deadline 29 August AoE. Full table in section 1.1 of the plan.
 
 ## Measured performance, for planning purposes
 
@@ -5195,7 +5197,7 @@ Verified 29 August, 14:30 Pacific, on both authorities rather than one:
   the word **EXTENDED**: "Paper submission deadline: ~~August 29, 2026, 23:59 AoE~~ September 5,
   2026, 23:59 AoE".
 
-Review period is 6 to 19 September. Notification 29 September. Workshop 11/12 December, Sydney.
+Review period is 6 to 19 September. Notification 29 September. Workshop 11/12 December, Sydney. [Corrected 29 Sep 2026: one day, 12 December.]
 
 **Everything else on the site is unchanged and was re-read while checking**: 5 pages excluding
 references and appendix, NeurIPS 2026 template, double-blind, non-archival, an appendix is allowed
